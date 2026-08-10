@@ -1,6 +1,6 @@
 """add authentication tokens and user roles
 
-Revision ID: 0002_add_authentication_and_roles
+Revision ID: 0002_auth_roles
 Revises: 0001_create_users
 Create Date: 2026-08-10 00:00:00
 """
@@ -10,7 +10,7 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0002_add_authentication_and_roles"
+revision = "0002_auth_roles"
 down_revision = "0001_create_users"
 branch_labels = None
 depends_on = None
