@@ -1,0 +1,1 @@
+"""GUPMAX AI application package."""
