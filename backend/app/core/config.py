@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     openai_models: Annotated[list[str], NoDecode, BeforeValidator(_parse_origins)] = []
     openai_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     openai_max_retries: int = Field(default=2, ge=0, le=5)
+    payments_environment: str = "test"
+    app_public_url: str = "http://localhost:8000"
+    frontend_url: str = "http://localhost:3000"
+    payments_timeout_seconds: float = Field(default=15.0, gt=0, le=60)
+    stripe_secret_key: SecretStr | None = None
+    stripe_webhook_secret: SecretStr | None = None
+    mercado_pago_access_token: SecretStr | None = None
+    mercado_pago_webhook_secret: SecretStr | None = None
     cors_origins: Annotated[list[str], NoDecode, BeforeValidator(_parse_origins)] = ["http://localhost:3000"]
 
 
