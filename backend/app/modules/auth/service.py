@@ -13,6 +13,7 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import TokenPair
 from app.modules.billing.service import BillingService
+from app.modules.credits.service import CreditService
 from app.modules.users.model import User
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import AdminUserCreate, UserCreate
@@ -37,7 +38,8 @@ class AuthService:
             full_name=data.full_name,
             hashed_password=hash_password(data.password),
         )
-        await BillingService(self.users.session).provision_trial(user.id)
+        subscription = await BillingService(self.users.session).provision_trial(user.id)
+        await CreditService(self.users.session).grant_trial(subscription)
         if isinstance(data, AdminUserCreate):
             return await self.users.update(user, role=data.role, is_active=data.is_active)
         return user

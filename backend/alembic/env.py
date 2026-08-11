@@ -10,6 +10,15 @@ from app.core.config import get_settings
 from app.db.base import Base
 from app.modules.auth.model import PasswordResetToken, RefreshToken  # noqa: F401
 from app.modules.billing.model import Plan, Subscription, UsageRecord  # noqa: F401
+from app.modules.credits.model import (  # noqa: F401
+    CreditCostRule,
+    CreditLot,
+    CreditPackage,
+    CreditReservation,
+    CreditReservationAllocation,
+    CreditTransaction,
+    CreditWallet,
+)
 from app.modules.prompt_engine.model import Prompt  # noqa: F401
 from app.modules.users.model import User  # noqa: F401
 

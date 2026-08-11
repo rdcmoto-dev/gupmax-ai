@@ -19,11 +19,22 @@ class PlanDefault:
     monthly_generation_limit: int
     monthly_input_token_limit: int
     monthly_output_token_limit: int
+    monthly_credit_grant: int
 
 
 INITIAL_PLANS = (
     PlanDefault(
-        "FREE", "Free", "Uso básico sem otimização por IA.", Decimal("0.00"), "BRL", BillingInterval.MONTH, 0, 0, 0, 0
+        "FREE",
+        "Free",
+        "Uso básico sem otimização por IA.",
+        Decimal("0.00"),
+        "BRL",
+        BillingInterval.MONTH,
+        0,
+        0,
+        0,
+        0,
+        0,
     ),
     PlanDefault(
         "STARTER",
@@ -36,6 +47,7 @@ INITIAL_PLANS = (
         100,
         100_000,
         40_000,
+        500,
     ),
     PlanDefault(
         "PRO",
@@ -48,6 +60,7 @@ INITIAL_PLANS = (
         1_000,
         500_000,
         200_000,
+        2_000,
     ),
     PlanDefault(
         "BUSINESS",
@@ -60,5 +73,6 @@ INITIAL_PLANS = (
         5_000,
         3_000_000,
         1_000_000,
+        10_000,
     ),
 )

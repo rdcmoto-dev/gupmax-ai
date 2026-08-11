@@ -29,7 +29,9 @@ class User(Base):
     prompts: Mapped[list[Prompt]] = relationship(back_populates="user", cascade="all, delete-orphan")
     subscription: Mapped[Subscription | None] = relationship(back_populates="user", cascade="all, delete-orphan")
     usage_records: Mapped[list[UsageRecord]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    credit_wallet: Mapped[CreditWallet | None] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 from app.modules.billing.model import Subscription, UsageRecord  # noqa: E402, F401
+from app.modules.credits.model import CreditWallet  # noqa: E402, F401
 from app.modules.prompt_engine.model import Prompt  # noqa: E402, F401

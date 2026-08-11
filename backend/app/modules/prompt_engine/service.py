@@ -1,4 +1,4 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +7,9 @@ from app.modules.ai_gateway.schemas import GenerateTextRequest, TokenUsageRespon
 from app.modules.ai_gateway.service import AIGatewayService
 from app.modules.billing.model import UsageRecord
 from app.modules.billing.service import BillingService
+from app.modules.credits.enums import CreditOperationType
+from app.modules.credits.model import CreditReservation
+from app.modules.credits.service import CreditService
 from app.modules.prompt_engine.builder import PromptBuilder
 from app.modules.prompt_engine.enums import PromptStatus
 from app.modules.prompt_engine.model import Prompt
@@ -22,10 +25,12 @@ class PromptService:
         session: AsyncSession,
         ai_gateway: AIGatewayService | None = None,
         billing: BillingService | None = None,
+        credits: CreditService | None = None,
     ) -> None:
         self.repository = PromptRepository(session)
         self.ai_gateway = ai_gateway
         self.billing = billing
+        self.credits = credits
         self.builder = PromptBuilder()
 
     async def generate(self, user: User, data: PromptGenerateRequest) -> PromptGenerateResponse:
@@ -34,11 +39,27 @@ class PromptService:
         usage = None
         prompt_status = PromptStatus.GENERATED
         reservation: UsageRecord | None = None
+        credit_reservation: CreditReservation | None = None
         if data.optimize_with_ai:
             if self.ai_gateway is None:
                 raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI Gateway unavailable")
             if self.billing is not None:
                 reservation = await self.billing.reserve_ai_generation(user.id, data.provider)
+            if self.credits is not None:
+                try:
+                    credit_reservation = await self.credits.reserve(
+                        user.id,
+                        CreditOperationType.PROMPT_OPTIMIZATION,
+                        data.provider,
+                        data.model,
+                        max(len(generated) // 4, 1),
+                        2_000,
+                        f"prompt:{uuid4()}",
+                    )
+                except Exception:
+                    if reservation is not None:
+                        await self.billing.repository.release_usage(reservation)
+                    raise
             try:
                 optimized = await self.ai_gateway.generate(
                     GenerateTextRequest(
@@ -56,6 +77,8 @@ class PromptService:
             except Exception:
                 if reservation is not None:
                     await self.billing.repository.release_usage(reservation)
+                if credit_reservation is not None:
+                    await self.credits.release(credit_reservation.id)
                 raise
             generated = optimized.text
             provider, model, usage = optimized.provider, optimized.model, optimized.usage
@@ -85,6 +108,14 @@ class PromptService:
                 model=model or data.model or "unknown",
                 input_tokens=usage.input_tokens or 0,
                 output_tokens=usage.output_tokens or 0,
+            )
+        if credit_reservation is not None and usage is not None:
+            await self.credits.settle(
+                credit_reservation.id,
+                data.provider,
+                data.model,
+                usage.input_tokens or 0,
+                usage.output_tokens or 0,
             )
         return response.model_copy(update={"usage": TokenUsageResponse.model_validate(usage) if usage else None})
 

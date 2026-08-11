@@ -25,6 +25,7 @@ class Plan(Base):
     monthly_generation_limit: Mapped[int] = mapped_column(Integer, nullable=False)
     monthly_input_token_limit: Mapped[int] = mapped_column(Integer, nullable=False)
     monthly_output_token_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    monthly_credit_grant: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

@@ -18,6 +18,7 @@ class PlanBase(BaseModel):
     monthly_generation_limit: int = Field(ge=0)
     monthly_input_token_limit: int = Field(ge=0)
     monthly_output_token_limit: int = Field(ge=0)
+    monthly_credit_grant: int = Field(default=0, ge=0, le=2_000_000_000)
     is_active: bool = True
 
 
@@ -35,6 +36,7 @@ class PlanUpdate(BaseModel):
     monthly_generation_limit: int | None = Field(default=None, ge=0)
     monthly_input_token_limit: int | None = Field(default=None, ge=0)
     monthly_output_token_limit: int | None = Field(default=None, ge=0)
+    monthly_credit_grant: int | None = Field(default=None, ge=0, le=2_000_000_000)
     is_active: bool | None = None
 
 
