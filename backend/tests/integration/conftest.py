@@ -10,6 +10,7 @@ from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import app
 from app.modules.auth.model import PasswordResetToken, RefreshToken  # noqa: F401
+from app.modules.billing.model import Plan, Subscription, UsageRecord  # noqa: F401
 from app.modules.prompt_engine.model import Prompt  # noqa: F401
 from app.modules.users.model import User  # noqa: F401
 

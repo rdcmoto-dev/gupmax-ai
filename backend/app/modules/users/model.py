@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -25,6 +27,9 @@ class User(Base):
         nullable=False,
     )
     prompts: Mapped[list[Prompt]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    subscription: Mapped[Subscription | None] = relationship(back_populates="user", cascade="all, delete-orphan")
+    usage_records: Mapped[list[UsageRecord]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
+from app.modules.billing.model import Subscription, UsageRecord  # noqa: E402, F401
 from app.modules.prompt_engine.model import Prompt  # noqa: E402, F401

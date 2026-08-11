@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.modules.ai_gateway.dependencies import AIGateway
+from app.modules.billing.dependencies import Billing
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode
 from app.modules.prompt_engine.repository import PromptRepository
 from app.modules.prompt_engine.schemas import (
@@ -31,9 +32,9 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
     responses={401: {"description": "Não autenticado"}, 503: {"description": "AI Gateway indisponível"}},
 )
 async def generate_prompt(
-    data: PromptGenerateRequest, session: DbSession, current_user: CurrentUser, gateway: AIGateway
+    data: PromptGenerateRequest, session: DbSession, current_user: CurrentUser, gateway: AIGateway, billing: Billing
 ) -> PromptGenerateResponse:
-    return await PromptService(session, gateway).generate(current_user, data)
+    return await PromptService(session, gateway, billing).generate(current_user, data)
 
 
 @router.get("", response_model=PromptPage, summary="Lista o histórico de prompts acessível")

@@ -12,6 +12,7 @@ from app.core.exceptions import DomainError
 from app.core.security import create_access_token, create_refresh_token, decode_token, hash_password, verify_password
 from app.modules.auth.repository import AuthRepository
 from app.modules.auth.schemas import TokenPair
+from app.modules.billing.service import BillingService
 from app.modules.users.model import User
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import AdminUserCreate, UserCreate
@@ -36,6 +37,7 @@ class AuthService:
             full_name=data.full_name,
             hashed_password=hash_password(data.password),
         )
+        await BillingService(self.users.session).provision_trial(user.id)
         if isinstance(data, AdminUserCreate):
             return await self.users.update(user, role=data.role, is_active=data.is_active)
         return user
