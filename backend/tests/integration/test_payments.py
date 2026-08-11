@@ -1,4 +1,8 @@
 import asyncio
+import hashlib
+import hmac
+import json
+import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -10,12 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.main import app
 from app.modules.billing.model import Subscription
-from app.modules.credits.model import CreditPackage, CreditTransaction, CreditWallet
+from app.modules.credits.model import CreditLot, CreditPackage, CreditTransaction, CreditWallet
 from app.modules.payments.contracts import CheckoutInput, CheckoutOutput, ProviderPayment, WebhookNotification
 from app.modules.payments.dependencies import PaymentProviderRegistry, get_payment_provider_registry
-from app.modules.payments.enums import PaymentProviderName, PaymentStatus
+from app.modules.payments.enums import EventProcessingStatus, PaymentProviderName, PaymentStatus
 from app.modules.payments.exceptions import InvalidWebhook, PaymentProviderError
 from app.modules.payments.model import Payment, PaymentEvent
+from app.modules.payments.providers.stripe import StripeProvider
 from app.modules.users.model import User
 from app.modules.users.roles import Role
 
@@ -196,6 +201,54 @@ def test_valid_webhook_grants_purchase_once_and_rejects_forgery(
     assert purchase_count == 1
     assert payment_status == PaymentStatus.PAID
     assert event_count == 1
+
+
+def test_valid_irrelevant_stripe_webhook_is_ignored_without_financial_effects(
+    client: TestClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    secret = "whsec_test"
+    provider = StripeProvider("sk_test_placeholder", secret, production=False, timeout=5)
+    app.dependency_overrides[get_payment_provider_registry] = lambda: PaymentProviderRegistry(
+        {PaymentProviderName.STRIPE: provider}
+    )
+    payload = json.dumps(
+        {"id": "evt_product_created", "type": "product.created", "data": {"object": {"id": "prod_1"}}},
+        separators=(",", ":"),
+    ).encode()
+    timestamp = int(time.time())
+    signature = hmac.new(secret.encode(), f"{timestamp}.".encode() + payload, hashlib.sha256).hexdigest()
+    headers = {"Stripe-Signature": f"t={timestamp},v1={signature}"}
+
+    async def financial_counts() -> tuple[int, int, int, int, int]:
+        async with session_factory() as session:
+            payments = await session.scalar(select(func.count()).select_from(Payment))
+            wallets = await session.scalar(select(func.count()).select_from(CreditWallet))
+            lots = await session.scalar(select(func.count()).select_from(CreditLot))
+            transactions = await session.scalar(select(func.count()).select_from(CreditTransaction))
+            subscriptions = await session.scalar(select(func.count()).select_from(Subscription))
+            return payments, wallets, lots, transactions, subscriptions
+
+    before = asyncio.run(financial_counts())
+    try:
+        first = client.post("/api/v1/payments/webhooks/stripe", headers=headers, content=payload)
+        replay = client.post("/api/v1/payments/webhooks/stripe", headers=headers, content=payload)
+    finally:
+        app.dependency_overrides.pop(get_payment_provider_registry, None)
+
+    assert first.status_code == 204
+    assert replay.status_code == 204
+    assert asyncio.run(financial_counts()) == before
+
+    async def event_state() -> tuple[int, EventProcessingStatus]:
+        async with session_factory() as session:
+            events = await session.scalars(
+                select(PaymentEvent).where(PaymentEvent.provider_event_id == "stripe:evt_product_created")
+            )
+            stored = events.all()
+            return len(stored), stored[0].processing_status
+
+    assert asyncio.run(event_state()) == (1, EventProcessingStatus.IGNORED)
 
 
 @pytest.mark.parametrize("mismatch", ["amount", "currency"])

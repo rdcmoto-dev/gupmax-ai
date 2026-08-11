@@ -33,6 +33,7 @@ class WebhookNotification:
     event_id: str
     event_type: str
     resource_id: str
+    relevant: bool = True
 
 
 @dataclass(frozen=True)

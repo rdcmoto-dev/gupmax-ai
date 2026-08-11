@@ -20,6 +20,15 @@ from app.modules.payments.exceptions import InvalidWebhook, PaymentConfiguration
 class StripeProvider:
     name = PaymentProviderName.STRIPE
     api_base = "https://api.stripe.com/v1"
+    relevant_webhook_events = {
+        "checkout.session.async_payment_failed",
+        "checkout.session.async_payment_succeeded",
+        "checkout.session.completed",
+        "checkout.session.expired",
+        "customer.subscription.created",
+        "customer.subscription.deleted",
+        "customer.subscription.updated",
+    }
 
     def __init__(
         self,
@@ -49,21 +58,21 @@ class StripeProvider:
             raise PaymentProviderError() from exc
 
     async def create_checkout(self, data: CheckoutInput) -> CheckoutOutput:
-        form: list[tuple[str, str]] = [
-            ("mode", "subscription" if data.recurring else "payment"),
-            ("success_url", data.success_url),
-            ("cancel_url", data.cancel_url),
-            ("customer_email", data.customer_email),
-            ("client_reference_id", data.internal_payment_id),
-            ("metadata[internal_payment_id]", data.internal_payment_id),
-            ("line_items[0][quantity]", "1"),
-            ("line_items[0][price_data][currency]", data.currency.lower()),
-            ("line_items[0][price_data][unit_amount]", str(int(data.amount * 100))),
-            ("line_items[0][price_data][product_data][name]", data.title),
-        ]
+        form = {
+            "mode": "subscription" if data.recurring else "payment",
+            "success_url": data.success_url,
+            "cancel_url": data.cancel_url,
+            "customer_email": data.customer_email,
+            "client_reference_id": data.internal_payment_id,
+            "metadata[internal_payment_id]": data.internal_payment_id,
+            "line_items[0][quantity]": "1",
+            "line_items[0][price_data][currency]": data.currency.lower(),
+            "line_items[0][price_data][unit_amount]": str(int(data.amount * 100)),
+            "line_items[0][price_data][product_data][name]": data.title,
+        }
         if data.recurring:
-            form.append(("line_items[0][price_data][recurring][interval]", data.interval or "month"))
-            form.append(("subscription_data[metadata][internal_payment_id]", data.internal_payment_id))
+            form["line_items[0][price_data][recurring][interval]"] = data.interval or "month"
+            form["subscription_data[metadata][internal_payment_id]"] = data.internal_payment_id
         headers = {"Idempotency-Key": data.idempotency_key}
         result = await self._request("POST", "/checkout/sessions", data=form, headers=headers)
         return CheckoutOutput(checkout_id=str(result["id"]), checkout_url=str(result["url"]))
@@ -86,7 +95,13 @@ class StripeProvider:
         try:
             event = json.loads(payload)
             resource = event["data"]["object"]
-            return WebhookNotification(str(event["id"]), str(event["type"]), str(resource["id"]))
+            event_type = str(event["type"])
+            return WebhookNotification(
+                str(event["id"]),
+                event_type,
+                str(resource["id"]),
+                relevant=event_type in self.relevant_webhook_events,
+            )
         except (KeyError, TypeError, ValueError) as exc:
             raise InvalidWebhook() from exc
 

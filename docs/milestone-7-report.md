@@ -154,12 +154,12 @@ A suíte cobre:
 - algoritmos de assinatura Stripe e Mercado Pago;
 - compatibilidade com Auth, Billing, Credits, Prompt Engine e AI Gateway.
 
-Resultado final: **65 testes aprovados**, zero falhas, zero skips e um aviso externo do Starlette TestClient. Todos os providers externos foram fake/mockados nos testes de integração.
+Resultado final: **67 testes aprovados**, zero falhas, zero skips e um aviso externo do Starlette TestClient. Todos os providers externos foram fake/mockados nos testes de integração.
 
 ## Validação operacional
 
 - Ruff: `All checks passed!`.
-- Pytest: 65 aprovados.
+- Pytest: 67 aprovados.
 - Alembic heads/current: somente `0006_payments (head)`.
 - PostgreSQL Docker: healthy; migration real confirmada.
 - Redis Docker: healthy; `PING` retornou `PONG`.
@@ -175,9 +175,45 @@ Resultado final: **65 testes aprovados**, zero falhas, zero skips e um aviso ext
 
 ## Pendências
 
-- Executar smoke manual em contas Stripe Test e Mercado Pago Sandbox quando credenciais próprias estiverem disponíveis.
+- Executar smoke manual em conta Mercado Pago Sandbox quando credenciais próprias estiverem disponíveis.
 - Definir política comercial de upgrade/downgrade e proration.
 - Definir política de clawback/reembolso quando créditos comprados já tiverem sido consumidos.
 - Conectar processamento assíncrono/fila e reconciliação periódica antes de escala produtiva.
 - Revisar versões/documentação dos providers antes do go-live e realizar homologação formal.
 - O aviso de depreciação do Starlette TestClient pertence a dependência externa.
+
+## Stripe Sandbox End-to-End Homologation
+
+Homologação concluída em 11 de agosto de 2026, exclusivamente no ambiente Stripe Test/Sandbox.
+
+- A autenticação da chave Stripe de teste foi validada por chamada segura de leitura: HTTP 200.
+- O webhook local encaminhado pela Stripe CLI recebeu `product.created`: HTTP 204, persistido como `IGNORED` e sem efeito financeiro.
+- Um Checkout hospedado foi criado pelo backend GUPMAX AI com preço e créditos obtidos do PostgreSQL.
+- O pagamento foi realizado exclusivamente com um cartão oficial de teste da Stripe; nenhum dado do cartão foi persistido ou incluído neste relatório.
+- O evento `checkout.session.completed` foi autenticado e processado: HTTP 204.
+- Saldo anterior da wallet: 100 créditos.
+- Créditos comprados: 500.
+- Saldo final da wallet: 600 créditos.
+- O ledger contém exatamente um lançamento `PURCHASE` de 500 créditos.
+- Existe exatamente um `Payment` Stripe correspondente, com status `PAID`, e exatamente um `CreditLot` de origem `PURCHASED` com 500 créditos.
+- Existe exatamente um `PaymentEvent` `checkout.session.completed` processado. Eventos auxiliares irrelevantes ficaram sem efeito financeiro.
+- A idempotência foi validada pela persistência e pela suíte automatizada: não houve Payment, grant, lot ou lançamento `PURCHASE` duplicado. O evento real não foi reenviado para evitar interação externa desnecessária.
+
+Dois bugs foram encontrados e corrigidos durante a homologação:
+
+1. Eventos Stripe válidos, mas irrelevantes ao domínio Payments, eram encaminhados para consulta como Checkout Session e podiam resultar em HTTP 502. Agora são registrados como `IGNORED`, retornam HTTP 204 e não criam efeitos financeiros, sem enfraquecer a verificação de assinatura.
+2. O formulário do `StripeProvider` era fornecido como `list[tuple[str, str]]`, fazendo o `httpx.AsyncClient` interpretar o conteúdo como stream síncrono. O formulário passou a usar `dict[str, str]`, preservando fluxo totalmente assíncrono, form encoding, timeout, `Authorization` e `Idempotency-Key`.
+
+Validação final da homologação:
+
+- Ruff completo: aprovado.
+- Pytest completo: 67 aprovados, zero falhas e zero skips.
+- Payments/Webhooks: 14 aprovados.
+- Alembic heads/current: somente `0006_payments (head)`.
+- `/health`: HTTP 200.
+- `/api/v1/openapi.json`: HTTP 200.
+- `backend/.env` permanece ignorado, não rastreado e não staged.
+- Nenhuma chave Stripe, webhook secret, JWT, dado de cartão ou outra credencial real foi encontrada em arquivos versionáveis ou logs versionados.
+- Nenhuma configuração production/live foi ativada, nenhuma chamada live foi feita e nenhum dinheiro real foi movimentado.
+
+Resultado: **homologação Stripe Sandbox aprovada**.

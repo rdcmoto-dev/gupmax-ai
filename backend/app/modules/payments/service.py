@@ -252,6 +252,12 @@ class PaymentService:
             self.session.add(event)
         event.processing_status = EventProcessingStatus.PROCESSING
         await self.session.commit()
+        if not notification.relevant:
+            event.processing_status = EventProcessingStatus.IGNORED
+            event.processed_at = datetime.now(UTC)
+            event.error_message = None
+            await self.session.commit()
+            return
         try:
             remote = await provider.get_payment(notification.resource_id)
             payment = await self.repository.payment_by_provider_reference(

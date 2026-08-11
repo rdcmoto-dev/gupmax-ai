@@ -1,10 +1,15 @@
+import asyncio
 import hashlib
 import hmac
 import json
 import time
+from decimal import Decimal
+from urllib.parse import parse_qs
 
+import httpx
 import pytest
 
+from app.modules.payments.contracts import CheckoutInput
 from app.modules.payments.enums import PaymentStatus
 from app.modules.payments.exceptions import InvalidWebhook, PaymentConfigurationError
 from app.modules.payments.providers.mercado_pago import MercadoPagoProvider
@@ -24,6 +29,56 @@ def test_stripe_requires_environment_matching_key() -> None:
         StripeProvider("sk_live_placeholder", "whsec_test", production=False, timeout=5)
     with pytest.raises(PaymentConfigurationError):
         StripeProvider("sk_test_placeholder", "whsec_test", production=True, timeout=5)
+
+
+def test_stripe_checkout_uses_async_form_request_and_idempotency_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={"id": "cs_test_1", "url": "https://checkout.stripe.test/c/pay/cs_test_1"},
+        )
+
+    transport = httpx.MockTransport(handler)
+    async_client = httpx.AsyncClient
+
+    class MockAsyncClient(async_client):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, transport=transport, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+    provider = StripeProvider("sk_test_placeholder", "whsec_test", production=False, timeout=5)
+    checkout = asyncio.run(
+        provider.create_checkout(
+            CheckoutInput(
+                internal_payment_id="10000000-0000-0000-0000-000000000001",
+                idempotency_key="checkout-test-001",
+                title="500 créditos",
+                amount=Decimal("19.90"),
+                currency="BRL",
+                customer_email="stripe-test@example.com",
+                success_url="http://localhost:3000/payments/success",
+                cancel_url="http://localhost:3000/payments/cancel",
+                webhook_url="http://localhost:8000/api/v1/payments/webhooks/stripe",
+            )
+        )
+    )
+
+    assert checkout.checkout_id == "cs_test_1"
+    assert len(requests) == 1
+    request = requests[0]
+    assert request.method == "POST"
+    assert request.url == "https://api.stripe.com/v1/checkout/sessions"
+    assert request.headers["idempotency-key"] == "checkout-test-001"
+    assert request.headers["content-type"].startswith("application/x-www-form-urlencoded")
+    form = parse_qs(request.content.decode())
+    assert form["mode"] == ["payment"]
+    assert form["line_items[0][price_data][unit_amount]"] == ["1990"]
+    assert form["line_items[0][price_data][currency]"] == ["brl"]
 
 
 def test_stripe_webhook_uses_raw_payload_hmac_and_timestamp() -> None:
