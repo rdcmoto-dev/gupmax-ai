@@ -15,6 +15,14 @@ class PaymentRepository:
     async def payment(self, payment_id: UUID) -> Payment | None:
         return await self.session.get(Payment, payment_id)
 
+    async def payment_for_update(self, payment_id: UUID) -> Payment | None:
+        return await self.session.scalar(
+            select(Payment)
+            .where(Payment.id == payment_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
     async def payment_by_key(self, key: str) -> Payment | None:
         return await self.session.scalar(select(Payment).where(Payment.idempotency_key == key))
 

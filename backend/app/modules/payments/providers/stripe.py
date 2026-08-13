@@ -136,5 +136,9 @@ class StripeProvider:
             internal_payment_id=str(session.get("client_reference_id") or "") or None,
         )
 
+    async def find_payment_by_external_reference(self, external_reference: str) -> ProviderPayment | None:
+        del external_reference
+        raise PaymentProviderError("Payment reconciliation is not supported for this provider")
+
     async def cancel_subscription(self, subscription_id: str) -> None:
         await self._request("POST", f"/subscriptions/{subscription_id}", data={"cancel_at_period_end": "true"})

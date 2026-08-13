@@ -178,6 +178,39 @@ class PaymentService:
             raise DomainError("Payment not found", status.HTTP_404_NOT_FOUND)
         return payment
 
+    async def reconcile_mercado_pago(self, payment_id: UUID) -> Payment:
+        payment = await self.repository.payment(payment_id)
+        if payment is None:
+            raise DomainError("Payment not found", status.HTTP_404_NOT_FOUND)
+        if payment.provider != PaymentProviderName.MERCADO_PAGO:
+            raise DomainError("Payment provider does not support this reconciliation", status.HTTP_409_CONFLICT)
+        if payment.status == PaymentStatus.PAID:
+            return payment
+        if payment.status not in {PaymentStatus.PENDING, PaymentStatus.PROCESSING}:
+            raise DomainError("Payment is not eligible for reconciliation", status.HTTP_409_CONFLICT)
+
+        provider = self.registry.get(PaymentProviderName.MERCADO_PAGO)
+        remote = await provider.find_payment_by_external_reference(str(payment.id))
+        if remote is None:
+            raise DomainError("Remote payment not found", status.HTTP_404_NOT_FOUND)
+        if remote.internal_payment_id != str(payment.id):
+            raise DomainError("Remote payment does not match local payment", status.HTTP_409_CONFLICT)
+        if remote.checkout_id and remote.checkout_id != payment.provider_checkout_id:
+            raise DomainError("Remote payment does not match local checkout", status.HTTP_409_CONFLICT)
+        if remote.status != PaymentStatus.PAID:
+            raise DomainError("Remote payment is not approved", status.HTTP_409_CONFLICT)
+
+        payment = await self.repository.payment_for_update(payment_id)
+        if payment is None:
+            raise DomainError("Payment not found", status.HTTP_404_NOT_FOUND)
+        if payment.status == PaymentStatus.PAID:
+            return payment
+        if not PaymentStateMachine.can_transition(payment.status, remote.status):
+            raise DomainError("Payment state cannot be reconciled", status.HTTP_409_CONFLICT)
+        await self._apply_paid(payment, remote)
+        await self.session.refresh(payment)
+        return payment
+
     async def _apply_paid(self, payment: Payment, remote: ProviderPayment) -> None:
         amount_mismatch = remote.amount != payment.amount and not (
             payment.purpose == PaymentPurpose.SUBSCRIPTION and remote.amount == 0

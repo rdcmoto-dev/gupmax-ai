@@ -23,7 +23,7 @@ Billing e Credits não importam SDKs ou clientes de pagamento. Somente Payments 
 
 ## Ambientes e configuração
 
-`PAYMENTS_ENVIRONMENT` aceita `test`, `sandbox` ou `production`. Produção nunca é inferida. Stripe rejeita chave live fora de `production` e chave test em `production`. Mercado Pago exige token `TEST-` fora de produção e o rejeita em produção.
+`PAYMENTS_ENVIRONMENT` aceita `test`, `sandbox` ou `production`. Produção nunca é inferida. Stripe rejeita chave live fora de `production` e chave test em `production`. Mercado Pago aceita credenciais opacas em test/sandbox e rejeita credenciais de teste detectáveis quando `production` está ativo, sem depender de um prefixo rígido para autenticar o ambiente de homologação.
 
 As variáveis foram adicionadas apenas a `backend/.env.example`:
 
@@ -154,19 +154,19 @@ A suíte cobre:
 - algoritmos de assinatura Stripe e Mercado Pago;
 - compatibilidade com Auth, Billing, Credits, Prompt Engine e AI Gateway.
 
-Resultado final: **67 testes aprovados**, zero falhas, zero skips e um aviso externo do Starlette TestClient. Todos os providers externos foram fake/mockados nos testes de integração.
+Resultado final: **79 testes aprovados**, zero falhas, zero skips e um aviso externo do Starlette TestClient. Todos os providers externos foram fake/mockados nos testes de integração.
 
 ## Validação operacional
 
 - Ruff: `All checks passed!`.
-- Pytest: 67 aprovados.
+- Pytest: 79 aprovados.
 - Alembic heads/current: somente `0006_payments (head)`.
 - PostgreSQL Docker: healthy; migration real confirmada.
 - Redis Docker: healthy; `PING` retornou `PONG`.
 - Uvicorn: iniciado temporariamente e encerrado após validação.
 - `/health`: HTTP 200.
 - `/api/v1/openapi.json`: HTTP 200.
-- Sete paths Payments publicados no OpenAPI.
+- Oito paths Payments publicados no OpenAPI, incluindo a reconciliação administrativa Mercado Pago.
 - Histórico e checkout sem JWT: HTTP 401.
 - Webhook inválido: HTTP 400 nos testes.
 - Zero cobranças reais e zero chamadas reais à OpenAI.
@@ -175,7 +175,6 @@ Resultado final: **67 testes aprovados**, zero falhas, zero skips e um aviso ext
 
 ## Pendências
 
-- Executar smoke manual em conta Mercado Pago Sandbox quando credenciais próprias estiverem disponíveis.
 - Definir política comercial de upgrade/downgrade e proration.
 - Definir política de clawback/reembolso quando créditos comprados já tiverem sido consumidos.
 - Conectar processamento assíncrono/fila e reconciliação periódica antes de escala produtiva.
@@ -217,3 +216,48 @@ Validação final da homologação:
 - Nenhuma configuração production/live foi ativada, nenhuma chamada live foi feita e nenhum dinheiro real foi movimentado.
 
 Resultado: **homologação Stripe Sandbox aprovada**.
+
+## Mercado Pago Sandbox End-to-End Homologation
+
+Homologação concluída em 13 de agosto de 2026, exclusivamente no ambiente Mercado Pago Sandbox.
+
+- Uma preference Checkout Pro Sandbox foi criada para o pacote `CREDITS_500`, no valor de R$ 19,90 BRL, usando preço, moeda e créditos obtidos do PostgreSQL.
+- O pagamento foi concluído com um Buyer Test User e aprovado no Mercado Pago. Nenhum dado completo de cartão foi recebido ou persistido pelo GUPMAX AI.
+- A `notification_url` configurada apontava para o endpoint público correto do webhook, mas a notificação real não foi entregue ao ngrok nem ao backend durante a homologação.
+- Uma consulta server-side somente leitura confirmou o pagamento remoto como `approved` e a correspondência exata por `external_reference` com o Payment local.
+- Antes da reconciliação, o Payment local permanecia `PENDING` e nenhum crédito da compra havia sido concedido.
+- Foi implementado o endpoint administrativo explícito `POST /api/v1/payments/{payment_id}/reconcile/mercado-pago`. Ele pesquisa o pagamento remotamente por leitura, exige provider Mercado Pago, valida ownership pela referência interna, estado aprovado, valor e moeda e reutiliza a mesma rotina de confirmação do webhook.
+- Após uma reconciliação, o Payment local passou para `PAID`; a wallet passou de 600 para 1.100 créditos; foram adicionados exatamente 500 créditos; o ledger recebeu exatamente um lançamento `PURCHASE`; e foi criado exatamente um `CreditLot` de origem `PURCHASED`.
+- Uma segunda chamada de reconciliação validou o replay: o Payment permaneceu `PAID`, a wallet permaneceu em 1.100, o ledger permaneceu com um `PURCHASE`, o lote permaneceu único e nenhum crédito adicional foi concedido.
+
+Correções validadas durante a homologação:
+
+1. A validação do Mercado Pago deixou de depender de prefixo rígido para credenciais de test/sandbox, preservando o bloqueio de credencial de teste detectável em production.
+2. O payload da preference passou a usar valor numérico compatível e os campos oficiais esperados pelo Checkout Pro.
+3. Eventos válidos, mas irrelevantes, são persistidos como `IGNORED` e não produzem efeito financeiro.
+4. A assinatura do webhook usa o manifesto oficial, comparação constante e tolerância temporal de cinco minutos.
+5. A simulação oficial com `data.id=123456` é reconhecida e ignorada sem consulta ou efeito financeiro.
+6. Pagamentos aprovados cujo webhook não chega podem ser reconciliados de forma administrativa, server-side, somente por leitura remota e com efeitos locais idempotentes.
+
+Segurança e idempotência:
+
+- O endpoint de reconciliação exige a permissão administrativa `payments:manage`.
+- Somente pagamentos Mercado Pago locais em estado reconciliável são aceitos; provider divergente, referência incompatível, estado remoto não aprovado e divergência de valor/moeda são rejeitados.
+- O Payment é bloqueado para atualização durante a transição. Payment já pago retorna como no-op.
+- O grant reutiliza a chave única `purchase:{provider}:{provider_payment_id}`, impedindo duplicação de ledger e lote em replay.
+- Nenhuma cobrança real, chamada live, captura, cancelamento ou refund foi realizada.
+- `PAYMENTS_ENVIRONMENT=test`, enquanto a aplicação permanece em `development`; production/live não foi ativado.
+- `backend/.env` permanece ignorado, não rastreado e não staged.
+- A varredura encontrou somente credenciais deliberadamente fictícias em testes. Nenhum JWT, Access Token, webhook secret, senha, `APP_USR`, chave real Stripe/Mercado Pago ou dado completo de cartão está versionado.
+
+Validação final da homologação:
+
+- Ruff completo: `All checks passed!`.
+- Pytest completo: 79 aprovados, zero falhas e zero skips.
+- Payments/Webhooks: 26 aprovados, zero falhas e zero skips.
+- Alembic heads/current: `0006_payments (head)` em ambos.
+- `/health`: HTTP 200, `{"status":"ok"}`.
+- `/api/v1/openapi.json`: HTTP 200, OpenAPI 3.1.0, com o endpoint de reconciliação publicado.
+- Idempotência real: duas chamadas de reconciliação resultaram em um único grant de 500 créditos, um único `PURCHASE` e um único `CreditLot PURCHASED`.
+
+Resultado: **homologação Mercado Pago Sandbox aprovada**.

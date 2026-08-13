@@ -15,12 +15,13 @@ from app.modules.payments.schemas import (
     SubscriptionCheckoutRequest,
 )
 from app.modules.payments.service import PaymentService
-from app.modules.users.dependencies import DbSession, get_current_user
+from app.modules.users.dependencies import DbSession, get_current_user, require_permission
 from app.modules.users.model import User
-from app.modules.users.roles import Role
+from app.modules.users.roles import Permission, Role
 
 router = APIRouter()
 CurrentUser = Annotated[User, Depends(get_current_user)]
+PaymentsAdmin = Annotated[User, Depends(require_permission(Permission.PAYMENTS_MANAGE))]
 IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=200)]
 
 
@@ -68,6 +69,20 @@ async def subscription_checkout(
         checkout_url=payment.checkout_url,
         status=payment.status,
     )
+
+
+@router.post(
+    "/{payment_id}/reconcile/mercado-pago",
+    response_model=PaymentRead,
+    summary="Reconcilia pagamento Mercado Pago aprovado",
+)
+async def reconcile_mercado_pago(
+    payment_id: UUID,
+    session: DbSession,
+    registry: ProviderRegistry,
+    _: PaymentsAdmin,
+) -> PaymentRead:
+    return await PaymentService(session, registry).reconcile_mercado_pago(payment_id)
 
 
 @router.post("/subscriptions/cancel", response_model=CancelSubscriptionResponse, summary="Agenda cancelamento")

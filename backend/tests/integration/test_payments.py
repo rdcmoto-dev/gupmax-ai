@@ -20,6 +20,7 @@ from app.modules.payments.dependencies import PaymentProviderRegistry, get_payme
 from app.modules.payments.enums import EventProcessingStatus, PaymentProviderName, PaymentStatus
 from app.modules.payments.exceptions import InvalidWebhook, PaymentProviderError
 from app.modules.payments.model import Payment, PaymentEvent
+from app.modules.payments.providers.mercado_pago import MercadoPagoProvider
 from app.modules.payments.providers.stripe import StripeProvider
 from app.modules.users.model import User
 from app.modules.users.roles import Role
@@ -30,6 +31,7 @@ class FakeProvider:
         self.name = name
         self.checkouts: list[CheckoutInput] = []
         self.remotes: dict[str, ProviderPayment] = {}
+        self.reconciliations: list[str] = []
         self.canceled: list[str] = []
         self.fail_checkout = False
 
@@ -53,6 +55,10 @@ class FakeProvider:
 
     async def get_payment(self, resource_id: str) -> ProviderPayment:
         return self.remotes[resource_id]
+
+    async def find_payment_by_external_reference(self, external_reference: str) -> ProviderPayment | None:
+        self.reconciliations.append(external_reference)
+        return self.remotes.get(external_reference)
 
     async def cancel_subscription(self, subscription_id: str) -> None:
         self.canceled.append(subscription_id)
@@ -106,6 +112,27 @@ def webhook(client: TestClient, provider: str, payload: str, valid: bool = True)
         headers={"x-fake-signature": "valid" if valid else "forged"},
         content=payload,
     )
+
+
+def make_admin(
+    client: TestClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    email: str,
+) -> dict[str, str]:
+    headers = auth(client, email)
+
+    async def promote() -> None:
+        async with session_factory() as session:
+            user = await session.scalar(select(User).where(User.email == email))
+            user.role = Role.ADMIN
+            await session.commit()
+
+    asyncio.run(promote())
+    return headers
+
+
+def reconcile(client: TestClient, headers: dict[str, str], payment_id: str):
+    return client.post(f"/api/v1/payments/{payment_id}/reconcile/mercado-pago", headers=headers)
 
 
 @pytest.mark.parametrize("provider_index", [0, 1])
@@ -203,6 +230,147 @@ def test_valid_webhook_grants_purchase_once_and_rejects_forgery(
     assert event_count == 1
 
 
+def test_mercado_pago_reconciliation_grants_purchase_once_and_replay_is_safe(
+    client: TestClient,
+    providers: tuple[FakeProvider, FakeProvider],
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    mercado_pago = providers[1]
+    owner = auth(client, "reconcile-owner@example.com")
+    admin = make_admin(client, session_factory, "reconcile-admin@example.com")
+    checkout = checkout_credit(
+        client,
+        owner,
+        package_id(client, owner),
+        provider="mercado_pago",
+        key="reconcile-approved-001",
+    )
+    payment_id = checkout.json()["payment_id"]
+    mercado_pago.remotes[payment_id] = ProviderPayment(
+        payment_id="mp-approved-1",
+        checkout_id="checkout-1",
+        status=PaymentStatus.PAID,
+        amount=mercado_pago.checkouts[0].amount,
+        currency=mercado_pago.checkouts[0].currency,
+        internal_payment_id=payment_id,
+    )
+
+    assert reconcile(client, owner, payment_id).status_code == 403
+    first = reconcile(client, admin, payment_id)
+    replay = reconcile(client, admin, payment_id)
+    assert first.status_code == 200, first.text
+    assert replay.status_code == 200, replay.text
+    assert first.json()["status"] == "paid"
+    assert mercado_pago.reconciliations == [payment_id]
+
+    async def state() -> tuple[int, int, int, PaymentStatus]:
+        async with session_factory() as session:
+            payment = await session.get(Payment, UUID(payment_id))
+            transactions = await session.scalar(
+                select(func.count())
+                .select_from(CreditTransaction)
+                .where(CreditTransaction.idempotency_key == "purchase:mercado_pago:mp-approved-1")
+            )
+            lots = await session.scalar(
+                select(func.count())
+                .select_from(CreditLot)
+                .join(CreditWallet, CreditWallet.id == CreditLot.wallet_id)
+                .where(CreditWallet.user_id == payment.user_id, CreditLot.source == "purchased")
+            )
+            wallet = await session.scalar(select(CreditWallet).where(CreditWallet.user_id == payment.user_id))
+            return transactions, lots, wallet.available_balance, payment.status
+
+    transactions, lots, balance, local_status = asyncio.run(state())
+    assert (transactions, lots, balance, local_status) == (1, 1, 600, PaymentStatus.PAID)
+
+
+@pytest.mark.parametrize("remote_status", [PaymentStatus.PENDING, PaymentStatus.FAILED])
+def test_mercado_pago_reconciliation_does_not_credit_unapproved_payment(
+    client: TestClient,
+    providers: tuple[FakeProvider, FakeProvider],
+    session_factory: async_sessionmaker[AsyncSession],
+    remote_status: PaymentStatus,
+) -> None:
+    mercado_pago = providers[1]
+    suffix = remote_status.value
+    owner = auth(client, f"reconcile-{suffix}@example.com")
+    admin = make_admin(client, session_factory, f"reconcile-{suffix}-admin@example.com")
+    checkout = checkout_credit(
+        client,
+        owner,
+        package_id(client, owner),
+        provider="mercado_pago",
+        key=f"reconcile-{suffix}-001",
+    )
+    payment_id = checkout.json()["payment_id"]
+    mercado_pago.remotes[payment_id] = ProviderPayment(
+        payment_id=f"mp-{suffix}",
+        checkout_id="checkout-1",
+        status=remote_status,
+        amount=mercado_pago.checkouts[0].amount,
+        currency=mercado_pago.checkouts[0].currency,
+        internal_payment_id=payment_id,
+    )
+
+    assert reconcile(client, admin, payment_id).status_code == 409
+
+    async def state() -> tuple[PaymentStatus, int]:
+        async with session_factory() as session:
+            payment = await session.get(Payment, UUID(payment_id))
+            grants = await session.scalar(
+                select(func.count())
+                .select_from(CreditTransaction)
+                .where(CreditTransaction.reference_id == payment_id)
+            )
+            return payment.status, grants
+
+    assert asyncio.run(state()) == (PaymentStatus.PENDING, 0)
+
+
+@pytest.mark.parametrize("mismatch", ["amount", "currency", "reference"])
+def test_mercado_pago_reconciliation_rejects_remote_mismatch(
+    client: TestClient,
+    providers: tuple[FakeProvider, FakeProvider],
+    session_factory: async_sessionmaker[AsyncSession],
+    mismatch: str,
+) -> None:
+    mercado_pago = providers[1]
+    owner = auth(client, f"reconcile-mismatch-{mismatch}@example.com")
+    admin = make_admin(client, session_factory, f"reconcile-mismatch-{mismatch}-admin@example.com")
+    checkout = checkout_credit(
+        client,
+        owner,
+        package_id(client, owner),
+        provider="mercado_pago",
+        key=f"reconcile-mismatch-{mismatch}",
+    )
+    payment_id = checkout.json()["payment_id"]
+    mercado_pago.remotes[payment_id] = ProviderPayment(
+        payment_id=f"mp-mismatch-{mismatch}",
+        checkout_id="checkout-1",
+        status=PaymentStatus.PAID,
+        amount=mercado_pago.checkouts[0].amount + (Decimal("1.00") if mismatch == "amount" else Decimal("0")),
+        currency="USD" if mismatch == "currency" else mercado_pago.checkouts[0].currency,
+        internal_payment_id="10000000-0000-0000-0000-000000000099" if mismatch == "reference" else payment_id,
+    )
+
+    assert reconcile(client, admin, payment_id).status_code == 409
+
+    async def state() -> tuple[PaymentStatus, int]:
+        async with session_factory() as session:
+            payment = await session.get(Payment, UUID(payment_id))
+            grants = await session.scalar(
+                select(func.count())
+                .select_from(CreditTransaction)
+                .where(CreditTransaction.reference_id == payment_id)
+            )
+            return payment.status, grants
+
+    local_status, grants = asyncio.run(state())
+    expected = PaymentStatus.PENDING if mismatch == "reference" else PaymentStatus.FAILED
+    assert (local_status, grants) == (expected, 0)
+
+
 def test_valid_irrelevant_stripe_webhook_is_ignored_without_financial_effects(
     client: TestClient,
     session_factory: async_sessionmaker[AsyncSession],
@@ -244,6 +412,68 @@ def test_valid_irrelevant_stripe_webhook_is_ignored_without_financial_effects(
         async with session_factory() as session:
             events = await session.scalars(
                 select(PaymentEvent).where(PaymentEvent.provider_event_id == "stripe:evt_product_created")
+            )
+            stored = events.all()
+            return len(stored), stored[0].processing_status
+
+    assert asyncio.run(event_state()) == (1, EventProcessingStatus.IGNORED)
+
+
+def test_official_mercado_pago_simulation_is_ignored_without_financial_effects(
+    client: TestClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    secret = "mp_secret"
+    provider = MercadoPagoProvider("opaque-test-credential", secret, production=False, timeout=5)
+    app.dependency_overrides[get_payment_provider_registry] = lambda: PaymentProviderRegistry(
+        {PaymentProviderName.MERCADO_PAGO: provider}
+    )
+    payload = json.dumps(
+        {
+            "action": "payment.updated",
+            "api_version": "v1",
+            "data": {"id": "123456"},
+            "date_created": "2021-11-01T02:02:02Z",
+            "id": 123456,
+            "live_mode": False,
+            "type": "payment",
+            "user_id": 123456,
+        },
+        separators=(",", ":"),
+    ).encode()
+    timestamp = str(int(time.time()))
+    manifest = f"id:123456;request-id:req-simulation;ts:{timestamp};"
+    signature = hmac.new(secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
+    headers = {
+        "x-signature": f"ts={timestamp},v1={signature}",
+        "x-request-id": "req-simulation",
+    }
+    url = "/api/v1/payments/webhooks/mercado-pago?data.id=123456&type=payment"
+
+    async def financial_counts() -> tuple[int, int, int, int, int]:
+        async with session_factory() as session:
+            payments = await session.scalar(select(func.count()).select_from(Payment))
+            wallets = await session.scalar(select(func.count()).select_from(CreditWallet))
+            lots = await session.scalar(select(func.count()).select_from(CreditLot))
+            transactions = await session.scalar(select(func.count()).select_from(CreditTransaction))
+            subscriptions = await session.scalar(select(func.count()).select_from(Subscription))
+            return payments, wallets, lots, transactions, subscriptions
+
+    before = asyncio.run(financial_counts())
+    try:
+        first = client.post(url, headers=headers, content=payload)
+        replay = client.post(url, headers=headers, content=payload)
+    finally:
+        app.dependency_overrides.pop(get_payment_provider_registry, None)
+
+    assert first.status_code == 204
+    assert replay.status_code == 204
+    assert asyncio.run(financial_counts()) == before
+
+    async def event_state() -> tuple[int, EventProcessingStatus]:
+        async with session_factory() as session:
+            events = await session.scalars(
+                select(PaymentEvent).where(PaymentEvent.provider_event_id == "mercado_pago:123456")
             )
             stored = events.all()
             return len(stored), stored[0].processing_status

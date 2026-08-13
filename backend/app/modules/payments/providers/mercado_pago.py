@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import time
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -26,8 +27,6 @@ class MercadoPagoProvider:
         if not access_token or not webhook_secret:
             raise PaymentConfigurationError()
         if production and access_token.startswith("TEST-"):
-            raise PaymentConfigurationError()
-        if not production and not access_token.startswith("TEST-"):
             raise PaymentConfigurationError()
         self.access_token = access_token
         self.webhook_secret = webhook_secret
@@ -66,7 +65,7 @@ class MercadoPagoProvider:
                     {
                         "title": data.title,
                         "quantity": 1,
-                        "unit_price": str(data.amount),
+                        "unit_price": float(data.amount),
                         "currency_id": data.currency,
                     }
                 ],
@@ -86,20 +85,55 @@ class MercadoPagoProvider:
         data_id = query.get("data.id") or query.get("id")
         try:
             timestamp, supplied = parts["ts"], parts["v1"]
+            timestamp_seconds = int(timestamp)
             body = json.loads(payload or b"{}")
             data_id = data_id or str(body.get("data", {}).get("id") or body.get("id"))
             event_id = str(body.get("id") or f"{body.get('type')}:{data_id}:{timestamp}")
             event_type = str(body.get("action") or body.get("type"))
         except (KeyError, TypeError, ValueError) as exc:
             raise InvalidWebhook() from exc
+        if abs(time.time() - timestamp_seconds) > 300:
+            raise InvalidWebhook()
         manifest = f"id:{data_id};request-id:{request_id};ts:{timestamp};"
         expected = hmac.new(self.webhook_secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
         if not data_id or not request_id or not hmac.compare_digest(expected, supplied):
             raise InvalidWebhook()
-        return WebhookNotification(event_id, event_type, data_id)
+        is_official_simulation = (
+            body.get("live_mode") is False
+            and str(body.get("id")) == "123456"
+            and data_id == "123456"
+            and body.get("type") == "payment"
+        )
+        return WebhookNotification(
+            event_id,
+            event_type,
+            data_id,
+            relevant=not is_official_simulation
+            and (event_type == "payment" or event_type.startswith("payment.")),
+        )
 
     async def get_payment(self, resource_id: str) -> ProviderPayment:
         result = await self._request("GET", f"/v1/payments/{resource_id}")
+        return self._payment_from_result(result, include_order_checkout=True)
+
+    async def find_payment_by_external_reference(self, external_reference: str) -> ProviderPayment | None:
+        result = await self._request(
+            "GET",
+            "/v1/payments/search",
+            params={"external_reference": external_reference, "sort": "date_created", "criteria": "desc"},
+        )
+        matches = [
+            item
+            for item in result.get("results", [])
+            if isinstance(item, dict) and str(item.get("external_reference") or "") == external_reference
+        ]
+        if not matches:
+            return None
+        approved = next((item for item in matches if item.get("status") == "approved"), None)
+        return self._payment_from_result(approved or matches[0], include_order_checkout=False)
+
+    @staticmethod
+    def _payment_from_result(result: dict[str, object], *, include_order_checkout: bool) -> ProviderPayment:
         statuses = {
             "approved": PaymentStatus.PAID,
             "in_process": PaymentStatus.PROCESSING,
@@ -110,7 +144,9 @@ class MercadoPagoProvider:
         }
         return ProviderPayment(
             payment_id=str(result["id"]),
-            checkout_id=str(result.get("order", {}).get("id")) if result.get("order") else None,
+            checkout_id=(
+                str(result.get("order", {}).get("id")) if include_order_checkout and result.get("order") else None
+            ),
             status=statuses.get(str(result.get("status")), PaymentStatus.PROCESSING),
             amount=Decimal(str(result.get("transaction_amount", 0))),
             currency=str(result.get("currency_id", "")),

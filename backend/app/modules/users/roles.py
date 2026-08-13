@@ -11,12 +11,19 @@ class Permission(StrEnum):
     USERS_MANAGE = "users:manage"
     BILLING_MANAGE = "billing:manage"
     CREDITS_MANAGE = "credits:manage"
+    PAYMENTS_MANAGE = "payments:manage"
 
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     Role.USER: frozenset(),
     Role.ADMIN: frozenset(
-        {Permission.USERS_READ, Permission.USERS_MANAGE, Permission.BILLING_MANAGE, Permission.CREDITS_MANAGE}
+        {
+            Permission.USERS_READ,
+            Permission.USERS_MANAGE,
+            Permission.BILLING_MANAGE,
+            Permission.CREDITS_MANAGE,
+            Permission.PAYMENTS_MANAGE,
+        }
     ),
 }
 
