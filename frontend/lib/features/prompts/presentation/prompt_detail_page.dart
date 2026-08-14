@@ -170,13 +170,26 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                             icon: const Icon(Icons.delete_outline)),
                       ]),
                       const SizedBox(height: 8),
-                      Wrap(spacing: 8, children: [
-                        Chip(label: Text(prompt.mode.name.toUpperCase())),
+                      Wrap(spacing: 8, runSpacing: 8, children: [
+                        Chip(
+                            key: const Key('result_mode'),
+                            avatar: const Icon(Icons.tune, size: 18),
+                            label: Text(_modeLabel(prompt.mode))),
                         Chip(label: Text(prompt.category.label)),
                         Chip(
+                            key: const Key('result_ai_status'),
+                            avatar: Icon(
+                                prompt.status == 'optimized'
+                                    ? Icons.psychology
+                                    : Icons.offline_bolt_outlined,
+                                size: 18),
                             label: Text(prompt.status == 'optimized'
-                                ? 'Otimizado com IA'
-                                : 'Gerado')),
+                                ? 'IA utilizada'
+                                : 'IA não utilizada')),
+                        if (prompt.provider != null)
+                          Chip(label: Text('Provider: ${prompt.provider}')),
+                        if (prompt.model != null)
+                          Chip(label: Text('Modelo: ${prompt.model}')),
                         if (prompt.totalTokens != null)
                           Chip(label: Text('${prompt.totalTokens} tokens')),
                       ]),
@@ -189,8 +202,18 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                       Card(
                           child: Padding(
                               padding: const EdgeInsets.all(24),
-                              child: SelectableText(prompt.generatedPrompt,
-                                  key: const Key('generated_prompt')))),
+                              child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text('Seu prompt final',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge),
+                                    const SizedBox(height: 16),
+                                    SelectableText(prompt.generatedPrompt,
+                                        key: const Key('generated_prompt')),
+                                  ]))),
                       const SizedBox(height: 16),
                       Wrap(spacing: 12, runSpacing: 12, children: [
                         FilledButton.icon(
@@ -217,4 +240,10 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                     ]),
     );
   }
+
+  static String _modeLabel(PromptMode mode) => switch (mode) {
+        PromptMode.basic => 'GUPMAX Rápido',
+        PromptMode.pro => 'GUPMAX Pro',
+        PromptMode.expert => 'GUPMAX Expert',
+      };
 }

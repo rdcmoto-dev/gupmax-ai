@@ -31,7 +31,15 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   PromptMode _mode = PromptMode.basic;
   PromptCategory _category = PromptCategory.general;
   bool _optimize = false;
-  bool _advanced = false;
+
+  static const _examples = [
+    'Criar anúncio para um produto',
+    'Criar um site',
+    'Criar um vídeo',
+    'Criar uma imagem',
+    'Melhorar um texto',
+    'Criar código',
+  ];
 
   String? _optional(TextEditingController controller) {
     final value = controller.text.trim();
@@ -109,140 +117,388 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
     final state = ref.watch(promptControllerProvider);
     return PromptScaffold(
       title: 'Criar prompt',
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Transforme sua ideia em um prompt profissional',
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 8),
-                const Text(
-                    'A geração padrão é determinística. A otimização com IA pode consumir créditos conforme o backend.'),
-                const SizedBox(height: 24),
-                TextFormField(
-                  key: const Key('prompt_input'),
-                  controller: _input,
-                  minLines: 4,
-                  maxLines: 8,
-                  decoration: const InputDecoration(
-                      labelText: 'O que você precisa?',
-                      alignLabelWithHint: true),
-                  validator: (value) => _validateRequired(value, 3, 10000),
-                ),
-                const SizedBox(height: 16),
-                Wrap(spacing: 16, runSpacing: 16, children: [
-                  SizedBox(
-                      width: 280,
-                      child: DropdownButtonFormField<PromptCategory>(
-                        initialValue: _category,
-                        decoration:
-                            const InputDecoration(labelText: 'Categoria'),
-                        items: PromptCategory.values
-                            .map((item) => DropdownMenuItem(
-                                value: item, child: Text(item.label)))
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _category = value!),
-                      )),
-                  SizedBox(
-                      width: 280,
-                      child: DropdownButtonFormField<PromptMode>(
-                        key: const Key('prompt_mode'),
-                        initialValue: _mode,
-                        decoration: const InputDecoration(labelText: 'Modo'),
-                        items: PromptMode.values
-                            .map((item) => DropdownMenuItem(
-                                value: item,
-                                child: Text(item.name.toUpperCase())))
-                            .toList(),
-                        onChanged: (value) => setState(() => _mode = value!),
-                      )),
-                ]),
-                SwitchListTile(
-                  key: const Key('optimize_with_ai'),
-                  value: _optimize,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Otimizar com IA'),
-                  subtitle: const Text(
-                      'Opcional; custo e disponibilidade são determinados pelo servidor.'),
-                  onChanged: (value) => setState(() => _optimize = value),
-                ),
-                ExpansionTile(
-                  title: const Text('Configurações avançadas'),
-                  initiallyExpanded: _advanced,
-                  onExpansionChanged: (value) => _advanced = value,
-                  children: [
-                    _field(_title, 'Título',
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _HeroCard(input: _input, validate: _validateRequired),
+            const SizedBox(height: 20),
+            _SectionCard(
+              number: '1',
+              title: 'Escolha como o GUPMAX vai construir',
+              subtitle:
+                  'O valor enviado ao servidor continua sendo basic, pro ou expert.',
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final cards = PromptMode.values
+                      .map((mode) => _ModeCard(
+                            key: Key('mode_${mode.name}'),
+                            mode: mode,
+                            selected: _mode == mode,
+                            onTap: () => setState(() => _mode = mode),
+                          ))
+                      .toList();
+                  if (constraints.maxWidth < 680) {
+                    return Column(children: cards);
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children:
+                        cards.map((card) => Expanded(child: card)).toList(),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            _SectionCard(
+              number: '2',
+              title: 'Qual é o tipo da sua criação?',
+              subtitle:
+                  'Escolha uma das categorias aceitas pelo Prompt Engine.',
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: PromptCategory.values
+                    .map((category) => ChoiceChip(
+                          key: Key('category_${category.value}'),
+                          avatar: Icon(_categoryIcon(category), size: 18),
+                          label: Text(category.label),
+                          selected: _category == category,
+                          onSelected: (_) =>
+                              setState(() => _category = category),
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: ExpansionTile(
+                key: const Key('complementary_information'),
+                leading: const CircleAvatar(child: Text('3')),
+                title: const Text('Conte mais para o GUPMAX'),
+                subtitle: const Text(
+                    'Opcional: contexto, público, tom, formato e outras orientações.'),
+                childrenPadding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _responsiveFields([
+                    _field(_title, 'Título do projeto',
+                        key: const Key('prompt_title'),
+                        hint: 'Ex.: Campanha de primavera',
                         validator: (v) => _validateOptional(v, 3, 160)),
-                    _field(_language, 'Idioma', validator: (v) {
+                    _field(_language, 'Idioma',
+                        key: const Key('prompt_language'), validator: (v) {
                       final value = v?.trim() ?? '';
                       return RegExp(r'^[A-Za-z]{2,3}(?:-[A-Za-z]{2,4})?$')
                               .hasMatch(value)
                           ? null
                           : 'Informe um idioma válido, como pt-BR.';
                     }),
-                    _field(_tone, 'Tom',
+                    _field(_tone, 'Tom de voz',
+                        key: const Key('prompt_tone'),
+                        hint: 'Ex.: persuasivo, didático',
                         validator: (v) => _validateOptional(v, 2, 80)),
-                    _field(_context, 'Contexto', max: 4000),
-                    _field(_audience, 'Público', max: 1000),
-                    _field(_role, 'Papel', max: 500),
-                    _field(_instructions, 'Instruções (uma por linha)',
-                        max: 15000, lines: 3),
-                    _field(_constraints, 'Restrições (uma por linha)',
-                        max: 15000, lines: 3),
-                    _field(_outputFormat, 'Formato de saída', max: 1000),
-                    _field(_additionalInformation, 'Informações adicionais',
-                        max: 2000),
-                    if (_optimize) ...[
-                      _field(_provider, 'Provider',
-                          validator: (v) => _validateRequired(v, 1, 50)),
-                      _field(_model, 'Modelo (opcional)',
-                          validator: (v) => _validateOptional(v, 1, 200)),
-                    ],
-                  ],
-                ),
-                if (state.error != null) ...[
-                  const SizedBox(height: 16),
-                  Text(state.error!,
-                      key: const Key('prompt_error'),
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.error)),
+                    _field(_audience, 'Público',
+                        key: const Key('prompt_audience'),
+                        hint: 'Para quem é esta criação?',
+                        max: 1000),
+                  ]),
+                  _field(_context, 'Contexto',
+                      key: const Key('prompt_context'),
+                      hint: 'Cenário, produto ou situação relevante',
+                      max: 4000,
+                      lines: 3),
+                  _field(_role, 'Especialista desejado',
+                      key: const Key('prompt_role'),
+                      hint: 'Ex.: estrategista de marketing',
+                      max: 500),
+                  _field(_instructions, 'Orientações (uma por linha)',
+                      key: const Key('prompt_instructions'),
+                      max: 15000,
+                      lines: 3),
+                  _field(_constraints, 'Restrições (uma por linha)',
+                      key: const Key('prompt_constraints'),
+                      max: 15000,
+                      lines: 3),
+                  _field(_outputFormat, 'Formato da resposta',
+                      key: const Key('prompt_output_format'),
+                      hint: 'Ex.: título e texto de até 100 palavras',
+                      max: 1000),
+                  _field(_additionalInformation, 'Outras informações',
+                      key: const Key('prompt_additional_information'),
+                      max: 2000,
+                      lines: 2),
                 ],
-                const SizedBox(height: 20),
-                FilledButton.icon(
-                  key: const Key('prompt_submit'),
-                  onPressed: state.isSubmitting ? null : _submit,
-                  icon: state.isSubmitting
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.auto_awesome),
-                  label:
-                      Text(state.isSubmitting ? 'Gerando...' : 'Gerar prompt'),
-                ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(height: 20),
+            Card(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              child: SwitchListTile(
+                key: const Key('optimize_with_ai'),
+                value: _optimize,
+                secondary: const Icon(Icons.psychology_outlined),
+                title: const Text('Otimizar com IA (opcional)'),
+                subtitle: const Text(
+                    'O servidor decide disponibilidade e consumo de créditos. O GUPMAX nunca chama IA diretamente do navegador.'),
+                onChanged: (value) => setState(() => _optimize = value),
+              ),
+            ),
+            if (_optimize) ...[
+              const SizedBox(height: 12),
+              _responsiveFields([
+                _field(_provider, 'Provider',
+                    key: const Key('prompt_provider'),
+                    validator: (v) => _validateRequired(v, 1, 50)),
+                _field(_model, 'Modelo (opcional)',
+                    key: const Key('prompt_model'),
+                    validator: (v) => _validateOptional(v, 1, 200)),
+              ]),
+            ],
+            if (state.error != null) ...[
+              const SizedBox(height: 16),
+              Text(state.error!,
+                  key: const Key('prompt_error'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ],
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              key: const Key('prompt_submit'),
+              onPressed: state.isSubmitting ? null : _submit,
+              icon: state.isSubmitting
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.auto_awesome),
+              label: Text(state.isSubmitting
+                  ? 'Construindo seu prompt...'
+                  : 'Construir meu prompt'),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  Widget _responsiveFields(List<Widget> fields) => LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 680) return Column(children: fields);
+          return Wrap(
+            spacing: 12,
+            children: fields
+                .map((field) => SizedBox(
+                    width: (constraints.maxWidth - 12) / 2, child: field))
+                .toList(),
+          );
+        },
+      );
+
   Widget _field(TextEditingController controller, String label,
-      {int? max, int lines = 1, String? Function(String?)? validator}) {
+      {Key? key,
+      String? hint,
+      int? max,
+      int lines = 1,
+      String? Function(String?)? validator}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
+        key: key,
         controller: controller,
         maxLines: lines,
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(labelText: label, hintText: hint),
         maxLength: max,
         validator: validator,
       ),
     );
   }
+
+  static IconData _categoryIcon(PromptCategory category) => switch (category) {
+        PromptCategory.marketing => Icons.campaign_outlined,
+        PromptCategory.sales => Icons.sell_outlined,
+        PromptCategory.socialMedia => Icons.share_outlined,
+        PromptCategory.ecommerce => Icons.shopping_bag_outlined,
+        PromptCategory.programming => Icons.code,
+        PromptCategory.business => Icons.business_center_outlined,
+        PromptCategory.education => Icons.school_outlined,
+        PromptCategory.writing => Icons.edit_note,
+        PromptCategory.image => Icons.image_outlined,
+        PromptCategory.video => Icons.videocam_outlined,
+        PromptCategory.productivity => Icons.task_alt,
+        PromptCategory.general => Icons.auto_awesome,
+      };
+}
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({required this.input, required this.validate});
+  final TextEditingController input;
+  final String? Function(String?, int, int) validate;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(Icons.auto_awesome,
+                  size: 38, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 12),
+              Text('O que você quer criar?',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 8),
+              const Text(
+                'Conte sua ideia com suas palavras. O GUPMAX organiza os detalhes em uma instrução profissional.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                key: const Key('prompt_input'),
+                controller: input,
+                minLines: 4,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  labelText: 'Descreva sua ideia',
+                  hintText:
+                      'Ex.: Quero criar um anúncio para vender um tênis feminino...',
+                  alignLabelWithHint: true,
+                ),
+                validator: (value) => validate(value, 3, 10000),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: _PromptCreatePageState._examples
+                    .map((example) => ActionChip(
+                          label: Text(example),
+                          onPressed: () {
+                            input.text = example;
+                            input.selection = TextSelection.collapsed(
+                                offset: input.text.length);
+                          },
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.number,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+  final String number;
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                CircleAvatar(child: Text(number)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 4),
+                      Text(subtitle),
+                    ],
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 20),
+              child,
+            ],
+          ),
+        ),
+      );
+}
+
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
+    required this.mode,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+  final PromptMode mode;
+  final bool selected;
+  final VoidCallback onTap;
+
+  String get title => switch (mode) {
+        PromptMode.basic => 'GUPMAX Rápido',
+        PromptMode.pro => 'GUPMAX Pro',
+        PromptMode.expert => 'GUPMAX Expert',
+      };
+
+  String get description => switch (mode) {
+        PromptMode.basic => 'Uma experiência direta para criar rapidamente.',
+        PromptMode.pro => 'Mais contexto, público e organização da resposta.',
+        PromptMode.expert =>
+          'Mais profundidade, restrições e revisão estrutural.',
+      };
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(6),
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: '$title, $description',
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: selected
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Theme.of(context).colorScheme.surface,
+                border: Border.all(
+                  width: selected ? 2 : 1,
+                  color: selected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(selected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(title,
+                            style: Theme.of(context).textTheme.titleMedium)),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(description),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }

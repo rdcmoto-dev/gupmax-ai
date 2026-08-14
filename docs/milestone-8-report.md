@@ -207,3 +207,56 @@ O smoke test real do Flutter Web contra o backend local confirmou:
 `optimize_with_ai` permaneceu desligado durante todo o smoke test. Nenhuma chamada paga ao provider de IA foi necessária. Nenhuma credencial, senha, token, secret ou configuração privada foi registrada.
 
 Os modos Basic, Pro e Expert funcionam conforme a semântica atual do backend. Uma diferenciação maior entre os modos fica registrada apenas como evolução futura de produto e não faz parte desta etapa.
+
+## Etapa 8.3 — Experiência Inteligente de Criação
+
+### UX implementada
+
+A tela Criar prompt deixou de apresentar primeiro uma configuração técnica e passou a conduzir o usuário por uma experiência orientada à ideia:
+
+1. destaque para a pergunta "O que você quer criar?", com texto livre e exemplos visuais que apenas preenchem a ideia inicial;
+2. escolha visual e explicada do nível de construção;
+3. seleção visual entre as categorias reais do backend;
+4. seção opcional "Conte mais para o GUPMAX" para os dados complementares;
+5. otimização com IA separada e claramente descrita como opcional, dependente do servidor e potencial consumidora de créditos;
+6. resultado com nome amigável do modo, categoria, uso real de IA e provider/model/tokens somente quando retornados pelo backend.
+
+A experiência se adapta a desktop e largura reduzida. Em mobile, os cards de modo são empilhados e a navegação de prompts usa um menu compacto. Labels, semântica de seleção, loading, erros e contraste do tema foram preservados.
+
+### Mapeamento dos modos
+
+| Experiência visual | Valor enviado ao backend | Semântica atual |
+| --- | --- | --- |
+| GUPMAX Rápido | `basic` | Construção direta e essencial. |
+| GUPMAX Pro | `pro` | Acrescenta contexto, público e organização da resposta quando informados. |
+| GUPMAX Expert | `expert` | Acrescenta restrições e revisão estrutural mais profunda. |
+
+Nenhum valor ou regra comercial foi alterado no frontend.
+
+### Categorias e campos complementares
+
+As categorias exibidas correspondem exatamente ao enum do backend: Marketing, Vendas, Redes sociais, E-commerce, Programação, Negócios, Educação, Escrita, Imagem, Vídeo, Produtividade e Geral.
+
+A seção complementar organiza somente campos já aceitos pelo contrato: título, idioma, tom, contexto, público, papel/especialista, instruções, restrições, formato de saída e informações adicionais. Provider e modelo aparecem somente quando a otimização com IA é ativada.
+
+### Limitações e evoluções futuras
+
+O backend atual recebe uma requisição completa e não oferece contrato para analisar uma ideia, devolver perguntas contextuais e consolidar respostas em etapas. Por isso, a entrevista `IDEIA → PERGUNTAS DINÂMICAS → RESPOSTAS → PROMPT FINAL` não foi simulada no Flutter. Uma etapa futura precisará definir contratos de sessão/estado da entrevista, perguntas estruturadas, validação das respostas, ownership, persistência e testes de retomada/expiração.
+
+A diferença determinística entre Pro e Expert ainda é limitada. Uma evolução futura pode enriquecer, no backend, os templates por categoria e modo, com seções e instruções mais específicas, mantendo geração determinística e testes de snapshot/semântica. Nenhuma mudança no Prompt Engine backend foi feita nesta etapa.
+
+### Validação manual da Etapa 8.3
+
+O smoke test real do Flutter Web conectado ao backend local foi aprovado. A validação confirmou:
+
+- carregamento correto da nova tela "O que você quer criar?" e dos exemplos rápidos;
+- exibição dos modos GUPMAX Rápido, GUPMAX Pro e GUPMAX Expert;
+- seleção do GUPMAX Pro com envio do valor contratual `pro`;
+- seleção da categoria Marketing;
+- funcionamento da seção "Conte mais para o GUPMAX" e preenchimento dos campos complementares;
+- execução bem-sucedida de "Construir meu prompt" e exibição do resultado final;
+- permanência de `optimize_with_ai` desligado, sem chamada paga ao provider de IA.
+
+O resultado determinístico incorporou corretamente papel/especialista (`ROLE`), objetivo (`OBJECTIVE`), contexto (`CONTEXT`), público (`AUDIENCE`), instruções e orientações fornecidas (`INSTRUCTIONS`), formato da resposta (`OUTPUT FORMAT`), idioma (`LANGUAGE`) e tom (`TONE`).
+
+O motor atual organiza adequadamente as informações fornecidas, mas não realiza entrevista dinâmica nem enriquece profundamente uma ideia incompleta por conta própria. Essa limitação permanece registrada como evolução futura e não foi implementada na Etapa 8.3.
