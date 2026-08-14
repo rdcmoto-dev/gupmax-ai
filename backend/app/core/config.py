@@ -4,6 +4,8 @@ from typing import Annotated
 from pydantic import BeforeValidator, Field, PostgresDsn, SecretStr
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+LOCAL_CORS_ORIGIN_REGEX = r"^http://(?:localhost|127\.0\.0\.1):[0-9]+$"
+
 
 def _parse_origins(value: str | list[str]) -> list[str]:
     if isinstance(value, list):
@@ -41,6 +43,12 @@ class Settings(BaseSettings):
     mercado_pago_access_token: SecretStr | None = None
     mercado_pago_webhook_secret: SecretStr | None = None
     cors_origins: Annotated[list[str], NoDecode, BeforeValidator(_parse_origins)] = ["http://localhost:3000"]
+
+    @property
+    def cors_origin_regex(self) -> str | None:
+        if self.environment.lower() in {"development", "test"}:
+            return LOCAL_CORS_ORIGIN_REGEX
+        return None
 
 
 @lru_cache

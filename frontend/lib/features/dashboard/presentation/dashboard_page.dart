@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../auth/auth_providers.dart';
 
@@ -39,6 +40,25 @@ class DashboardPage extends ConsumerWidget {
                     style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 8),
                 Text('Sua sessão está conectada ao backend GUPMAX AI.'),
+                const SizedBox(height: 24),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.icon(
+                      key: const Key('create_prompt_button'),
+                      onPressed: () => context.go('/prompts/new'),
+                      icon: const Icon(Icons.auto_awesome),
+                      label: const Text('Criar prompt'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const Key('my_prompts_button'),
+                      onPressed: () => context.go('/prompts'),
+                      icon: const Icon(Icons.history),
+                      label: const Text('Meus prompts'),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 24),
                 Card(
                   child: Padding(

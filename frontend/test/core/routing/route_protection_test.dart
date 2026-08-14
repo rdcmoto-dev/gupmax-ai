@@ -10,6 +10,31 @@ import 'package:gupmax_ai/features/auth/presentation/auth_controller.dart';
 import '../../support/fake_auth_repository.dart';
 
 void main() {
+  for (final path in ['/prompts', '/prompts/new', '/prompts/prompt-id']) {
+    testWidgets('não autenticado é redirecionado de $path para login',
+        (tester) async {
+      final repository = FakeAuthRepository()
+        ..error = const AppException('Sem sessão', statusCode: 401);
+      final bus = SessionExpiryBus();
+      final controller = AuthController(
+          repository: repository, expiryBus: bus, restoreOnCreate: false);
+      await controller.restoreSession();
+      final router = createAppRouter(controller);
+      router.go(path);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [authControllerProvider.overrideWith((ref) => controller)],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bem-vindo ao GUPMAX AI'), findsOneWidget);
+      router.dispose();
+      bus.dispose();
+    });
+  }
+
   testWidgets('não autenticado é redirecionado de dashboard para login',
       (tester) async {
     final repository = FakeAuthRepository()

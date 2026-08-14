@@ -7,6 +7,9 @@ import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/register_page.dart';
 import '../../features/auth/presentation/splash_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
+import '../../features/prompts/presentation/prompt_create_page.dart';
+import '../../features/prompts/presentation/prompt_detail_page.dart';
+import '../../features/prompts/presentation/prompt_list_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
@@ -22,6 +25,14 @@ GoRouter createAppRouter(AuthController auth) {
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardPage()),
+      GoRoute(path: '/prompts', builder: (_, __) => const PromptListPage()),
+      GoRoute(
+          path: '/prompts/new', builder: (_, __) => const PromptCreatePage()),
+      GoRoute(
+        path: '/prompts/:id',
+        builder: (_, state) =>
+            PromptDetailPage(promptId: state.pathParameters['id']!),
+      ),
     ],
     redirect: (context, state) {
       final location = state.matchedLocation;

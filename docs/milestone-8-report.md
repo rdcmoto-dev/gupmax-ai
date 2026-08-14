@@ -144,4 +144,66 @@ Nenhuma credencial, senha, token ou secret foi incluído neste relatório. A con
 - Pytest completo do backend: 79 testes aprovados e nenhuma falha; 2 avisos não bloqueantes de dependência/cache.
 - Validação manual Web: aprovada contra o backend local.
 
-Com as validações automatizadas e o smoke test manual aprovados, a Etapa 8.1 está tecnicamente aprovada. A Etapa 8.2 não foi iniciada.
+Com as validações automatizadas e o smoke test manual aprovados, a Etapa 8.1 está tecnicamente aprovada.
+
+## Etapa 8.2 — Prompt Engine Flutter
+
+### Contratos utilizados
+
+O frontend consome exclusivamente os contratos existentes do backend:
+
+| Endpoint | Uso |
+| --- | --- |
+| `POST /api/v1/prompts/generate` | Gera, opcionalmente otimiza com IA e salva um prompt. |
+| `GET /api/v1/prompts` | Lista o histórico com `offset`, `limit` e ordenação decrescente. |
+| `GET /api/v1/prompts/{prompt_id}` | Abre os detalhes de um prompt acessível. |
+| `PUT /api/v1/prompts/{prompt_id}` | Edita os campos suportados pelo backend. |
+| `DELETE /api/v1/prompts/{prompt_id}` | Exclui um prompt após confirmação. |
+
+O formulário de geração respeita os campos reais `input`, `category`, `language`, `tone`, `mode`, `optimize_with_ai`, `title`, `context`, `audience`, `role`, `instructions`, `constraints`, `output_format`, `additional_information`, `provider` e `model`. A edição usa somente `title`, `generated_prompt`, `category`, `language`, `tone` e `mode`.
+
+### Modos e geração
+
+- Basic produz a estrutura essencial do prompt.
+- Pro acrescenta contexto, público e formato de saída.
+- Expert acrescenta revisão de consistência e restrições.
+- Sem otimização por IA, a geração é determinística no backend e não consome créditos.
+- Com `optimize_with_ai=true`, o Flutter envia a opção ao backend e nunca chama um provider diretamente.
+- Reserva, cálculo, liquidação e liberação de créditos permanecem sob autoridade exclusiva do backend. O frontend não calcula custo ou saldo.
+
+### Telas, histórico e rotas
+
+O dashboard oferece acesso claro a Criar prompt e Meus prompts. Foram adicionadas as rotas autenticadas:
+
+- `/prompts/new`: formulário responsivo, validação local, modos, campos avançados e otimização opcional com IA;
+- `/prompts`: histórico paginado, estado vazio e navegação para detalhes;
+- `/prompts/:id`: resultado, metadados retornados, cópia para clipboard, edição e exclusão confirmada.
+
+As regras existentes de redirect protegem todas as novas rotas. Ownership continua validado exclusivamente pelo backend, que usa 404 uniforme para recursos inexistentes ou pertencentes a outro usuário.
+
+### Erros e testes
+
+O fluxo apresenta mensagens sanitizadas para validação, sessão expirada, créditos insuficientes, entitlement, recurso inexistente, conflito, limite de uso, indisponibilidade de IA e falha de rede. Nenhuma resposta interna ou stack trace é mostrada.
+
+Foram adicionados testes de controller e widgets para criação, validação, loading, erro, resultado, disponibilidade da cópia, histórico vazio/preenchido, paginação, detalhes, edição, exclusão com confirmação, `optimize_with_ai`, sessão expirada e proteção das novas rotas. Resultado final: 30 testes Flutter aprovados, sem regressão dos 17 testes da Etapa 8.1.
+
+### CORS para Flutter Web local
+
+Como o Flutter Web usa portas locais dinâmicas durante o desenvolvimento, o backend permite em `development` e `test` somente origins HTTP com host exato `localhost` ou `127.0.0.1` e porta dinâmica. Origins externos continuam rejeitados. Em `production`, a regra local é desativada e o CORS permanece restrito à allowlist explícita configurada, sem wildcard com credenciais.
+
+### Validação manual da Etapa 8.2
+
+O smoke test real do Flutter Web contra o backend local confirmou:
+
+- login real e dashboard com acesso a Criar prompt e Meus prompts;
+- CORS funcionando com a porta dinâmica escolhida pelo Flutter Web;
+- criação determinística nos modos Basic, Pro e Expert;
+- persistência dos prompts criados;
+- carregamento do histórico Meus prompts;
+- abertura dos detalhes e exibição do resultado;
+- disponibilidade da cópia do prompt;
+- navegação entre criação, histórico e resultado.
+
+`optimize_with_ai` permaneceu desligado durante todo o smoke test. Nenhuma chamada paga ao provider de IA foi necessária. Nenhuma credencial, senha, token, secret ou configuração privada foi registrada.
+
+Os modos Basic, Pro e Expert funcionam conforme a semântica atual do backend. Uma diferenciação maior entre os modos fica registrada apenas como evolução futura de produto e não faz parte desta etapa.
