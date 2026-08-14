@@ -1,0 +1,11 @@
+{
+  "name": "GUPMAX AI",
+  "short_name": "GUPMAX AI",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F7F8FC",
+  "theme_color": "#3157D5",
+  "description": "Frontend do GUPMAX AI",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}
