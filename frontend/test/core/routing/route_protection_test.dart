@@ -10,7 +10,12 @@ import 'package:gupmax_ai/features/auth/presentation/auth_controller.dart';
 import '../../support/fake_auth_repository.dart';
 
 void main() {
-  for (final path in ['/prompts', '/prompts/new', '/prompts/prompt-id']) {
+  for (final path in [
+    '/prompts',
+    '/prompts/new',
+    '/prompts/prompt-id',
+    '/usage'
+  ]) {
     testWidgets('não autenticado é redirecionado de $path para login',
         (tester) async {
       final repository = FakeAuthRepository()

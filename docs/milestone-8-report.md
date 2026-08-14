@@ -260,3 +260,57 @@ O smoke test real do Flutter Web conectado ao backend local foi aprovado. A vali
 O resultado determinístico incorporou corretamente papel/especialista (`ROLE`), objetivo (`OBJECTIVE`), contexto (`CONTEXT`), público (`AUDIENCE`), instruções e orientações fornecidas (`INSTRUCTIONS`), formato da resposta (`OUTPUT FORMAT`), idioma (`LANGUAGE`) e tom (`TONE`).
 
 O motor atual organiza adequadamente as informações fornecidas, mas não realiza entrevista dinâmica nem enriquece profundamente uma ideia incompleta por conta própria. Essa limitação permanece registrada como evolução futura e não foi implementada na Etapa 8.3.
+
+## Etapa 8.4 — Dashboard de Uso, Limites e Créditos
+
+### Endpoints auditados e utilizados
+
+Todos os endpoints abaixo exigem autenticação Bearer e aplicam ownership pelo usuário autenticado no backend:
+
+| Endpoint | Contrato | Uso no Flutter |
+| --- | --- | --- |
+| `GET /api/v1/credits/wallet` | `available_balance`, `reserved_balance`, acumulados creditado/gasto e timestamps | Utilizado no resumo Seus créditos. |
+| `GET /api/v1/credits/transactions` | Ledger paginado por `offset/limit`, com tipo, valor com sinal, saldo posterior, descrição, expiração opcional e data | Utilizado em Movimentações de créditos. |
+| `GET /api/v1/billing/subscription` | Assinatura atual com plano incorporado, status, provider, período, cancelamento e trial | Utilizado no card Plano atual. |
+| `GET /api/v1/billing/usage` | Histórico paginado de uso de IA, provider/model, tokens, contagem e data | Utilizado em Uso de IA. |
+| `GET /api/v1/billing/limits` | Plano, utilizado/limite/restante para gerações e tokens, período e trial | Utilizado nos cards de limites. |
+| `GET /api/v1/billing/plans` | Lista autenticada de planos ativos e limites | Auditado, mas não chamado: a assinatura já retorna o plano completo. |
+| `GET /api/v1/credits/packages` | Pacotes ativos de créditos | Auditado e deliberadamente não usado; compra fica fora da etapa. |
+| `GET /api/v1/credits/costs` e `POST /api/v1/credits/estimate` | Regras e estimativa autoritativa de custo | Auditados e não usados nesta tela de visualização. |
+
+Erros 401, 403, 404, 429 e falhas de rede são convertidos em mensagens amigáveis com retry. O refresh continua centralizado no interceptor existente.
+
+### Arquitetura e experiência
+
+A feature `features/usage` segue a arquitetura feature-first com models, repository Dio, providers/controller Riverpod e apresentação separada. A rota autenticada `/usage` é acessível pelo botão Meu uso no dashboard.
+
+A tela apresenta somente valores retornados pelo servidor:
+
+- saldo disponível, saldo reservado e acumulados da wallet;
+- plano atual, status/trial, período e cancelamento agendado quando aplicável;
+- limites reais de gerações com IA, tokens de entrada e saída;
+- histórico paginado de uso de IA;
+- ledger paginado com nomes amigáveis, sinal positivo/negativo e saldo posterior.
+
+Loading inicial, pull-to-refresh, erro com retry, históricos vazios e layout responsivo foram implementados. Cards se reorganizam em largura reduzida e o ledger usa itens verticais, evitando tabela com overflow horizontal.
+
+### Limitações e itens fora do escopo
+
+Não existe endpoint público para listar lotes de crédito; portanto, créditos próximos a expirar não são exibidos nem inferidos. O endpoint de assinatura provisiona automaticamente o trial quando necessário, logo o contrato atual não retorna estado sem assinatura.
+
+Compra de créditos, checkout, upgrade/downgrade, cancelamento, proration, Stripe, Mercado Pago, webhooks e administração permanecem deliberadamente fora da Etapa 8.4. Nenhum saldo, limite, custo ou valor financeiro é calculado ou controlado pelo Flutter.
+
+### Validação manual da Etapa 8.4
+
+O smoke test real da rota `/usage` no Flutter Web conectado ao backend local foi aprovado. A interface carregou, sem valores hardcoded, os seguintes dados retornados pelo servidor:
+
+- wallet: 1.100 créditos disponíveis, 0 reservados, 1.100 recebidos e 0 utilizados;
+- plano Starter em período de teste ativo, exibido até 16/08/2026;
+- período de limites de 01/08/2026 a 01/09/2026;
+- gerações com IA: 0 de 100 utilizadas e 100 restantes;
+- tokens de entrada: 0 de 100.000 utilizados e 100.000 restantes;
+- tokens de saída: 0 de 40.000 utilizados e 40.000 restantes;
+- estado vazio correto para Uso de IA no período;
+- ledger com duas compras de +500 créditos, resultando respectivamente nos saldos 1.100 e 600, e concessão de teste de +100, resultando no saldo 100.
+
+Nenhuma compra foi executada durante esta validação, nenhum checkout foi iniciado e nenhuma chamada paga ao provider de IA foi realizada. Os registros de compra exibidos já existiam no ledger retornado pelo backend.
