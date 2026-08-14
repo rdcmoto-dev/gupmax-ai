@@ -28,6 +28,11 @@ class _CommercePageState extends ConsumerState<CommercePage> {
         title: const Text('Créditos e planos'),
         actions: [
           IconButton(
+            tooltip: 'Pagamentos',
+            onPressed: () => context.go('/payments'),
+            icon: const Icon(Icons.receipt_long_outlined),
+          ),
+          IconButton(
             tooltip: 'Meu uso',
             onPressed: () => context.go('/usage'),
             icon: const Icon(Icons.insights_outlined),

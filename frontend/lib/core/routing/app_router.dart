@@ -10,6 +10,8 @@ import '../../features/auth/presentation/splash_page.dart';
 import '../../features/commerce/presentation/commerce_page.dart';
 import '../../features/commerce/presentation/payment_return_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
+import '../../features/payments_history/presentation/payment_detail_page.dart';
+import '../../features/payments_history/presentation/payment_history_page.dart';
 import '../../features/prompts/presentation/prompt_create_page.dart';
 import '../../features/prompts/presentation/prompt_detail_page.dart';
 import '../../features/prompts/presentation/prompt_list_page.dart';
@@ -46,6 +48,15 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
       GoRoute(
         path: '/payments/cancel',
         builder: (_, __) => const PaymentReturnPage(canceled: true),
+      ),
+      GoRoute(
+        path: '/payments',
+        builder: (_, __) => const PaymentHistoryPage(),
+      ),
+      GoRoute(
+        path: '/payments/:id',
+        builder: (_, state) =>
+            PaymentDetailPage(paymentId: state.pathParameters['id']!),
       ),
     ],
     redirect: (context, state) {

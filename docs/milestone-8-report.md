@@ -362,3 +362,49 @@ O smoke test final do cancelamento Stripe Sandbox foi aprovado no Flutter Web co
 A tela exibiu “Status do pagamento”, status real “Pagamento pendente”, valor BRL 19.90, provider Stripe e finalidade Compra de créditos. Também informou corretamente que o retorno não concede créditos e que a confirmação depende do backend. Nenhuma cobrança foi realizada, nenhum crédito foi concedido e nenhuma chamada OpenAI foi executada.
 
 O teste confirmou no navegador real que o deep link é preservado após `restoreSession`. A causa raiz era a recriação do `GoRouter` ao observar notificações do `AuthController`, somada à perda anterior do destino durante a restauração; as correções mantêm a mesma instância do router via `refreshListenable` e preservam o destino durante restauração/login. A apresentação de “Pagamento pendente” após o cancelamento reflete fielmente o status ainda `pending` retornado pelo backend e pode ser refinada futuramente na UX, sem alterar a verdade financeira.
+
+## Etapa 8.6 — Histórico de Pagamentos, Assinatura e Status Comercial
+
+### Contratos auditados e utilizados
+
+| Endpoint | Contrato e uso |
+| --- | --- |
+| `GET /api/v1/payments` | Histórico financeiro autenticado, ordenado por criação decrescente e paginado por `offset/limit`. Aceita filtros server-side `provider`, `purpose`, `status`, `created_from` e `created_to`. Usuários comuns recebem somente os próprios pagamentos; administradores podem consultar o conjunto conforme a política existente. Utilizado na lista. |
+| `GET /api/v1/payments/{payment_id}` | Detalhe autenticado com ownership: outro usuário recebe o mesmo 404 de recurso inexistente. Retorna provider, finalidade, status, valor, moeda, IDs opcionais de pacote/plano e datas de criação, atualização, pagamento, cancelamento ou falha. Utilizado no detalhe. |
+| `GET /api/v1/billing/subscription` | Assinatura atual, plano incorporado, status, provider, período, cancelamento agendado e trial. Utilizado em Minha assinatura. |
+| `GET /api/v1/credits/wallet` | Saldo disponível, reservado e acumulados. Utilizado no resumo comercial. |
+| `GET /api/v1/credits/packages` e `GET /api/v1/billing/plans` | Catálogos ativos utilizados apenas para converter os IDs relacionados em nomes amigáveis reais. |
+| `POST /api/v1/payments/subscriptions/cancel` | Endpoint público autenticado que agenda cancelamento no provider e marca `cancel_at_period_end`. Auditado, mas deliberadamente não integrado nem executado nesta etapa. |
+
+Também foram auditados os endpoints de checkout, webhooks, reconcile administrativo, limites, uso e ledger. Eles não são chamados pela nova área de visualização.
+
+### UX e rotas
+
+A rota autenticada `/payments`, acessível pelo dashboard, exibe a situação comercial da conta sem cálculos autoritativos no cliente:
+
+- Minha assinatura, com plano, status, provider, período, trial e cancelamento agendado;
+- saldo disponível, reservado e acumulados reais da wallet;
+- histórico financeiro em cards responsivos;
+- filtros reais por status, provider e finalidade;
+- paginação server-side;
+- estados de loading, vazio, erro e retry.
+
+A rota autenticada `/payments/:id` mostra o detalhe próprio com status traduzido, provider, finalidade, valor, moeda, produto amigável quando presente nos catálogos e somente as datas aplicáveis. Os estados `pending`, `processing`, `paid`, `failed`, `canceled` e `refunded` permanecem fiéis ao backend. Nenhum identificador de sessão do provider, idempotency key, payload de webhook, dado de cartão ou secret é apresentado.
+
+### Segurança, limitações e itens futuros
+
+Ownership, status e valores permanecem sob autoridade do backend. O Flutter não altera pagamentos, assinatura, créditos, wallet ou ledger e não chama Stripe/Mercado Pago diretamente.
+
+O contrato não inclui nome do produto dentro de `PaymentRead`; por isso a interface cruza apenas os IDs retornados com os catálogos públicos ativos. Um produto posteriormente desativado pode aparecer somente pela finalidade, sem expor seu UUID. Filtros de período existem no backend, mas não foram adicionados à primeira UX para evitar complexidade excessiva. Cancelamento de assinatura exige uma experiência dedicada de confirmação e consequências comerciais e fica para etapa futura; nenhum cancelamento foi executado.
+
+Não houve compra, checkout, pagamento, refund ou alteração backend na Etapa 8.6.
+
+### Validação manual da Etapa 8.6
+
+O smoke test manual contra o backend real foi aprovado. A rota `/payments` abriu corretamente e o resumo comercial apresentou o plano Starter, trial ativo, 1.100 créditos disponíveis, 0 reservados, 1.100 recebidos e 0 utilizados.
+
+O histórico financeiro real carregou registros de Stripe e Mercado Pago, preservando corretamente os status Pendente e Pago. Os filtros server-side foram validados: Pendente mostrou somente pagamentos pendentes; Pago mostrou somente pagamentos pagos e incluiu registros reais de Mercado Pago e Stripe.
+
+O detalhe de um pagamento Pago abriu corretamente em `/payments/:id` e exibiu finalidade Compra de créditos, produto 500 créditos, provider Mercado Pago, valor BRL 19.90 e datas de criação, atualização e pagamento. Nenhuma informação financeira sensível foi apresentada.
+
+Durante o smoke test não foi executada compra, criação de checkout, pagamento, refund ou cancelamento de assinatura. A validação foi exclusivamente de visualização e acompanhamento dos dados já existentes no backend.
