@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import get_settings
 from app.main import app
 from app.modules.billing.model import Subscription
 from app.modules.credits.model import CreditLot, CreditPackage, CreditTransaction, CreditWallet
@@ -160,6 +161,9 @@ def test_credit_checkout_uses_database_price_and_is_idempotent(
     amount, currency = asyncio.run(values())
     assert provider.checkouts[0].amount == amount
     assert provider.checkouts[0].currency == currency
+    frontend_url = get_settings().frontend_url.rstrip("/")
+    assert provider.checkouts[0].success_url == f"{frontend_url}/#/payments/success"
+    assert provider.checkouts[0].cancel_url == f"{frontend_url}/#/payments/cancel"
 
 
 def test_checkout_authentication_missing_products_and_timeout(

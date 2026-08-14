@@ -28,6 +28,11 @@ class _UsagePageState extends ConsumerState<UsagePage> {
         title: const Text('Meu uso'),
         actions: [
           IconButton(
+            tooltip: 'Créditos e planos',
+            onPressed: () => context.go('/credits'),
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+          ),
+          IconButton(
             tooltip: 'Dashboard',
             onPressed: () => context.go('/dashboard'),
             icon: const Icon(Icons.dashboard_outlined),

@@ -63,6 +63,12 @@ class DashboardPage extends ConsumerWidget {
                       icon: const Icon(Icons.insights_outlined),
                       label: const Text('Meu uso'),
                     ),
+                    OutlinedButton.icon(
+                      key: const Key('credits_and_plans_button'),
+                      onPressed: () => context.go('/credits'),
+                      icon: const Icon(Icons.account_balance_wallet_outlined),
+                      label: const Text('Créditos e planos'),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),

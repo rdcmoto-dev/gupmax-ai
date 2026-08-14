@@ -14,7 +14,7 @@ from app.modules.payments.enums import PaymentStatus
 from app.modules.payments.exceptions import InvalidWebhook, PaymentConfigurationError
 from app.modules.payments.providers.mercado_pago import MercadoPagoProvider
 from app.modules.payments.providers.stripe import StripeProvider
-from app.modules.payments.service import PaymentStateMachine
+from app.modules.payments.service import PaymentStateMachine, frontend_route_url
 
 
 def test_payment_state_machine_rejects_regressions() -> None:
@@ -22,6 +22,17 @@ def test_payment_state_machine_rejects_regressions() -> None:
     assert PaymentStateMachine.can_transition(PaymentStatus.PAID, PaymentStatus.REFUNDED)
     assert not PaymentStateMachine.can_transition(PaymentStatus.PAID, PaymentStatus.FAILED)
     assert not PaymentStateMachine.can_transition(PaymentStatus.REFUNDED, PaymentStatus.PAID)
+
+
+def test_frontend_return_url_uses_flutter_hash_routing_and_configured_base() -> None:
+    assert (
+        frontend_route_url("http://localhost:61895/", "/payments/success")
+        == "http://localhost:61895/#/payments/success"
+    )
+    assert (
+        frontend_route_url("https://app.example.com", "payments/cancel")
+        == "https://app.example.com/#/payments/cancel"
+    )
 
 
 def test_stripe_requires_environment_matching_key() -> None:
@@ -158,6 +169,9 @@ def test_stripe_checkout_uses_async_form_request_and_idempotency_header(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     requests: list[httpx.Request] = []
+    frontend_url = "https://app.example.test"
+    success_url = f"{frontend_url}/#/payments/success"
+    cancel_url = f"{frontend_url}/#/payments/cancel"
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
@@ -184,8 +198,8 @@ def test_stripe_checkout_uses_async_form_request_and_idempotency_header(
                 amount=Decimal("19.90"),
                 currency="BRL",
                 customer_email="stripe-test@example.com",
-                success_url="http://localhost:3000/payments/success",
-                cancel_url="http://localhost:3000/payments/cancel",
+                success_url=success_url,
+                cancel_url=cancel_url,
                 webhook_url="http://localhost:8000/api/v1/payments/webhooks/stripe",
             )
         )
@@ -200,6 +214,8 @@ def test_stripe_checkout_uses_async_form_request_and_idempotency_header(
     assert request.headers["content-type"].startswith("application/x-www-form-urlencoded")
     form = parse_qs(request.content.decode())
     assert form["mode"] == ["payment"]
+    assert form["success_url"] == [success_url]
+    assert form["cancel_url"] == [cancel_url]
     assert form["line_items[0][price_data][unit_amount]"] == ["1990"]
     assert form["line_items[0][price_data][currency]"] == ["brl"]
 

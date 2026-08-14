@@ -36,6 +36,11 @@ def enum_value(value: object) -> str:
     return str(getattr(value, "value", value))
 
 
+def frontend_route_url(frontend_url: str, route: str) -> str:
+    """Build a Flutter Web hash-route URL from the configured public base URL."""
+    return f"{frontend_url.rstrip('/')}/#/{route.lstrip('/')}"
+
+
 class PaymentStateMachine:
     allowed = {
         PaymentStatus.PENDING: {
@@ -109,8 +114,8 @@ class PaymentService:
                     amount=amount,
                     currency=currency,
                     customer_email=user.email,
-                    success_url=f"{settings.frontend_url.rstrip('/')}/payments/success",
-                    cancel_url=f"{settings.frontend_url.rstrip('/')}/payments/cancel",
+                    success_url=frontend_route_url(settings.frontend_url, "/payments/success"),
+                    cancel_url=frontend_route_url(settings.frontend_url, "/payments/cancel"),
                     webhook_url=(
                         f"{settings.app_public_url.rstrip('/')}/api/v1/payments/webhooks/"
                         f"{'stripe' if provider_name == PaymentProviderName.STRIPE else 'mercado-pago'}"

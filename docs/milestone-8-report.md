@@ -314,3 +314,51 @@ O smoke test real da rota `/usage` no Flutter Web conectado ao backend local foi
 - ledger com duas compras de +500 créditos, resultando respectivamente nos saldos 1.100 e 600, e concessão de teste de +100, resultando no saldo 100.
 
 Nenhuma compra foi executada durante esta validação, nenhum checkout foi iniciado e nenhuma chamada paga ao provider de IA foi realizada. Os registros de compra exibidos já existiam no ledger retornado pelo backend.
+
+## Etapa 8.5 — Planos, Pacotes de Créditos e Checkout Hospedado
+
+### Auditoria e contratos utilizados
+
+Os módulos completos de billing, credits e payments — routers, schemas, enums, models, repositories, services, providers e testes — foram auditados. Os endpoints usados pelo Flutter exigem autenticação Bearer:
+
+| Método e rota | Request e resposta relevantes | Finalidade e segurança |
+| --- | --- | --- |
+| `GET /api/v1/credits/packages` | Retorna pacotes ativos com `id`, código, nome, créditos, bônus, preço e moeda | Catálogo autoritativo; o Flutter não envia preço, créditos ou bônus. |
+| `GET /api/v1/billing/plans` | Retorna planos ativos com preço, moeda, período, trial, limites e créditos mensais | Catálogo autoritativo de assinaturas. |
+| `POST /api/v1/payments/credits/checkout` | Header `Idempotency-Key`; body com apenas `package_id` e `provider`; retorna `payment_id`, provider, status e `checkout_url` | Cria compra avulsa hospedada com preço/moeda obtidos do banco. |
+| `POST /api/v1/payments/subscriptions/checkout` | Header `Idempotency-Key`; body com apenas `plan_id` e `provider`; mesma resposta de checkout | Cria assinatura recorrente hospedada conforme plano do banco. |
+| `GET /api/v1/payments/{payment_id}` | Retorna status, valor, moeda, finalidade, provider e datas, sem URL de checkout | Consulta autenticada do pagamento próprio; outro usuário recebe 404. |
+| `GET /api/v1/credits/wallet` | Retorna saldos e acumulados autoritativos | Recarregado somente após status `paid` confirmado pelo backend. |
+
+Também foram auditados `GET /api/v1/payments` (histórico autenticado e paginado), `POST /api/v1/payments/subscriptions/cancel`, o reconcile administrativo exclusivo do Mercado Pago e os webhooks server-to-server de Stripe e Mercado Pago. O histórico financeiro existe, mas não foi integrado nesta etapa para manter a experiência focada em catálogo, checkout e retorno; ele não foi confundido com o ledger de créditos.
+
+### Catálogos e providers
+
+O Flutter renderiza exclusivamente os pacotes e planos recebidos pelos endpoints. Na base inicial do backend existem quatro pacotes (`CREDITS_500`, `CREDITS_1500`, `CREDITS_5000` e `CREDITS_10000`) e quatro planos (`FREE`, `STARTER`, `PRO` e `BUSINESS`), mas nenhum desses valores comerciais foi hardcoded na interface.
+
+O contrato aceita `stripe` e `mercado_pago` tanto para crédito quanto para assinatura. Não existe endpoint público que informe providers configurados no ambiente; por isso ambos são apresentados e uma configuração ausente é tratada pela resposta 502 do backend como provider indisponível. Nenhuma key ou chamada secreta de provider existe no Flutter.
+
+### Fluxo de checkout e retorno
+
+A rota autenticada `/credits`, acessível pelo dashboard e por Meu uso, apresenta “Créditos e planos”, escolha de provider e cards responsivos. Durante a criação, todos os botões ficam bloqueados para impedir duplo submit e a chave de idempotência é enviada ao backend. A URL HTTPS é aceita somente quando retornada pelo backend e então aberta na mesma janela para o checkout hospedado; nenhum dado de cartão é coletado pelo GUPMAX.
+
+O backend constrói `success_url` e `cancel_url` a partir de `FRONTEND_URL`, no formato de hash routing usado pelo Flutter Web: `FRONTEND_URL/#/payments/success` e `FRONTEND_URL/#/payments/cancel`. Antes do redirecionamento, o Flutter guarda apenas o `payment_id` pendente na sessão do navegador. Ao retornar, ambas as rotas consultam o backend e mostram `pending`, `processing`, `paid`, `failed`, `canceled` ou `refunded`. O simples retorno nunca confirma pagamento nem concede créditos. Apenas `paid` confirmado dispara uma nova leitura de wallet; o saldo nunca é incrementado localmente.
+
+O diagnóstico final confirmou diretamente na API Stripe Sandbox que a sessão nova armazenava as URLs hash corretas. A transformação ocorria no boot Flutter: além da localização inicial fixa e da perda do destino durante `restoring`, o `appRouterProvider` observava todas as notificações do `AuthController` e recriava o `GoRouter` quando a sessão terminava de restaurar. O teste anterior instanciava o router isoladamente e, por isso, não reproduzia essa reconstrução do app real. A correção remove a localização inicial fixa, preserva a rota interna durante restauração/login e observa somente a instância do controller; `refreshListenable` atualiza o mesmo router sem perder o deep link. Após autenticar, `/payments/success` ou `/payments/cancel` permanece ativo. Usuários sem sessão são enviados ao login com o destino original preservado.
+
+Confirmação financeira, validação de valor/moeda, webhook assinado, reconcile administrativo do Mercado Pago, ledger, `CreditLot`, assinatura e concessão exatamente uma vez continuam integralmente no backend. A idempotência é escopada por usuário, finalidade e chave; ownership é aplicado na consulta do pagamento.
+
+### Limitações e itens não implementados
+
+- O ambiente precisa configurar `FRONTEND_URL` com a origem em que o Flutter Web está publicado para que success/cancel retornem à aplicação correta.
+- A disponibilidade de cada provider não é consultável antes do checkout porque não há contrato público para isso.
+- O histórico financeiro e o cancelamento de assinatura, embora disponíveis no backend, não foram incluídos na interface desta etapa.
+- Não houve cobrança, preenchimento de cartão, chamada direta a Stripe/Mercado Pago ou webhook no Flutter. A única alteração backend da etapa foi a composição das URLs de retorno compatíveis com hash routing.
+
+### Validação manual final da Etapa 8.5
+
+O smoke test final do cancelamento Stripe Sandbox foi aprovado no Flutter Web conectado ao backend local. Com usuário autenticado, Stripe selecionado e o pacote real de 500 créditos por BRL 19,90, um checkout Sandbox novo foi criado sem preenchimento de cartão e sem realização de pagamento. Ao usar a seta de retorno do próprio Stripe, o navegador chegou corretamente a `http://localhost:49798/#/payments/cancel` e permaneceu na rota `/payments/cancel`; o dashboard não foi aberto.
+
+A tela exibiu “Status do pagamento”, status real “Pagamento pendente”, valor BRL 19.90, provider Stripe e finalidade Compra de créditos. Também informou corretamente que o retorno não concede créditos e que a confirmação depende do backend. Nenhuma cobrança foi realizada, nenhum crédito foi concedido e nenhuma chamada OpenAI foi executada.
+
+O teste confirmou no navegador real que o deep link é preservado após `restoreSession`. A causa raiz era a recriação do `GoRouter` ao observar notificações do `AuthController`, somada à perda anterior do destino durante a restauração; as correções mantêm a mesma instância do router via `refreshListenable` e preservam o destino durante restauração/login. A apresentação de “Pagamento pendente” após o cancelamento reflete fielmente o status ainda `pending` retornado pelo backend e pode ser refinada futuramente na UX, sem alterar a verdade financeira.
