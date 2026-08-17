@@ -28,6 +28,7 @@ class InterviewSession(Base):
     category: Mapped[PromptCategory] = mapped_column(String(40), nullable=False, index=True)
     initial_request: Mapped[str] = mapped_column(Text, nullable=False)
     questions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    facts: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     structured_prompt: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

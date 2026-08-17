@@ -102,6 +102,30 @@ void main() {
     expect(find.byKey(const Key('answer_multiline')), findsOneWidget);
   });
 
+  testWidgets('envia o conteúdo digitado como resposta de requirements',
+      (tester) async {
+    final repository = FakeInterviewRepository();
+    repository.current = repository.sample(
+      mode: PromptMode.expert,
+      questions: const [
+        InterviewQuestion(
+          key: 'requirements',
+          text: 'Quais funcionalidades e requisitos precisam ser atendidos?',
+          type: InterviewQuestionType.multiline,
+          required: true,
+          options: [],
+        ),
+      ],
+    );
+    const answer = 'Cardápio online, botão de WhatsApp e layout responsivo.';
+    await pumpInterview(tester, repository);
+    await tester.enterText(find.byKey(const Key('answer_multiline')), answer);
+    await tester.tap(find.byKey(const Key('interview_continue')));
+    await tester.pumpAndSettle();
+    expect(repository.current!.answers.single.questionKey, 'requirements');
+    expect(repository.current!.answers.single.value, answer);
+  });
+
   testWidgets('permite pular opcional sem enviar resposta artificial',
       (tester) async {
     final repository = FakeInterviewRepository();

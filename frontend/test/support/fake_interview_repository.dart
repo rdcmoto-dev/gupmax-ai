@@ -12,6 +12,7 @@ class FakeInterviewRepository implements InterviewRepositoryContract {
   PromptMode? createdMode;
   PromptCategory? createdCategory;
   String? createdRequest;
+  PromptGenerateInput? createdKnownFields;
   int answerCalls = 0;
   int completeCalls = 0;
   int getCalls = 0;
@@ -57,11 +58,13 @@ class FakeInterviewRepository implements InterviewRepositoryContract {
     required String initialRequest,
     required PromptMode mode,
     required PromptCategory category,
+    PromptGenerateInput? knownFields,
   }) async {
     if (error != null) throw error!;
     createdRequest = initialRequest;
     createdMode = mode;
     createdCategory = category;
+    createdKnownFields = knownFields;
     return current = sample(mode: mode);
   }
 

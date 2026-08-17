@@ -19,6 +19,7 @@ class InterviewController extends ChangeNotifier {
     required String initialRequest,
     required PromptMode mode,
     required PromptCategory category,
+    PromptGenerateInput? knownFields,
   }) async {
     if (isSubmitting) return null;
     isSubmitting = true;
@@ -30,6 +31,7 @@ class InterviewController extends ChangeNotifier {
         initialRequest: initialRequest,
         mode: mode,
         category: category,
+        knownFields: knownFields,
       );
       return session;
     } on AppException catch (exception) {

@@ -55,37 +55,37 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final input = PromptGenerateInput(
+      input: _input.text.trim(),
+      category: _category,
+      language: _language.text.trim(),
+      tone: _optional(_tone),
+      mode: _mode,
+      optimizeWithAi: _optimize,
+      title: _optional(_title),
+      context: _optional(_context),
+      audience: _optional(_audience),
+      role: _optional(_role),
+      instructions: _lines(_instructions),
+      constraints: _lines(_constraints),
+      outputFormat: _optional(_outputFormat),
+      additionalInformation: _optional(_additionalInformation),
+      provider: _provider.text.trim(),
+      model: _optional(_model),
+    );
     if (_mode != PromptMode.basic) {
       final interview = await ref.read(interviewControllerProvider).start(
             initialRequest: _input.text.trim(),
             mode: _mode,
             category: _category,
+            knownFields: input,
           );
       if (mounted && interview != null) {
         context.go('/interviews/${interview.id}');
       }
       return;
     }
-    final result = await ref.read(promptControllerProvider).generate(
-          PromptGenerateInput(
-            input: _input.text.trim(),
-            category: _category,
-            language: _language.text.trim(),
-            tone: _optional(_tone),
-            mode: _mode,
-            optimizeWithAi: _optimize,
-            title: _optional(_title),
-            context: _optional(_context),
-            audience: _optional(_audience),
-            role: _optional(_role),
-            instructions: _lines(_instructions),
-            constraints: _lines(_constraints),
-            outputFormat: _optional(_outputFormat),
-            additionalInformation: _optional(_additionalInformation),
-            provider: _provider.text.trim(),
-            model: _optional(_model),
-          ),
-        );
+    final result = await ref.read(promptControllerProvider).generate(input);
     if (mounted && result != null) context.go('/prompts/${result.id}');
   }
 

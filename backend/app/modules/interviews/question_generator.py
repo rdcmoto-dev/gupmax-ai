@@ -150,10 +150,16 @@ CATEGORY_QUESTIONS: dict[PromptCategory, tuple[InterviewQuestion, ...]] = {
 
 
 class DeterministicQuestionGenerator:
-    def generate(self, mode: PromptMode, category: PromptCategory) -> list[InterviewQuestion]:
+    MAX_EXPERT_QUESTIONS = 10
+
+    def generate(
+        self, mode: PromptMode, category: PromptCategory, known_keys: set[str] | None = None
+    ) -> list[InterviewQuestion]:
         if mode == PromptMode.BASIC:
             return []
         category_questions = CATEGORY_QUESTIONS[category]
         if mode == PromptMode.PRO:
-            return [*category_questions[:2], *COMMON_QUESTIONS[:2]]
-        return [*category_questions, *COMMON_QUESTIONS, *EXPERT_QUESTIONS]
+            questions = [*category_questions[:2], *COMMON_QUESTIONS[:2]]
+        else:
+            questions = [*category_questions, *COMMON_QUESTIONS, *EXPERT_QUESTIONS][: self.MAX_EXPERT_QUESTIONS]
+        return [question for question in questions if question.key not in (known_keys or set())]

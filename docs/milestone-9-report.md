@@ -151,3 +151,72 @@ Com as validações automatizadas e o smoke test manual aprovados, a Etapa 9.2 e
 - perguntas e enriquecimento continuam determinísticos conforme a Etapa 9.1;
 - não existe listagem histórica ou cancelamento de entrevistas;
 - respostas já enviadas são preservadas pelo backend, mas esta versão conduz sequencialmente apenas pelas perguntas ainda não respondidas.
+
+## Etapa 9.3 — Entrevista Adaptativa
+
+### Arquitetura e facts
+
+A entrevista agora possui uma camada de facts estruturados, separada das respostas explícitas. Cada fact contém valor, origem e confiança, com suporte às origens `initial_request`, `form`, `answer` e `ai_extraction`. Nesta etapa são produzidos facts determinísticos da solicitação inicial e facts explícitos do formulário; respostas continuam persistidas na tabela própria e têm precedência no `complete`.
+
+Os facts são persistidos como JSON em `interview_sessions.facts` pela migration `0008_adaptive_interview_facts`. Isso mantém refresh, retomada, conclusão e idempotência consistentes sem expor análise interna ou facts no contrato público de leitura. O snapshot adaptativo de perguntas continua congelado em `questions` no momento da criação.
+
+### Extração determinística e perguntas omitidas
+
+`DeterministicFactExtractor` reconhece apenas sinais considerados claros: plataformas/canais conhecidos, tom explicitamente introduzido como tom, público descrito por expressões objetivas, idioma explícito, duração de vídeo, stacks conhecidas e CTA explicitamente marcado. A normalização remove diferenças de caixa e acentuação para comparação, preservando detalhes úteis — por exemplo, Marketing normaliza Instagram como canal `rede social`, mas mantém Instagram no contexto final.
+
+O gerador recebe as chaves conhecidas e omite as perguntas correspondentes. Pro continua limitado às perguntas de maior valor e pode iniciar diretamente em `ready` quando todas as informações obrigatórias já estiverem disponíveis. Expert mantém maior profundidade, perguntas opcionais e limite máximo explícito de dez perguntas antes das omissões. Basic continua sem entrevista visual.
+
+O total é inteiramente dinâmico e retornado pelo backend. O Flutter já usava `progress.total`, suporta sessão que inicia em `ready` e não exigiu mudança visual. A integração do formulário passou a enviar opcionalmente `known_fields`, tipado pelo próprio `PromptGenerateRequest`, preservando compatibilidade com clientes anteriores.
+
+### Precedência e complete
+
+A combinação final segue esta precedência:
+
+1. resposta explícita mais recente;
+2. campo explícito do formulário;
+3. fact extraído deterministicamente da solicitação inicial;
+4. default do Prompt Engine.
+
+Uma resposta explícita pode corrigir um fact omitido da entrevista; ela é validada pelo mesmo contrato da pergunta original, não altera artificialmente o progresso do snapshot e vence no `PromptGenerateRequest`. Contexto, público, tom, idioma, título, role, instruções, restrições, formato e informações adicionais do formulário são preservados. `optimize_with_ai` permanece sempre `false` na conclusão da entrevista.
+
+### IA, billing e fallback
+
+IA assistida não foi habilitada nem chamada. A arquitetura reserva a origem `ai_extraction`, mas não existe feature flag ativa nem integração do extractor com provider nesta etapa. Portanto, o fallback efetivo é sempre a extração determinística local, que não depende de rede, não chama OpenAI, não reserva ou consome créditos e não acessa billing, wallet ou pagamentos.
+
+### Segurança e contratos
+
+Ownership, resposta 404 uniforme e proteção contra IDOR permanecem inalterados. Facts não influenciam autorização nem lógica financeira, não contêm chain-of-thought e não são retornados pela API. Inputs continuam validados por Pydantic; respostas explícitas para perguntas omitidas só são aceitas quando a chave e o valor pertencem ao conjunto formal do modo/categoria.
+
+Os quatro endpoints existentes permanecem os mesmos. A única extensão contratual é o campo opcional e retrocompatível `known_fields` em `POST /api/v1/interviews`, usando `PromptGenerateRequest`. Não houve mudança nos responses.
+
+### Testes e limitações
+
+Os testes cobrem extração determinística, origem dos facts, persistência indireta por refresh, perguntas omitidas, pergunta ainda necessária, Pro iniciando `ready`, total dinâmico, limite Expert, categorias, precedência form/extraction/answer, complete, idempotência e toda a segurança existente. Os casos A–E foram formalizados: entrada sem facts seguros preserva o fluxo; Instagram/público/tom eliminam redundâncias; vídeo reconhece TikTok/duração/público; programação reconhece React/site; e resposta persuasiva vence tom profissional extraído.
+
+Limitações atuais:
+
+- o extrator é deliberadamente conservador e cobre vocabulário explícito conhecido;
+- não há interpretação semântica por IA, sinônimos amplos ou inferência probabilística;
+- facts não são exibidos para edição no frontend; correções continuam possíveis por resposta explícita/API.
+
+### Correção de regressão do contexto
+
+No smoke test Expert/Programação foi encontrado um registro em que `requirements` havia sido persistido com valor exatamente igual ao enunciado da pergunta. O `complete` concatenava corretamente enunciado e valor uma única vez, e o `PromptBuilder` apenas publicava o contexto recebido; portanto, a aparente duplicação era consequência do valor inválido já armazenado, não de dupla concatenação.
+
+O backend agora rejeita com 422 respostas `text`/`multiline` idênticas ao respectivo enunciado. O teste de regressão percorre resposta, persistência, conclusão e `PromptBuilder`, confirma que uma resposta real aparece uma única vez e preserva `Plataforma: site` e `Stack: React`. Um teste Flutter separado confirma que o repository recebe o conteúdo efetivamente digitado no campo de requisitos.
+
+### Smoke test manual
+
+O smoke test manual da Etapa 9.3 foi aprovado contra o frontend e o backend reais.
+
+No fluxo Pro/Marketing, a solicitação com Instagram, público de mulheres de 18 a 35 anos e tom persuasivo iniciou uma entrevista com somente a lacuna de CTA. O progresso variou de 0/1 para 1/1, o estado `ready` foi exibido e o Prompt final preservou Instagram, público, CTA e tom. O caso B da especificação foi aprovado.
+
+No fluxo Expert/Vídeo, TikTok, duração de 15 segundos e público jovem foram detectados. A entrevista iniciou com seis perguntas em vez do máximo de dez e apresentou como primeira lacuna o estilo ou ritmo do vídeo, confirmando o total adaptativo e a relevância das perguntas restantes.
+
+No fluxo Expert/Programação, React e plataforma site foram detectados e não perguntados novamente. A entrevista iniciou com sete perguntas, permitiu pular as opcionais e manteve obrigatórias bloqueantes. O Prompt final preservou `Plataforma: site` e `Stack: React`, aprovando o caso D e a integração Interview → Prompt Engine.
+
+O reteste da correção de contexto usou em `requirements` a resposta “Cardápio online, botão de WhatsApp e layout responsivo.”. O resultado apresentou uma única vez o enunciado seguido da resposta real, sem repetir a duplicação, e preservou site e React. A correção foi aprovada; o registro histórico anterior não foi modificado.
+
+Durante toda a validação, nenhuma IA ou chamada OpenAI foi utilizada, nenhum crédito de IA foi consumido e nenhuma operação de wallet, pagamento, checkout, Stripe ou Mercado Pago foi executada.
+
+Com as validações automatizadas, o smoke test adaptativo e o reteste da regressão aprovados, a Etapa 9.3 está integralmente aprovada.

@@ -182,6 +182,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(interviews.createdMode, mapping.key);
       expect(interviews.createdRequest, 'Crie algo profissional');
+      expect(interviews.createdKnownFields?.language, 'pt-BR');
+      expect(interviews.createdKnownFields?.mode, mapping.key);
       expect(find.text('Vamos melhorar seu prompt'), findsOneWidget);
     });
   }

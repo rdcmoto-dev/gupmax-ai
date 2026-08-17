@@ -10,6 +10,7 @@ abstract interface class InterviewRepositoryContract {
     required String initialRequest,
     required PromptMode mode,
     required PromptCategory category,
+    PromptGenerateInput? knownFields,
   });
   Future<InterviewSession> get(String id);
   Future<InterviewSession> answer(String id, String questionKey, Object value);
@@ -25,6 +26,7 @@ class InterviewRepository implements InterviewRepositoryContract {
     required String initialRequest,
     required PromptMode mode,
     required PromptCategory category,
+    PromptGenerateInput? knownFields,
   }) async {
     try {
       final response = await _client.dio.post<Map<String, dynamic>>(
@@ -33,6 +35,7 @@ class InterviewRepository implements InterviewRepositoryContract {
           'initial_request': initialRequest,
           'mode': mode.name,
           'category': category.value,
+          'known_fields': knownFields?.toJson(),
         },
       );
       return InterviewSession.fromJson(response.data!);

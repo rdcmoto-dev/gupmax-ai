@@ -13,6 +13,7 @@ class InterviewCreateRequest(BaseModel):
     initial_request: str = Field(min_length=3, max_length=10_000)
     mode: PromptMode
     category: PromptCategory = PromptCategory.GENERAL
+    known_fields: PromptGenerateRequest | None = None
 
     @field_validator("initial_request")
     @classmethod

@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.modules.prompt_engine.builder import PromptBuilder
 from app.modules.prompt_engine.enums import PromptCategory
 from app.modules.prompt_engine.schemas import PromptGenerateRequest
 
@@ -22,12 +23,13 @@ def _start(
     *,
     mode: str = "pro",
     category: str = "marketing",
+    initial_request: str = "Quero criar um anúncio para vender um tênis feminino",
 ) -> dict[str, Any]:
     response = client.post(
         "/api/v1/interviews",
         headers=headers,
         json={
-            "initial_request": "Quero criar um anúncio para vender um tênis feminino",
+            "initial_request": initial_request,
             "mode": mode,
             "category": category,
         },
@@ -76,6 +78,179 @@ def test_modes_have_formal_depth_and_basic_completes_without_questions(client: T
     completed = client.post(f"/api/v1/interviews/{basic['id']}/complete", headers=headers)
     assert completed.status_code == 200
     assert completed.json()["prompt_input"]["mode"] == "basic"
+
+
+def test_adaptive_interview_omits_known_facts_and_persists_dynamic_snapshot(client: TestClient) -> None:
+    headers = _auth(client, "adaptive@example.com")
+    interview = _start(
+        client,
+        headers,
+        initial_request=(
+            "Quero criar um anúncio para Instagram para mulheres de 18 a 35 anos com tom persuasivo."
+        ),
+    )
+    assert [question["key"] for question in interview["questions"]] == ["cta"]
+    assert interview["progress"] == {
+        "answered": 0,
+        "total": 1,
+        "required_answered": 0,
+        "required_total": 1,
+    }
+    assert "facts" not in interview
+
+    refreshed = client.get(f"/api/v1/interviews/{interview['id']}", headers=headers)
+    assert refreshed.status_code == 200
+    assert refreshed.json()["questions"] == interview["questions"]
+    assert refreshed.json()["progress"] == interview["progress"]
+
+    ready = client.post(
+        f"/api/v1/interviews/{interview['id']}/answers",
+        headers=headers,
+        json={"answers": [{"question_key": "cta", "value": "Comprar agora"}]},
+    )
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+    completed = client.post(f"/api/v1/interviews/{interview['id']}/complete", headers=headers)
+    assert completed.status_code == 200
+    prompt_input = completed.json()["prompt_input"]
+    assert prompt_input["tone"] == "persuasivo"
+    assert prompt_input["audience"] == "mulheres de 18 a 35 anos"
+    assert "Instagram" in prompt_input["context"]
+
+
+def test_pro_can_start_ready_when_all_required_facts_are_explicit(client: TestClient) -> None:
+    headers = _auth(client, "adaptive-ready@example.com")
+    interview = _start(
+        client,
+        headers,
+        initial_request=(
+            "Anúncio para Instagram para mulheres de 18 a 35 anos com tom persuasivo, CTA: compre agora."
+        ),
+    )
+    assert interview["status"] == "ready"
+    assert interview["questions"] == []
+    assert interview["progress"]["total"] == 0
+
+
+def test_explicit_answer_overrides_extracted_fact(client: TestClient) -> None:
+    headers = _auth(client, "adaptive-precedence@example.com")
+    interview = _start(
+        client,
+        headers,
+        initial_request=(
+            "Anúncio para Instagram para mulheres adultas com tom profissional, CTA: conheça agora."
+        ),
+    )
+    assert interview["status"] == "ready"
+    override = client.post(
+        f"/api/v1/interviews/{interview['id']}/answers",
+        headers=headers,
+        json={"answers": [{"question_key": "tone", "value": "persuasivo"}]},
+    )
+    assert override.status_code == 200
+    assert override.json()["progress"]["total"] == 0
+    completed = client.post(f"/api/v1/interviews/{interview['id']}/complete", headers=headers)
+    assert completed.status_code == 200
+    assert completed.json()["prompt_input"]["tone"] == "persuasivo"
+
+
+def test_known_form_fields_omit_questions_and_feed_complete(client: TestClient) -> None:
+    headers = _auth(client, "adaptive-form@example.com")
+    response = client.post(
+        "/api/v1/interviews",
+        headers=headers,
+        json={
+            "initial_request": "Crie um anúncio para Instagram",
+            "mode": "pro",
+            "category": "marketing",
+            "known_fields": {
+                "input": "Crie um anúncio para Instagram",
+                "mode": "pro",
+                "category": "marketing",
+                "language": "pt-BR",
+                "tone": "elegante",
+                "audience": "Mulheres de 18 a 35 anos",
+                "context": "Lançamento de verão",
+                "instructions": ["Destaque conforto"],
+                "constraints": ["Não prometer frete grátis"],
+                "optimize_with_ai": True,
+            },
+        },
+    )
+    assert response.status_code == 201, response.text
+    interview = response.json()
+    assert [question["key"] for question in interview["questions"]] == ["cta"]
+    ready = client.post(
+        f"/api/v1/interviews/{interview['id']}/answers",
+        headers=headers,
+        json={"answers": [{"question_key": "cta", "value": "Comprar agora"}]},
+    )
+    assert ready.status_code == 200 and ready.json()["status"] == "ready"
+    completed = client.post(f"/api/v1/interviews/{interview['id']}/complete", headers=headers)
+    prompt = completed.json()["prompt_input"]
+    assert prompt["tone"] == "elegante"
+    assert prompt["audience"] == "Mulheres de 18 a 35 anos"
+    assert prompt["instructions"] == ["Destaque conforto"]
+    assert prompt["constraints"] == ["Não prometer frete grátis"]
+    assert "Lançamento de verão" in prompt["context"]
+    assert prompt["optimize_with_ai"] is False
+
+
+def test_programming_requirements_answer_is_preserved_once_in_final_context(client: TestClient) -> None:
+    headers = _auth(client, "adaptive-programming-regression@example.com")
+    interview = _start(
+        client,
+        headers,
+        mode="expert",
+        category="programacao",
+        initial_request="Crie um site em React para uma pizzaria com cardápio e botão de WhatsApp.",
+    )
+    keys = {question["key"] for question in interview["questions"]}
+    assert "stack" not in keys
+    assert "platform" not in keys
+    assert "requirements" in keys
+
+    expected_answer = "Cardápio online, botão de WhatsApp e layout responsivo."
+    question_text = "Quais funcionalidades e requisitos precisam ser atendidos?"
+    rejected_echo = client.post(
+        f"/api/v1/interviews/{interview['id']}/answers",
+        headers=headers,
+        json={"answers": [{"question_key": "requirements", "value": question_text}]},
+    )
+    assert rejected_echo.status_code == 422
+
+    answers = [
+        {
+            "question_key": question["key"],
+            "value": expected_answer if question["key"] == "requirements" else _value(question),
+        }
+        for question in interview["questions"]
+        if question["required"]
+    ]
+    answered = client.post(
+        f"/api/v1/interviews/{interview['id']}/answers",
+        headers=headers,
+        json={"answers": answers},
+    )
+    assert answered.status_code == 200, answered.text
+    persisted = {item["question_key"]: item["value"] for item in answered.json()["answers"]}
+    assert persisted["requirements"] == expected_answer
+
+    completed = client.post(f"/api/v1/interviews/{interview['id']}/complete", headers=headers)
+    assert completed.status_code == 200, completed.text
+    prompt_input = PromptGenerateRequest.model_validate(completed.json()["prompt_input"])
+    assert prompt_input.context is not None
+    assert prompt_input.context.count(question_text) == 1
+    assert prompt_input.context.count(expected_answer) == 1
+    assert "Plataforma: site" in prompt_input.context
+    assert "Stack: React" in prompt_input.context
+
+    final_prompt = PromptBuilder().build(prompt_input)
+    context = final_prompt.split("## CONTEXT\n", 1)[1].split("\n\n## ", 1)[0]
+    assert context.count(question_text) == 1
+    assert context.count(expected_answer) == 1
+    assert "Plataforma: site" in context
+    assert "Stack: React" in context
 
 
 def test_structured_answers_validation_progress_ready_and_idempotency(client: TestClient) -> None:
