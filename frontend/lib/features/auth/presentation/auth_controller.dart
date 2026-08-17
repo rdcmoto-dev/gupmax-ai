@@ -89,6 +89,12 @@ class AuthController extends ChangeNotifier {
     _setUnauthenticated();
   }
 
+  void syncUser(AuthUser updatedUser) {
+    if (user?.id != updatedUser.id) return;
+    user = updatedUser;
+    notifyListeners();
+  }
+
   void _handleExpiredSession() => _setUnauthenticated();
 
   void _setUnauthenticated() {

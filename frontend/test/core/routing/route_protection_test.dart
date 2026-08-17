@@ -22,7 +22,8 @@ void main() {
     '/payments/success',
     '/payments/cancel',
     '/payments',
-    '/payments/payment-id'
+    '/payments/payment-id',
+    '/account',
   ]) {
     testWidgets('não autenticado é redirecionado de $path para login',
         (tester) async {

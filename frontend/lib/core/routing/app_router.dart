@@ -7,6 +7,7 @@ import '../../features/auth/presentation/auth_controller.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/register_page.dart';
 import '../../features/auth/presentation/splash_page.dart';
+import '../../features/account/presentation/account_page.dart';
 import '../../features/commerce/presentation/commerce_page.dart';
 import '../../features/commerce/presentation/payment_return_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
@@ -31,6 +32,7 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardPage()),
+      GoRoute(path: '/account', builder: (_, __) => const AccountPage()),
       GoRoute(path: '/prompts', builder: (_, __) => const PromptListPage()),
       GoRoute(
           path: '/prompts/new', builder: (_, __) => const PromptCreatePage()),

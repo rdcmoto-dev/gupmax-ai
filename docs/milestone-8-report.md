@@ -408,3 +408,44 @@ O histórico financeiro real carregou registros de Stripe e Mercado Pago, preser
 O detalhe de um pagamento Pago abriu corretamente em `/payments/:id` e exibiu finalidade Compra de créditos, produto 500 créditos, provider Mercado Pago, valor BRL 19.90 e datas de criação, atualização e pagamento. Nenhuma informação financeira sensível foi apresentada.
 
 Durante o smoke test não foi executada compra, criação de checkout, pagamento, refund ou cancelamento de assinatura. A validação foi exclusivamente de visualização e acompanhamento dos dados já existentes no backend.
+
+## Etapa 8.7 — Perfil, Conta e Segurança
+
+### Contratos auditados e utilizados
+
+| Endpoint | Disponibilidade e uso |
+| --- | --- |
+| `GET /api/v1/users/me` | Perfil do usuário autenticado. Utilizado para carregar nome, e-mail, role, status e data de criação. |
+| `PATCH /api/v1/users/{user_id}` | Permite ao próprio usuário alterar nome e e-mail. Role e status enviados por usuário comum são descartados pelo backend. Utilizado na edição do perfil. |
+| `PATCH /api/v1/users/me/password` | Exige senha atual e nova senha com pelo menos oito caracteres. Utilizado na alteração de senha. |
+| `POST /api/v1/auth/logout` | Revoga o refresh token recebido; o logout local continua obrigatório mesmo se o backend estiver indisponível. Reutilizado pelo fluxo existente. |
+| `POST /api/v1/auth/login`, `/refresh`, `/register`, `/password-recovery` e `/password-reset` | Auditados para confirmar o ciclo de autenticação. Não receberam alterações nesta etapa. |
+| `GET /api/v1/users`, `GET/PATCH/DELETE /api/v1/users/{user_id}` | Contratos administrativos/ownership auditados. Listagem e exclusão não foram expostas na conta do usuário. |
+
+O backend não oferece contrato para listar dispositivos/sessões, revogar uma sessão individual ou encerrar todas as sessões. Também não existe exclusão ou desativação self-service: a exclusão existente exige a permissão administrativa `users:manage`. Essas capacidades não foram simuladas no Flutter e nenhuma alteração backend foi realizada.
+
+### UX implementada
+
+A rota autenticada `/account`, acessível pelo botão Minha conta no dashboard, apresenta:
+
+- dados reais do perfil, incluindo nome, e-mail, papel, status e data de criação;
+- edição validada de nome e e-mail, os únicos campos self-service aceitos pelo contrato atual;
+- alteração de senha com senha atual, nova senha, confirmação, campos obscurecidos e limpeza após sucesso;
+- seção final Sessão com a ação explícita Sair da conta, reutilizando o fluxo seguro de logout existente e seguida de redirecionamento ao login;
+- loading, mensagens amigáveis, confirmação de sucesso, erro com retry e layout responsivo.
+
+O mesmo modelo `AuthUser` é reutilizado, e uma edição bem-sucedida sincroniza o usuário autenticado em memória. Nenhuma senha é persistida, registrada em log ou enviada a outro destino; os campos existem apenas nos controllers da tela durante a operação. Tokens continuam no armazenamento seguro e não aparecem na UI ou nos logs de rota.
+
+### Segurança, limitações e testes
+
+Autenticação Bearer, ownership e autorização permanecem no backend. O Flutter não permite editar role/status, acessar conta alheia, excluir/desativar conta nem gerenciar sessões inexistentes. Erros 401, 403, 409, 422 e 429 são convertidos em mensagens amigáveis sem expor detalhes internos.
+
+Os testes Flutter cobrem proteção de `/account`, perfil e campos reais, loading, erro/retry, edição e validação, senha obscurecida, confirmação divergente, sucesso e erro backend, presença da ação Sair da conta, logout/redirect, proteção posterior ao logout e viewport mobile. Alteração real de e-mail ou senha, exclusão, desativação e revogação global não foram executadas, conforme o escopo.
+
+### Validação manual da Etapa 8.7
+
+O smoke test manual contra o backend real foi aprovado. A rota `/account` abriu corretamente para um usuário autenticado e exibiu os dados reais da conta: nome, e-mail, perfil/role, status e data de criação. A interface apresentou corretamente as seções Dados pessoais, Alterar senha, Conta e Sessão, incluindo a ação explícita Sair da conta.
+
+Nenhuma alteração real de nome, e-mail ou senha foi executada durante o smoke test. O logout real pela ação Sair da conta redirecionou o usuário para o login e encerrou o acesso à área protegida. Em seguida, uma tentativa manual de acessar `/account` sem autenticação foi bloqueada, mantendo/redirecionando o navegador para `/login?redirect=/account`.
+
+Com a UX da conta, o logout, a proteção posterior ao logout e as validações automatizadas aprovadas, a Etapa 8.7 está integralmente aprovada.
