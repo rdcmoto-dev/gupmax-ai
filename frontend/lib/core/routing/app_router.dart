@@ -11,6 +11,7 @@ import '../../features/account/presentation/account_page.dart';
 import '../../features/commerce/presentation/commerce_page.dart';
 import '../../features/commerce/presentation/payment_return_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
+import '../../features/interviews/presentation/interview_page.dart';
 import '../../features/payments_history/presentation/payment_detail_page.dart';
 import '../../features/payments_history/presentation/payment_history_page.dart';
 import '../../features/prompts/presentation/prompt_create_page.dart';
@@ -36,6 +37,11 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
       GoRoute(path: '/prompts', builder: (_, __) => const PromptListPage()),
       GoRoute(
           path: '/prompts/new', builder: (_, __) => const PromptCreatePage()),
+      GoRoute(
+        path: '/interviews/:id',
+        builder: (_, state) =>
+            InterviewPage(interviewId: state.pathParameters['id']!),
+      ),
       GoRoute(
         path: '/prompts/:id',
         builder: (_, state) =>

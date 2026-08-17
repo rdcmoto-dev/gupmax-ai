@@ -59,6 +59,28 @@ class PromptGenerateInput {
   final String provider;
   final String? model;
 
+  factory PromptGenerateInput.fromJson(Map<String, dynamic> json) =>
+      PromptGenerateInput(
+        input: json['input'] as String,
+        category: PromptCategory.fromValue(json['category'] as String),
+        language: json['language'] as String? ?? 'pt-BR',
+        tone: json['tone'] as String?,
+        mode: PromptMode.values.byName(json['mode'] as String),
+        optimizeWithAi: json['optimize_with_ai'] as bool? ?? false,
+        title: json['title'] as String?,
+        context: json['context'] as String?,
+        audience: json['audience'] as String?,
+        role: json['role'] as String?,
+        instructions:
+            (json['instructions'] as List<dynamic>? ?? const []).cast<String>(),
+        constraints:
+            (json['constraints'] as List<dynamic>? ?? const []).cast<String>(),
+        outputFormat: json['output_format'] as String?,
+        additionalInformation: json['additional_information'] as String?,
+        provider: json['provider'] as String? ?? 'openai',
+        model: json['model'] as String?,
+      );
+
   Map<String, dynamic> toJson() => {
         'input': input,
         'category': category.value,

@@ -96,3 +96,58 @@ Com as validações automatizadas e o smoke test manual/API aprovados, a Etapa 9
 - não houve alteração Flutter.
 
 A Etapa 9.2 poderá construir a UX Flutter de entrevista sobre esses contratos, mantendo o backend como autoridade e sem inferir regras financeiras no cliente.
+
+## Etapa 9.2 — Frontend da Entrevista Guiada
+
+### Arquitetura frontend
+
+A feature isolada `features/interviews` segue os padrões existentes do Flutter, separando modelos de domínio, repository HTTP, controller baseado em `ChangeNotifier`, providers Riverpod e página de apresentação. O frontend reutiliza `ApiClient`, autenticação e tratamento global de 401 já existentes. Nenhuma alteração backend foi necessária.
+
+O repository consome exclusivamente os contratos publicados pela Etapa 9.1:
+
+- `POST /api/v1/interviews` para iniciar a sessão;
+- `GET /api/v1/interviews/{interview_id}` para carregamento, refresh e deep link;
+- `POST /api/v1/interviews/{interview_id}/answers` para persistir uma resposta;
+- `POST /api/v1/interviews/{interview_id}/complete` para concluir e receber o `PromptGenerateRequest`.
+
+### Fluxo Basic, Pro e Expert
+
+O formulário existente de criação continua sendo a origem da solicitação inicial, modo e categoria. Basic preserva o fluxo direto do Prompt Engine e não abre uma entrevista visual vazia. Pro e Expert criam uma entrevista real com os dados escolhidos pelo usuário e navegam para `/interviews/:id`; a diferença de profundidade continua sendo definida pelas perguntas retornadas pelo backend.
+
+A rota nova é protegida pelo redirect global de autenticação. A página sempre pode recuperar a entrevista pelo ID, sem depender exclusivamente de estado em memória, permitindo refresh e deep link. Um usuário sem sessão é encaminhado ao login com o destino original preservado.
+
+### Perguntas, respostas e progresso
+
+A interface renderiza dinamicamente `text`, `multiline`, `single_choice`, `multi_choice` e `boolean`. Textos, chaves, obrigatoriedade e opções vêm integralmente do backend; não existem perguntas específicas codificadas no Flutter. Choices usam componentes que reorganizam seu conteúdo e a tela permanece limitada a uma largura legível com rolagem vertical.
+
+Cada avanço envia somente a resposta da pergunta atual. O backend realiza o upsert por chave e devolve a sessão completa; o controller substitui seu estado pela resposta real, preservando respostas e atualizando progresso e status sem simulação local. Falhas mantêm a pergunta visível e permitem retry seguro.
+
+### Ready, complete e Prompt Engine
+
+Quando o backend retorna `ready`, a página apresenta a confirmação “Pronto para criar seu prompt”. O botão fica desabilitado durante a requisição, evitando chamadas concorrentes por clique duplo. `/complete` fornece o `PromptGenerateRequest`, convertido para o mesmo `PromptGenerateInput` utilizado pelo fluxo existente e encaminhado a `PromptController.generate`; não há segundo Prompt Engine nem montagem manual duplicada do payload.
+
+Uma sessão `completed` não aceita novas respostas e reutiliza o `structured_prompt` persistido. Uma sessão expirada apresenta orientação para iniciar nova criação. 404 é exibido sem revelar ownership, erros recuperáveis oferecem retry e 401 permanece sob responsabilidade do fluxo global de autenticação.
+
+### Testes e validação
+
+Os testes Flutter cobrem criação Pro e Expert, Basic sem entrevista visual, renderização dos cinco tipos de pergunta, envio e progresso, erro e retry, `ready`, `complete`, bloqueio de clique duplo, `completed`, `expired`, rota protegida, deep link com consulta por ID e ausência de overflow nas larguras 320, 768 e 1280 pixels. Repositories falsos impedem acesso a OpenAI, pagamentos ou geração real de prompts.
+
+### Smoke test manual
+
+O smoke test manual da Etapa 9.2 foi aprovado contra o frontend e o backend reais.
+
+No fluxo Basic de Marketing, a solicitação seguiu diretamente para o Prompt Engine, sem abrir entrevista guiada. A tela de resultado preservou o modo GUPMAX Rápido, a categoria, o idioma `pt-BR` e informou que IA não foi utilizada.
+
+No fluxo Pro de Marketing, a entrevista apresentou quatro perguntas obrigatórias. O progresso real foi validado de 0/4 até 4/4 com respostas de canal, CTA, público e tom. O backend retornou `ready`, a ação “Gerar meu prompt” concluiu a entrevista com uma única interação e o resultado preservou modo, categoria, idioma e tom, incorporando as respostas ao prompt final.
+
+No fluxo Expert de Marketing, dez perguntas foram carregadas. O progresso avançou corretamente e uma pergunta opcional foi pulada; a entrevista alcançou `ready` com 9/10 respostas, confirmando que campos opcionais não bloqueiam a conclusão. O resultado preservou GUPMAX Expert e apresentou as estruturas ROLE, OBJECTIVE, CONTEXT, AUDIENCE, INSTRUCTIONS, CONSTRAINTS, OUTPUT FORMAT, LANGUAGE e TONE, com as respostas incorporadas.
+
+Nos três fluxos, a tela de resultado e as ações de copiar prompt, criar outro e consultar histórico permaneceram funcionais. A integração Interview → `/complete` → Prompt Engine foi aprovada. Durante o smoke test, a otimização com IA permaneceu desligada; nenhuma chamada OpenAI foi intencionalmente executada, nenhuma compra ou checkout foi iniciado e nenhuma operação de payment ou wallet foi solicitada.
+
+Com as validações automatizadas e o smoke test manual aprovados, a Etapa 9.2 está integralmente aprovada.
+
+### Limitações
+
+- perguntas e enriquecimento continuam determinísticos conforme a Etapa 9.1;
+- não existe listagem histórica ou cancelamento de entrevistas;
+- respostas já enviadas são preservadas pelo backend, mas esta versão conduz sequencialmente apenas pelas perguntas ainda não respondidas.

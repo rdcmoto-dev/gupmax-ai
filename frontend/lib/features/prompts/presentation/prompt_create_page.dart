@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../interviews/interview_providers.dart';
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
 import 'prompt_scaffold.dart';
@@ -54,6 +55,17 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_mode != PromptMode.basic) {
+      final interview = await ref.read(interviewControllerProvider).start(
+            initialRequest: _input.text.trim(),
+            mode: _mode,
+            category: _category,
+          );
+      if (mounted && interview != null) {
+        context.go('/interviews/${interview.id}');
+      }
+      return;
+    }
     final result = await ref.read(promptControllerProvider).generate(
           PromptGenerateInput(
             input: _input.text.trim(),
@@ -115,6 +127,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(promptControllerProvider);
+    final interviewState = ref.watch(interviewControllerProvider);
+    final isSubmitting = state.isSubmitting || interviewState.isSubmitting;
     return PromptScaffold(
       title: 'Criar prompt',
       child: Form(
@@ -263,18 +277,28 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                   key: const Key('prompt_error'),
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
+            if (interviewState.error != null) ...[
+              const SizedBox(height: 16),
+              Text(interviewState.error!,
+                  key: const Key('interview_start_error'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ],
             const SizedBox(height: 20),
             FilledButton.icon(
               key: const Key('prompt_submit'),
-              onPressed: state.isSubmitting ? null : _submit,
-              icon: state.isSubmitting
+              onPressed: isSubmitting ? null : _submit,
+              icon: isSubmitting
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.auto_awesome),
-              label: Text(state.isSubmitting
-                  ? 'Construindo seu prompt...'
-                  : 'Construir meu prompt'),
+              label: Text(isSubmitting
+                  ? _mode == PromptMode.basic
+                      ? 'Construindo seu prompt...'
+                      : 'Preparando sua criação...'
+                  : _mode == PromptMode.basic
+                      ? 'Construir meu prompt'
+                      : 'Iniciar entrevista'),
             ),
           ],
         ),

@@ -8,15 +8,17 @@ import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:gupmax_ai/core/network/session_expiry_bus.dart';
 import 'package:gupmax_ai/features/auth/auth_providers.dart';
 import 'package:gupmax_ai/features/auth/presentation/auth_controller.dart';
+import 'package:gupmax_ai/features/interviews/interview_providers.dart';
 import 'package:gupmax_ai/features/prompts/domain/prompt_models.dart';
 import 'package:gupmax_ai/features/prompts/prompt_providers.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_interview_repository.dart';
 import '../../support/fake_prompt_repository.dart';
 
 void main() {
-  Future<void> pumpApp(
-      WidgetTester tester, FakePromptRepository prompts) async {
+  Future<void> pumpApp(WidgetTester tester, FakePromptRepository prompts,
+      [FakeInterviewRepository? interviews]) async {
     final auth = AuthController(
       repository: FakeAuthRepository(),
       expiryBus: SessionExpiryBus(),
@@ -28,6 +30,8 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith((ref) => auth),
           promptRepositoryProvider.overrideWithValue(prompts),
+          interviewRepositoryProvider
+              .overrideWithValue(interviews ?? FakeInterviewRepository()),
         ],
         child: const GupmaxApp(),
       ),
@@ -139,11 +143,7 @@ void main() {
     expect(find.byKey(const Key('empty_prompts')), findsOneWidget);
   });
 
-  for (final mapping in {
-    PromptMode.basic: 'GUPMAX Rápido',
-    PromptMode.pro: 'GUPMAX Pro',
-    PromptMode.expert: 'GUPMAX Expert',
-  }.entries) {
+  for (final mapping in {PromptMode.basic: 'GUPMAX Rápido'}.entries) {
     testWidgets('${mapping.value} envia ${mapping.key.name}', (tester) async {
       final repository = FakePromptRepository();
       await pumpApp(tester, repository);
@@ -159,6 +159,30 @@ void main() {
       await submitPrompt(tester);
       await tester.pumpAndSettle();
       expect(repository.generatedInput?.mode, mapping.key);
+    });
+  }
+
+  for (final mapping in {
+    PromptMode.pro: 'GUPMAX Pro',
+    PromptMode.expert: 'GUPMAX Expert',
+  }.entries) {
+    testWidgets('${mapping.value} inicia entrevista ${mapping.key.name}',
+        (tester) async {
+      final interviews = FakeInterviewRepository();
+      await pumpApp(tester, FakePromptRepository(), interviews);
+      await openCreate(tester);
+      final modeCard = find.byKey(Key('mode_${mapping.key.name}'));
+      tester
+          .widget<InkWell>(
+              find.descendant(of: modeCard, matching: find.byType(InkWell)))
+          .onTap!();
+      await tester.enterText(
+          find.byKey(const Key('prompt_input')), 'Crie algo profissional');
+      await submitPrompt(tester);
+      await tester.pumpAndSettle();
+      expect(interviews.createdMode, mapping.key);
+      expect(interviews.createdRequest, 'Crie algo profissional');
+      expect(find.text('Vamos melhorar seu prompt'), findsOneWidget);
     });
   }
 

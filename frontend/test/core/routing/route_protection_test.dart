@@ -17,6 +17,7 @@ void main() {
     '/prompts',
     '/prompts/new',
     '/prompts/prompt-id',
+    '/interviews/interview-id',
     '/usage',
     '/credits',
     '/payments/success',
