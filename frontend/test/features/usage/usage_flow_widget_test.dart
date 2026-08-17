@@ -8,6 +8,7 @@ import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:gupmax_ai/core/network/session_expiry_bus.dart';
 import 'package:gupmax_ai/features/auth/auth_providers.dart';
 import 'package:gupmax_ai/features/auth/presentation/auth_controller.dart';
+import 'package:gupmax_ai/features/usage/domain/usage_models.dart';
 import 'package:gupmax_ai/features/usage/usage_providers.dart';
 
 import '../../support/fake_auth_repository.dart';
@@ -67,6 +68,30 @@ void main() {
     expect(find.text('Uso de IA'), findsWidgets);
     expect(find.text('-3'), findsOneWidget);
     expect(find.text('Saldo 97'), findsOneWidget);
+  });
+
+  testWidgets('trial expirado não é apresentado como Em teste', (tester) async {
+    final repository = FakeUsageRepository();
+    final active = repository.sampleSummary();
+    repository.summaryOverride = UsageSummary(
+      wallet: active.wallet,
+      subscription: AccountSubscription(
+        plan: active.subscription.plan,
+        status: 'trialing',
+        provider: active.subscription.provider,
+        currentPeriodStart: active.subscription.currentPeriodStart,
+        currentPeriodEnd: active.subscription.currentPeriodEnd,
+        cancelAtPeriodEnd: false,
+        trialStatus: 'expired',
+        trialEndsAt: active.subscription.trialEndsAt,
+      ),
+      limits: active.limits,
+    );
+    await pumpApp(tester, repository);
+    await openUsage(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('Período de teste expirado'), findsOneWidget);
+    expect(find.text('Em teste'), findsNothing);
   });
 
   testWidgets('erro oferece retry e sessão expirada é amigável',

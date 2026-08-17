@@ -13,6 +13,7 @@ from app.modules.ai_gateway.schemas import (
     GenerateTextResponse,
     ProviderListResponse,
     ProviderResponse,
+    TokenUsageResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,11 @@ class AIGatewayService:
             model=output.model,
             text=output.text,
             latency_ms=output.latency_ms,
-            usage=output.usage,
+            usage=TokenUsageResponse(
+                input_tokens=output.usage.input_tokens,
+                output_tokens=output.usage.output_tokens,
+                total_tokens=output.usage.total_tokens,
+            ),
         )
 
     @staticmethod

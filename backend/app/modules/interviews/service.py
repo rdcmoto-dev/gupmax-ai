@@ -152,9 +152,7 @@ class InterviewService:
             if key not in direct and key not in {"success_criteria", "include_examples"}
         ]
         context_lines.extend(
-            self._fact_context(key, fact)
-            for key, fact in facts.items()
-            if key not in answers and key not in direct
+            self._fact_context(key, fact) for key, fact in facts.items() if key not in answers and key not in direct
         )
         instructions = list(values.get("instructions", []))
         if value := values.get("success_criteria"):
@@ -180,7 +178,7 @@ class InterviewService:
             additional_information=self._optional_string(values.get("additional_information")),
             provider=str(values.get("provider", "openai")),
             model=self._optional_string(values.get("model")),
-            optimize_with_ai=False,
+            optimize_with_ai=values.get("optimize_with_ai") is True,
         )
 
     @staticmethod

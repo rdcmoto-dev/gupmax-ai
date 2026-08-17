@@ -22,6 +22,9 @@ class PromptRepository:
     async def get_by_id(self, prompt_id: UUID) -> Prompt | None:
         return await self.session.get(Prompt, prompt_id)
 
+    async def get_by_idempotency_key(self, user_id: UUID, key: str) -> Prompt | None:
+        return await self.session.scalar(select(Prompt).where(Prompt.user_id == user_id, Prompt.idempotency_key == key))
+
     async def list(
         self,
         *,

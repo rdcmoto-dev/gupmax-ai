@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -14,11 +15,11 @@ from app.modules.users.roles import Role
 
 
 class FakeGateway:
-    async def generate(self, _data: object) -> GenerateTextResponse:
+    async def generate(self, data: Any) -> GenerateTextResponse:
         return GenerateTextResponse(
             provider="fake",
             model="fake-model",
-            text="PROMPT OTIMIZADO",
+            text=data.user_prompt,
             latency_ms=1,
             usage=TokenUsageResponse(input_tokens=12, output_tokens=5, total_tokens=17),
         )

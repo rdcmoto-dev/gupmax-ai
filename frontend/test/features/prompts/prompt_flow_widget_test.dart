@@ -96,6 +96,52 @@ void main() {
     expect(find.text('Limite de uso atingido.'), findsOneWidget);
   });
 
+  testWidgets('toggle de IA mostra estimativa fornecida pelo backend',
+      (tester) async {
+    final repository = FakePromptRepository();
+    await pumpApp(tester, repository);
+    await openCreate(tester);
+    tester
+        .widget<SwitchListTile>(find.byKey(const Key('optimize_with_ai')))
+        .onChanged!(true);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('ai_credit_estimate')), findsOneWidget);
+    expect(find.byKey(const Key('ai_credit_estimate_summary')), findsOneWidget);
+    expect(find.text('Custo estimado: 8 créditos'), findsOneWidget);
+    expect(find.text('Saldo disponível: 100 créditos'), findsOneWidget);
+    expect(
+        find.text(
+          'Custo estimado: 8 créditos. Saldo disponível: 100 créditos.',
+        ),
+        findsOneWidget);
+  });
+
+  testWidgets('estimativa sem saldo oferece Créditos e planos', (tester) async {
+    final repository = FakePromptRepository()
+      ..estimateResult = const AiCreditEstimate(
+          estimatedCredits: 8, availableCredits: 2, canExecute: false);
+    await pumpApp(tester, repository);
+    await openCreate(tester);
+    tester
+        .widget<SwitchListTile>(find.byKey(const Key('optimize_with_ai')))
+        .onChanged!(true);
+    await tester.pumpAndSettle();
+    expect(find.text('Créditos e planos'), findsOneWidget);
+  });
+
+  testWidgets('resultado otimizado identifica uso real de IA', (tester) async {
+    final repository = FakePromptRepository()
+      ..records.add(FakePromptRepository().sample(
+          status: 'optimized', provider: 'openai', model: 'test-model'));
+    await pumpApp(tester, repository);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('IA utilizada'), findsOneWidget);
+    expect(find.text('Provider: openai'), findsOneWidget);
+  });
+
   testWidgets('histórico vazio exibe estado dedicado', (tester) async {
     await pumpApp(tester, FakePromptRepository());
     await tester.tap(find.byKey(const Key('my_prompts_button')));
@@ -187,6 +233,26 @@ void main() {
       expect(find.text('Vamos melhorar seu prompt'), findsOneWidget);
     });
   }
+
+  testWidgets('entrevista preserva a opção de otimização com IA',
+      (tester) async {
+    final interviews = FakeInterviewRepository();
+    await pumpApp(tester, FakePromptRepository(), interviews);
+    await openCreate(tester);
+    final pro = find.byKey(const Key('mode_pro'));
+    tester
+        .widget<InkWell>(
+            find.descendant(of: pro, matching: find.byType(InkWell)))
+        .onTap!();
+    tester
+        .widget<SwitchListTile>(find.byKey(const Key('optimize_with_ai')))
+        .onChanged!(true);
+    await tester.enterText(
+        find.byKey(const Key('prompt_input')), 'Crie uma campanha completa');
+    await submitPrompt(tester);
+    await tester.pumpAndSettle();
+    expect(interviews.createdKnownFields?.optimizeWithAi, isTrue);
+  });
 
   testWidgets('exibe categorias reais e envia campos complementares',
       (tester) async {

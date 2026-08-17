@@ -322,7 +322,15 @@ class CreditService:
         return reservation
 
     async def settle(
-        self, reservation_id: UUID, provider: str, model: str | None, input_tokens: int, output_tokens: int
+        self,
+        reservation_id: UUID,
+        provider: str,
+        model: str | None,
+        input_tokens: int,
+        output_tokens: int,
+        *,
+        effective_provider: str | None = None,
+        effective_model: str | None = None,
     ) -> CreditReservation:
         reservation = await self.repository.reservation(reservation_id)
         if reservation is None:
@@ -368,8 +376,8 @@ class CreditService:
                 idempotency_key=f"settlement:{reservation.id}",
                 description=f"AI usage: {reservation.operation_type.value}",
                 transaction_metadata={
-                    "provider": provider,
-                    "model": model,
+                    "provider": effective_provider or provider,
+                    "model": effective_model or model,
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "calculated_credits": calculated,

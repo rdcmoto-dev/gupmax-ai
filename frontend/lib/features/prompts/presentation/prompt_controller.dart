@@ -12,10 +12,31 @@ class PromptController extends ChangeNotifier {
   bool isLoading = false;
   String? error;
   PromptRecord? selected;
+  AiCreditEstimate? estimate;
+  bool isEstimating = false;
   List<PromptRecord> items = [];
   int total = 0;
   int offset = 0;
   static const pageSize = 20;
+
+  Future<void> estimateOptimization(PromptGenerateInput input) async {
+    isEstimating = true;
+    estimate = null;
+    notifyListeners();
+    try {
+      estimate = await _repository.estimate(input);
+    } on AppException catch (exception) {
+      error = exception.message;
+    } finally {
+      isEstimating = false;
+      notifyListeners();
+    }
+  }
+
+  void clearEstimate() {
+    estimate = null;
+    notifyListeners();
+  }
 
   Future<PromptRecord?> generate(PromptGenerateInput input) async {
     if (isSubmitting) return null;

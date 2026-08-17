@@ -1,11 +1,26 @@
+import logging
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from time import perf_counter
 
 import openai
 from openai import AsyncOpenAI
 
 from app.core.ai_exceptions import AIConfigurationError, AIRequestError, AIUnavailableError
+from app.core.config import get_settings
 from app.modules.ai_gateway.contracts import GenerationInput, GenerationOutput, GenerationStreamEvent, TokenUsage
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ModelCapabilities:
+    supports_temperature: bool = True
+
+
+MODEL_CAPABILITIES = {
+    "gpt-5.6-luna": ModelCapabilities(supports_temperature=False),
+}
 
 
 class OpenAIProvider:
@@ -43,6 +58,10 @@ class OpenAIProvider:
         return model
 
     @staticmethod
+    def _capabilities(model: str) -> ModelCapabilities:
+        return MODEL_CAPABILITIES.get(model, ModelCapabilities())
+
+    @staticmethod
     def _usage(response: object) -> TokenUsage:
         usage = getattr(response, "usage", None)
         return TokenUsage(
@@ -54,6 +73,23 @@ class OpenAIProvider:
     @staticmethod
     def _raise_mapped(error: Exception) -> None:
         if isinstance(error, openai.BadRequestError):
+            if get_settings().environment.lower() in {"development", "test"}:
+                body = error.body if isinstance(error.body, dict) else {}
+                logger.warning(
+                    "openai_bad_request status=%s type=%s code=%s param=%s message=%s",
+                    error.status_code,
+                    body.get("type"),
+                    body.get("code"),
+                    body.get("param"),
+                    body.get("message"),
+                    extra={
+                        "provider_status": error.status_code,
+                        "error_type": body.get("type"),
+                        "error_code": body.get("code"),
+                        "error_param": body.get("param"),
+                        "error_message": body.get("message"),
+                    },
+                )
             raise AIRequestError() from error
         if isinstance(error, (openai.AuthenticationError, openai.PermissionDeniedError)):
             raise AIConfigurationError() from error
@@ -130,6 +166,6 @@ class OpenAIProvider:
             "max_output_tokens": generation_input.max_output_tokens,
             "stream": stream,
         }
-        if generation_input.temperature is not None:
+        if generation_input.temperature is not None and self._capabilities(model).supports_temperature:
             arguments["temperature"] = generation_input.temperature
         return await self._client.responses.create(**arguments)  # type: ignore[arg-type]

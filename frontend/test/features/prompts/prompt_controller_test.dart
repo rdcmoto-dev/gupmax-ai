@@ -1,11 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gupmax_ai/core/errors/app_exception.dart';
+import 'package:gupmax_ai/features/prompts/data/prompt_repository.dart';
 import 'package:gupmax_ai/features/prompts/domain/prompt_models.dart';
 import 'package:gupmax_ai/features/prompts/presentation/prompt_controller.dart';
 
 import '../../support/fake_prompt_repository.dart';
 
 void main() {
+  test('distingue erro do provider de validação do formulário', () {
+    expect(promptGenerateErrorMessage(400), contains('provider/model'));
+    expect(
+        promptGenerateErrorMessage(400), isNot('Confira os dados informados.'));
+    expect(promptGenerateErrorMessage(422), 'Confira os dados informados.');
+  });
+
   test('cria prompt determinístico e encaminha optimize_with_ai', () async {
     final repository = FakePromptRepository();
     final controller = PromptController(repository);

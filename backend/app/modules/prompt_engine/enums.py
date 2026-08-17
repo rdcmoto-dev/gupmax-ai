@@ -23,5 +23,6 @@ class PromptMode(StrEnum):
 
 
 class PromptStatus(StrEnum):
+    PROCESSING = "processing"
     GENERATED = "generated"
     OPTIMIZED = "optimized"

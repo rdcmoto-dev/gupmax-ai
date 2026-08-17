@@ -254,6 +254,9 @@ class _SubscriptionCard extends StatelessWidget {
     if (status == 'trialing' && trial == 'active') {
       return 'Período de teste ativo';
     }
+    if (status == 'trialing' && trial == 'expired') {
+      return 'Período de teste expirado';
+    }
     return switch (status) {
       'active' => 'Ativo',
       'past_due' => 'Pagamento pendente',

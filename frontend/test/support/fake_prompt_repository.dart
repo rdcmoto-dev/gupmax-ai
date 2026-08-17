@@ -12,9 +12,16 @@ class FakePromptRepository implements PromptRepositoryContract {
   int? requestedOffset;
   int totalOverride = 0;
   bool deleted = false;
+  AiCreditEstimate estimateResult = const AiCreditEstimate(
+      estimatedCredits: 8, availableCredits: 100, canExecute: true);
 
-  PromptRecord sample(
-      {String id = 'prompt-1', String title = 'Prompt de teste'}) {
+  PromptRecord sample({
+    String id = 'prompt-1',
+    String title = 'Prompt de teste',
+    String status = 'generated',
+    String? provider,
+    String? model,
+  }) {
     final now = DateTime.utc(2026, 8, 14);
     return PromptRecord(
       id: id,
@@ -26,7 +33,9 @@ class FakePromptRepository implements PromptRepositoryContract {
       language: 'pt-BR',
       tone: 'persuasivo',
       mode: PromptMode.pro,
-      status: 'generated',
+      status: status,
+      provider: provider,
+      model: model,
       createdAt: now,
       updatedAt: now,
     );
@@ -42,6 +51,12 @@ class FakePromptRepository implements PromptRepositoryContract {
     final result = sample();
     records.insert(0, result);
     return result;
+  }
+
+  @override
+  Future<AiCreditEstimate> estimate(PromptGenerateInput input) async {
+    if (error != null) _throw();
+    return estimateResult;
   }
 
   @override

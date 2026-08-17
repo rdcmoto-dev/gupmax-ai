@@ -177,7 +177,7 @@ A combinação final segue esta precedência:
 3. fact extraído deterministicamente da solicitação inicial;
 4. default do Prompt Engine.
 
-Uma resposta explícita pode corrigir um fact omitido da entrevista; ela é validada pelo mesmo contrato da pergunta original, não altera artificialmente o progresso do snapshot e vence no `PromptGenerateRequest`. Contexto, público, tom, idioma, título, role, instruções, restrições, formato e informações adicionais do formulário são preservados. `optimize_with_ai` permanece sempre `false` na conclusão da entrevista.
+Uma resposta explícita pode corrigir um fact omitido da entrevista; ela é validada pelo mesmo contrato da pergunta original, não altera artificialmente o progresso do snapshot e vence no `PromptGenerateRequest`. Contexto, público, tom, idioma, título, role, instruções, restrições, formato e informações adicionais do formulário são preservados. A partir da Etapa 9.4, a escolha explícita por `optimize_with_ai=true` também é preservada; o default continua `false`.
 
 ### IA, billing e fallback
 
@@ -220,3 +220,33 @@ O reteste da correção de contexto usou em `requirements` a resposta “Cardáp
 Durante toda a validação, nenhuma IA ou chamada OpenAI foi utilizada, nenhum crédito de IA foi consumido e nenhuma operação de wallet, pagamento, checkout, Stripe ou Mercado Pago foi executada.
 
 Com as validações automatizadas, o smoke test adaptativo e o reteste da regressão aprovados, a Etapa 9.3 está integralmente aprovada.
+
+## Etapa 9.4 — Otimização inteligente com IA
+
+### Fluxo técnico e comercial
+
+Com `optimize_with_ai=false`, o Prompt Engine permanece integralmente determinístico: constrói e persiste o prompt sem gateway, usage, reserva ou consumo de créditos. Com a opção ativa, o backend constrói primeiro o resultado determinístico, registra a operação idempotente, valida entitlement e limites, calcula a estimativa pelas regras de custo existentes, reserva créditos, chama exclusivamente o AI Gateway e valida a saída antes de marcá-la como otimizada.
+
+Após sucesso, provider, model e tokens são persistidos no Prompt, o usage é finalizado com vínculo ao Prompt e a reserva de créditos sofre settlement pelo custo real limitado ao valor reservado. O ledger existente registra reserva, consumo de IA e eventual liberação do excesso. Nenhuma decisão de preço, saldo ou concessão de créditos ocorre no Flutter.
+
+### Estimate, idempotência e falhas
+
+O endpoint existente `POST /api/v1/credits/estimate` continua sendo a fonte da estimativa. A tela consulta esse endpoint ao ativar a opção, mostra custo e saldo retornados pelo backend e oferece acesso a “Créditos e planos” quando `can_execute=false`. A estimativa é informativa; autorização e reserva são revalidadas server-side na geração.
+
+`POST /api/v1/prompts/generate` aceita o header opcional e retrocompatível `Idempotency-Key`. O Flutter envia uma chave por tentativa. A migration `0009_prompt_idempotency` adiciona chave e fingerprint ao Prompt, com unicidade por usuário. A operação é persistida antes do gateway; repetição da mesma chave e payload retorna o mesmo Prompt sem nova chamada, usage ou débito. Reutilização da chave com payload diferente, ou enquanto a operação está processando, retorna 409.
+
+Saldo insuficiente bloqueia antes do provider. Falhas de configuração, timeout, provider ou saída inválida liberam usage e reserva e mantêm o prompt determinístico persistido como fallback seguro. Um retry deliberado recebe chave nova; retries do mesmo request permanecem idempotentes.
+
+### Validação, segurança e frontend
+
+O conteúdo do usuário é delimitado como não confiável e o gateway recebe instruções para somente otimizar o prompt, preservar requisitos e ignorar tentativas de alterar autorização, billing ou revelar instruções internas. Saídas vazias, excessivas ou que removam solicitação, contexto, público, role, formato, instruções ou constraints explícitas são rejeitadas. Nenhuma API key, system prompt interno ou chain-of-thought é retornado.
+
+Basic, Pro e Expert usam o mesmo fluxo. Em entrevistas, a preferência explícita por IA passa pelos facts persistidos e reaparece no `PromptGenerateRequest` de `/complete`, com categoria, modo, audience, tone, context, constraints, formato e demais respostas.
+
+O toggle comunica consumo possível, apresenta loading da estimativa e é desabilitado durante submissão. O controller impede clique duplo. As mensagens cobrem sessão, saldo, entitlement, conflito, limite e provider. O resultado mostra “IA utilizada” somente para status `optimized`; provider, model e tokens aparecem apenas quando persistidos.
+
+### Testes, limitações e smoke test
+
+Gateway e repositories falsos cobrem fluxo determinístico gratuito, sucesso nos três modos, estimativa, saldo insuficiente antes do provider, reserva, settlement, release, usage, ledger, falha do provider, saída inválida, idempotência de Prompt/usage/créditos e preservação da IA em entrevistas. Nenhuma chamada OpenAI real ou operação financeira externa é executada.
+
+O Gateway atual não expõe schema estruturado específico para Prompt; por isso a saída textual é validada contra limites e requisitos explícitos. A estimativa usa contagem aproximada de entrada e máximo configurado de saída; o settlement usa tokens reais. O smoke test manual controlado permanece pendente e deve usar ambiente dev/sandbox, poucos créditos e uma única geração.

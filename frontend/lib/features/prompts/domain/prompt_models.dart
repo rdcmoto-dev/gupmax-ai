@@ -101,6 +101,25 @@ class PromptGenerateInput {
       };
 }
 
+class AiCreditEstimate {
+  const AiCreditEstimate({
+    required this.estimatedCredits,
+    required this.availableCredits,
+    required this.canExecute,
+  });
+
+  factory AiCreditEstimate.fromJson(Map<String, dynamic> json) =>
+      AiCreditEstimate(
+        estimatedCredits: json['estimated_credits'] as int,
+        availableCredits: json['available_credits'] as int,
+        canExecute: json['can_execute'] as bool,
+      );
+
+  final int estimatedCredits;
+  final int availableCredits;
+  final bool canExecute;
+}
+
 class PromptUpdateInput {
   const PromptUpdateInput({
     this.title,

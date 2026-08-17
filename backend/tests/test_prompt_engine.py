@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.modules.ai_gateway.schemas import GenerateTextResponse, TokenUsageResponse
+from app.modules.ai_gateway.schemas import GenerateTextRequest, GenerateTextResponse, TokenUsageResponse
 from app.modules.prompt_engine.builder import PromptBuilder
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus
 from app.modules.prompt_engine.schemas import PromptGenerateRequest
@@ -63,14 +63,88 @@ class FakeGateway:
         return GenerateTextResponse(
             provider="fake",
             model="test-model",
-            text="PROMPT OTIMIZADO",
+            text=(
+                "## ROLE\nEspecialista\n\n## OBJECTIVE\nCrie uma campanha\n\n"
+                "## INSTRUCTIONS\nProduza uma resposta clara.\n\n## LANGUAGE\npt-BR"
+            ),
             latency_ms=1,
             usage=TokenUsageResponse(input_tokens=10, output_tokens=4, total_tokens=14),
         )
 
 
+class ParaphrasingGateway:
+    async def generate(self, _data: object) -> GenerateTextResponse:
+        return GenerateTextResponse(
+            provider="fake",
+            model="test-model",
+            text=(
+                "## ROLE\nEspecialista em marketing digital\n\n"
+                "## OBJECTIVE\nProduza uma peça publicitária breve para promover a oferta "
+                "de uma pizzaria no Instagram.\n\n"
+                "## INSTRUCTIONS\nDestaque a promoção com uma chamada clara e persuasiva.\n\n"
+                "## LANGUAGE\npt-BR"
+            ),
+            latency_ms=1,
+            usage=TokenUsageResponse(input_tokens=40, output_tokens=55, total_tokens=95),
+        )
+
+
+class ResolvingGateway:
+    async def generate(self, data: GenerateTextRequest) -> GenerateTextResponse:
+        requested_model = data.model
+        return GenerateTextResponse(
+            provider="openai",
+            model=requested_model or "gpt-5.6-luna",
+            text=(
+                "## ROLE\nEspecialista\n\n## OBJECTIVE\nCrie uma campanha\n\n"
+                "## INSTRUCTIONS\nProduza uma resposta clara.\n\n## LANGUAGE\npt-BR"
+            ),
+            latency_ms=1,
+            usage=TokenUsageResponse(input_tokens=10, output_tokens=4, total_tokens=14),
+        )
+
+
+class CapturingBilling:
+    def __init__(self) -> None:
+        self.repository = self
+        self.finalized_model: str | None = None
+
+    async def reserve_ai_generation(self, _user_id: object, _provider: str) -> SimpleNamespace:
+        return SimpleNamespace()
+
+    async def finalize_usage(self, _record: object, **values: object) -> None:
+        self.finalized_model = values["model"]  # type: ignore[assignment]
+
+
+class CapturingCredits:
+    def __init__(self) -> None:
+        self.settled_provider: str | None = None
+        self.settled_model: str | None = None
+
+    async def estimate(self, *_args: object) -> None:
+        return None
+
+    async def reserve(self, *_args: object) -> SimpleNamespace:
+        return SimpleNamespace(id=uuid4())
+
+    async def settle(
+        self,
+        _reservation_id: object,
+        _provider: str,
+        _model: str | None,
+        _input_tokens: int,
+        _output_tokens: int,
+        *,
+        effective_provider: str | None = None,
+        effective_model: str | None = None,
+    ) -> None:
+        self.settled_provider = effective_provider
+        self.settled_model = effective_model
+
+
 @pytest.mark.asyncio
-async def test_service_optimizes_only_through_injected_gateway() -> None:
+@pytest.mark.parametrize("mode", list(PromptMode))
+async def test_service_optimizes_only_through_injected_gateway(mode: PromptMode) -> None:
     service = PromptService(SimpleNamespace(), FakeGateway())
     saved: dict[str, object] = {}
 
@@ -80,14 +154,113 @@ async def test_service_optimizes_only_through_injected_gateway() -> None:
         return SimpleNamespace(id=uuid4(), created_at=now, updated_at=now, **values)
 
     service.repository.create = fake_create
+    service.repository.get_by_idempotency_key = lambda *_: _none()
+
+    async def fake_update(prompt: SimpleNamespace, **values: object) -> SimpleNamespace:
+        for field, value in values.items():
+            setattr(prompt, field, value)
+        return prompt
+
+    service.repository.update = fake_update
     user = SimpleNamespace(id=uuid4(), role=Role.USER)
     response = await service.generate(
-        user, PromptGenerateRequest(input="Crie uma campanha", optimize_with_ai=True, mode=PromptMode.PRO)
+        user, PromptGenerateRequest(input="Crie uma campanha", optimize_with_ai=True, mode=mode)
     )
 
-    assert response.generated_prompt == "PROMPT OTIMIZADO"
+    assert "## OBJECTIVE\nCrie uma campanha" in response.generated_prompt
     assert response.status == PromptStatus.OPTIMIZED
     assert response.provider == "fake"
     assert response.usage is not None and response.usage.total_tokens == 14
-    assert saved["total_tokens"] == 14
+    assert response.total_tokens == 14
     assert saved["category"] == PromptCategory.GENERAL
+
+
+async def _none() -> None:
+    return None
+
+
+@pytest.mark.asyncio
+async def test_basic_marketing_accepts_semantically_preserved_paraphrase() -> None:
+    service = PromptService(SimpleNamespace(), ParaphrasingGateway())
+
+    async def fake_create(**values: object) -> SimpleNamespace:
+        now = __import__("datetime").datetime.now(__import__("datetime").UTC)
+        return SimpleNamespace(id=uuid4(), created_at=now, updated_at=now, **values)
+
+    async def fake_update(prompt: SimpleNamespace, **values: object) -> SimpleNamespace:
+        for field, value in values.items():
+            setattr(prompt, field, value)
+        return prompt
+
+    service.repository.create = fake_create
+    service.repository.update = fake_update
+    service.repository.get_by_idempotency_key = lambda *_: _none()
+
+    response = await service.generate(
+        SimpleNamespace(id=uuid4(), role=Role.USER),
+        PromptGenerateRequest(
+            input="Crie um anúncio curto para uma pizzaria divulgar uma promoção de pizza no Instagram.",
+            category="marketing",
+            mode="basic",
+            optimize_with_ai=True,
+        ),
+    )
+
+    assert response.status == PromptStatus.OPTIMIZED
+    assert "pizzaria" in response.generated_prompt
+    assert "Instagram" in response.generated_prompt
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("requested_model", [None, "explicit-model"])
+async def test_settlement_uses_effective_gateway_model(requested_model: str | None) -> None:
+    billing = CapturingBilling()
+    credits = CapturingCredits()
+    service = PromptService(SimpleNamespace(), ResolvingGateway(), billing, credits)
+
+    async def fake_create(**values: object) -> SimpleNamespace:
+        now = __import__("datetime").datetime.now(__import__("datetime").UTC)
+        return SimpleNamespace(id=uuid4(), created_at=now, updated_at=now, **values)
+
+    async def fake_update(prompt: SimpleNamespace, **values: object) -> SimpleNamespace:
+        for field, value in values.items():
+            setattr(prompt, field, value)
+        return prompt
+
+    service.repository.create = fake_create
+    service.repository.update = fake_update
+    service.repository.get_by_idempotency_key = lambda *_: _none()
+
+    response = await service.generate(
+        SimpleNamespace(id=uuid4(), role=Role.USER),
+        PromptGenerateRequest(
+            input="Crie uma campanha",
+            optimize_with_ai=True,
+            provider="openai",
+            model=requested_model,
+        ),
+    )
+
+    expected_model = requested_model or "gpt-5.6-luna"
+    assert response.model == expected_model
+    assert billing.finalized_model == expected_model
+    assert credits.settled_provider == "openai"
+    assert credits.settled_model == expected_model
+
+
+@pytest.mark.parametrize("value", ["", "  ", "resposta sem o requisito"])
+def test_ai_output_validation_rejects_empty_or_missing_requirements(
+    value: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level("WARNING"), pytest.raises(Exception) as error:
+        PromptService._validated_output(
+            value,
+            PromptGenerateRequest(
+                input="Crie uma campanha",
+                constraints=["Não invente dados"],
+            ),
+        )
+    assert getattr(error.value, "status_code", None) == 502
+    assert "ai_output_rejected stage=output_validation" in caplog.text
+    assert "Crie uma campanha" not in caplog.text
+    assert "NÃ£o invente dados" not in caplog.text

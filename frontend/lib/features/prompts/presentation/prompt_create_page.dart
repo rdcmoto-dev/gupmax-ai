@@ -53,6 +53,27 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       .where((line) => line.isNotEmpty)
       .toList();
 
+  PromptGenerateInput _currentInput({required bool optimize}) =>
+      PromptGenerateInput(
+        input: _input.text.trim().isEmpty
+            ? 'Estimativa de prompt'
+            : _input.text.trim(),
+        category: _category,
+        language: _language.text.trim(),
+        tone: _optional(_tone),
+        mode: _mode,
+        optimizeWithAi: optimize,
+        context: _optional(_context),
+        audience: _optional(_audience),
+        role: _optional(_role),
+        instructions: _lines(_instructions),
+        constraints: _lines(_constraints),
+        outputFormat: _optional(_outputFormat),
+        additionalInformation: _optional(_additionalInformation),
+        provider: _provider.text.trim(),
+        model: _optional(_model),
+      );
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final input = PromptGenerateInput(
@@ -255,13 +276,53 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                 value: _optimize,
                 secondary: const Icon(Icons.psychology_outlined),
                 title: const Text('Otimizar com IA (opcional)'),
-                subtitle: const Text(
-                    'O servidor decide disponibilidade e consumo de créditos. O GUPMAX nunca chama IA diretamente do navegador.'),
-                onChanged: (value) => setState(() => _optimize = value),
+                subtitle: state.isEstimating
+                    ? const Text('Calculando estimativa de créditos...')
+                    : state.estimate != null
+                        ? Text(
+                            'Custo estimado: ${state.estimate!.estimatedCredits} créditos. '
+                            'Saldo disponível: ${state.estimate!.availableCredits} créditos.',
+                            key: const Key('ai_credit_estimate_summary'),
+                          )
+                        : const Text(
+                            'O servidor decide disponibilidade e consumo de créditos. O GUPMAX nunca chama IA diretamente do navegador.'),
+                onChanged: isSubmitting
+                    ? null
+                    : (value) {
+                        setState(() => _optimize = value);
+                        final controller = ref.read(promptControllerProvider);
+                        if (value) {
+                          controller.estimateOptimization(
+                              _currentInput(optimize: true));
+                        } else {
+                          controller.clearEstimate();
+                        }
+                      },
               ),
             ),
             if (_optimize) ...[
               const SizedBox(height: 12),
+              if (state.isEstimating)
+                const LinearProgressIndicator(key: Key('ai_estimate_loading'))
+              else if (state.estimate case final estimate?)
+                Card(
+                  key: const Key('ai_credit_estimate'),
+                  child: ListTile(
+                    leading: Icon(estimate.canExecute
+                        ? Icons.toll_outlined
+                        : Icons.account_balance_wallet_outlined),
+                    title: Text(
+                        'Custo estimado: ${estimate.estimatedCredits} créditos'),
+                    subtitle: Text(
+                        'Saldo disponível: ${estimate.availableCredits} créditos'),
+                    trailing: estimate.canExecute
+                        ? null
+                        : TextButton(
+                            onPressed: () => context.go('/credits'),
+                            child: const Text('Créditos e planos'),
+                          ),
+                  ),
+                ),
               _responsiveFields([
                 _field(_provider, 'Provider',
                     key: const Key('prompt_provider'),

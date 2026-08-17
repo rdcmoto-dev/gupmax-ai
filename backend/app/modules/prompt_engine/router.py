@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 
 from app.modules.ai_gateway.dependencies import AIGateway
 from app.modules.billing.dependencies import Billing
@@ -39,8 +39,11 @@ async def generate_prompt(
     gateway: AIGateway,
     billing: Billing,
     credits: Credits,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=8, max_length=200)] = None,
 ) -> PromptGenerateResponse:
-    return await PromptService(session, gateway, billing, credits).generate(current_user, data)
+    return await PromptService(session, gateway, billing, credits).generate(
+        current_user, data, idempotency_key=idempotency_key
+    )
 
 
 @router.get("", response_model=PromptPage, summary="Lista o histórico de prompts acessível")

@@ -85,9 +85,7 @@ def test_adaptive_interview_omits_known_facts_and_persists_dynamic_snapshot(clie
     interview = _start(
         client,
         headers,
-        initial_request=(
-            "Quero criar um anúncio para Instagram para mulheres de 18 a 35 anos com tom persuasivo."
-        ),
+        initial_request=("Quero criar um anúncio para Instagram para mulheres de 18 a 35 anos com tom persuasivo."),
     )
     assert [question["key"] for question in interview["questions"]] == ["cta"]
     assert interview["progress"] == {
@@ -123,9 +121,7 @@ def test_pro_can_start_ready_when_all_required_facts_are_explicit(client: TestCl
     interview = _start(
         client,
         headers,
-        initial_request=(
-            "Anúncio para Instagram para mulheres de 18 a 35 anos com tom persuasivo, CTA: compre agora."
-        ),
+        initial_request=("Anúncio para Instagram para mulheres de 18 a 35 anos com tom persuasivo, CTA: compre agora."),
     )
     assert interview["status"] == "ready"
     assert interview["questions"] == []
@@ -137,9 +133,7 @@ def test_explicit_answer_overrides_extracted_fact(client: TestClient) -> None:
     interview = _start(
         client,
         headers,
-        initial_request=(
-            "Anúncio para Instagram para mulheres adultas com tom profissional, CTA: conheça agora."
-        ),
+        initial_request=("Anúncio para Instagram para mulheres adultas com tom profissional, CTA: conheça agora."),
     )
     assert interview["status"] == "ready"
     override = client.post(
@@ -193,7 +187,7 @@ def test_known_form_fields_omit_questions_and_feed_complete(client: TestClient) 
     assert prompt["instructions"] == ["Destaque conforto"]
     assert prompt["constraints"] == ["Não prometer frete grátis"]
     assert "Lançamento de verão" in prompt["context"]
-    assert prompt["optimize_with_ai"] is False
+    assert prompt["optimize_with_ai"] is True
 
 
 def test_programming_requirements_answer_is_preserved_once_in_final_context(client: TestClient) -> None:

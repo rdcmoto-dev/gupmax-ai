@@ -131,11 +131,12 @@ class DeterministicFactExtractor:
             "additional_information": data.additional_information,
             "provider": data.provider,
             "model": data.model,
+            "optimize_with_ai": data.optimize_with_ai,
         }
         return {
             key: InterviewFact(value=value, source=FactSource.FORM, confidence=1.0)
             for key, value in fields.items()
-            if value is not None and value != []
+            if value is not None and value != [] and (key != "optimize_with_ai" or value is True)
         }
 
     @staticmethod

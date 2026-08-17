@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -18,11 +19,14 @@ from app.modules.users.roles import Role
 
 
 class FakeGateway:
-    async def generate(self, _data: object) -> GenerateTextResponse:
+    calls = 0
+
+    async def generate(self, data: Any) -> GenerateTextResponse:
+        self.calls += 1
         return GenerateTextResponse(
             provider="fake",
             model="fake-model",
-            text="PROMPT OTIMIZADO",
+            text=data.user_prompt,
             latency_ms=1,
             usage=TokenUsageResponse(input_tokens=12, output_tokens=5, total_tokens=17),
         )
@@ -97,6 +101,34 @@ def test_deterministic_is_free_and_ai_settles_ledger(client: TestClient) -> None
     assert any(item["type"] == "ai_usage" and item["amount"] < 0 for item in ledger)
 
 
+def test_ai_prompt_generation_is_idempotent_end_to_end(client: TestClient) -> None:
+    headers = auth(client, "credit-ai-idempotent@example.com")
+    headers["Idempotency-Key"] = "prompt-generation-001"
+    gateway = FakeGateway()
+    app.dependency_overrides[get_ai_gateway_service] = lambda: gateway
+    try:
+        first = prompt(client, headers, True)
+        balance_after_first = client.get("/api/v1/credits/wallet", headers=headers).json()
+        second = prompt(client, headers, True)
+    finally:
+        app.dependency_overrides.pop(get_ai_gateway_service, None)
+
+    assert first.status_code == second.status_code == 201
+    assert first.json()["id"] == second.json()["id"]
+    assert gateway.calls == 1
+    assert client.get("/api/v1/credits/wallet", headers=headers).json() == balance_after_first
+    assert client.get("/api/v1/billing/usage", headers=headers).json()["total"] == 1
+    ledger = client.get("/api/v1/credits/transactions", headers=headers).json()["items"]
+    assert len([item for item in ledger if item["type"] == "ai_usage"]) == 1
+
+    conflict = client.post(
+        "/api/v1/prompts/generate",
+        headers=headers,
+        json={"input": "Outra solicitação", "optimize_with_ai": True},
+    )
+    assert conflict.status_code == 409
+
+
 def test_provider_failure_releases_reservation(
     client: TestClient, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
@@ -112,6 +144,10 @@ def test_provider_failure_releases_reservation(
     wallet = client.get("/api/v1/credits/wallet", headers=headers).json()
     assert wallet["available_balance"] == 100
     assert wallet["reserved_balance"] == 0
+    fallback = client.get("/api/v1/prompts", headers=headers).json()
+    assert fallback["total"] == 1
+    assert fallback["items"][0]["status"] == "generated"
+    assert client.get("/api/v1/billing/usage", headers=headers).json()["total"] == 0
 
     async def status_value() -> ReservationStatus:
         async with session_factory() as session:
@@ -274,7 +310,7 @@ def test_release_and_settlement_are_idempotent(
 ) -> None:
     auth(client, "credit-idempotency@example.com")
 
-    async def exercise() -> tuple[ReservationStatus, ReservationStatus, int]:
+    async def exercise() -> tuple[ReservationStatus, ReservationStatus, int, dict[str, object] | None]:
         async with session_factory() as session:
             user = await session.scalar(select(User).where(User.email == "credit-idempotency@example.com"))
             service = CreditService(session)
@@ -286,19 +322,35 @@ def test_release_and_settlement_are_idempotent(
             settled = await service.reserve(
                 user.id, CreditOperationType.PROMPT_OPTIMIZATION, "openai", None, 0, 20, "settle-once"
             )
-            await service.settle(settled.id, "openai", None, 10, 5)
+            await service.settle(
+                settled.id,
+                "openai",
+                None,
+                10,
+                5,
+                effective_provider="openai",
+                effective_model="gpt-5.6-luna",
+            )
             settled_again = await service.settle(settled.id, "openai", None, 10, 5)
             settlement_count = await session.scalar(
                 select(func.count())
                 .select_from(CreditTransaction)
                 .where(CreditTransaction.idempotency_key == f"settlement:{settled.id}")
             )
-            return released_again.status, settled_again.status, settlement_count
+            settlement_metadata = await session.scalar(
+                select(CreditTransaction.transaction_metadata).where(
+                    CreditTransaction.idempotency_key == f"settlement:{settled.id}"
+                )
+            )
+            return released_again.status, settled_again.status, settlement_count, settlement_metadata
 
-    released_status, settled_status, settlement_count = asyncio.run(exercise())
+    released_status, settled_status, settlement_count, settlement_metadata = asyncio.run(exercise())
     assert released_status == ReservationStatus.RELEASED
     assert settled_status == ReservationStatus.SETTLED
     assert settlement_count == 1
+    assert settlement_metadata is not None
+    assert settlement_metadata["provider"] == "openai"
+    assert settlement_metadata["model"] == "gpt-5.6-luna"
 
 
 def test_admin_manages_packages_and_cost_rules(

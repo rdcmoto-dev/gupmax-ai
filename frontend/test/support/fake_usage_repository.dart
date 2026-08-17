@@ -7,6 +7,7 @@ import 'package:gupmax_ai/features/usage/domain/usage_models.dart';
 class FakeUsageRepository implements UsageRepositoryContract {
   AppException? error;
   Completer<UsageSummary>? summaryCompleter;
+  UsageSummary? summaryOverride;
   int usageOffset = 0;
   int movementOffset = 0;
   int usageTotal = 0;
@@ -79,7 +80,7 @@ class FakeUsageRepository implements UsageRepositoryContract {
   @override
   Future<UsageSummary> summary() async {
     if (error != null) _throw();
-    return summaryCompleter?.future ?? sampleSummary();
+    return summaryCompleter?.future ?? summaryOverride ?? sampleSummary();
   }
 
   @override
