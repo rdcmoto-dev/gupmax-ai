@@ -204,7 +204,7 @@ void main() {
     await openCreate(tester);
     expect(find.text('O que você quer criar?'), findsOneWidget);
     expect(find.byKey(const Key('mode_basic')), findsOneWidget);
-    expect(find.byTooltip('Navegação de prompts'), findsOneWidget);
+    expect(find.byTooltip('Navegação principal'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

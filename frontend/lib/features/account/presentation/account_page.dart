@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_navigation_menu.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/domain/auth_models.dart';
 import '../../auth/presentation/auth_controller.dart';
@@ -63,6 +64,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           onPressed: () => context.go('/dashboard'),
           icon: const Icon(Icons.arrow_back),
         ),
+        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
       ),
       body: account.isLoading && user == null
           ? const Center(child: CircularProgressIndicator())

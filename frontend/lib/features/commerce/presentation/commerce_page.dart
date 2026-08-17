@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_navigation_menu.dart';
 import '../commerce_providers.dart';
 import '../domain/commerce_models.dart';
 import 'commerce_controller.dart';
@@ -26,18 +26,7 @@ class _CommercePageState extends ConsumerState<CommercePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Créditos e planos'),
-        actions: [
-          IconButton(
-            tooltip: 'Pagamentos',
-            onPressed: () => context.go('/payments'),
-            icon: const Icon(Icons.receipt_long_outlined),
-          ),
-          IconButton(
-            tooltip: 'Meu uso',
-            onPressed: () => context.go('/usage'),
-            icon: const Icon(Icons.insights_outlined),
-          ),
-        ],
+        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
       ),
       body: SafeArea(
         child: state.isLoading

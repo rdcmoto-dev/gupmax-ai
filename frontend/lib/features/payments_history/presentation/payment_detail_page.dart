@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_navigation_menu.dart';
 import '../domain/payment_history_models.dart';
 import '../payments_history_providers.dart';
 import 'payment_history_page.dart';
@@ -34,6 +35,7 @@ class _PaymentDetailPageState extends ConsumerState<PaymentDetailPage> {
           onPressed: () => context.go('/payments'),
           icon: const Icon(Icons.arrow_back),
         ),
+        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
       ),
       body: Center(
         child: state.isLoadingDetail

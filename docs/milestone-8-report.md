@@ -449,3 +449,56 @@ O smoke test manual contra o backend real foi aprovado. A rota `/account` abriu 
 Nenhuma alteração real de nome, e-mail ou senha foi executada durante o smoke test. O logout real pela ação Sair da conta redirecionou o usuário para o login e encerrou o acesso à área protegida. Em seguida, uma tentativa manual de acessar `/account` sem autenticação foi bloqueada, mantendo/redirecionando o navegador para `/login?redirect=/account`.
 
 Com a UX da conta, o logout, a proteção posterior ao logout e as validações automatizadas aprovadas, a Etapa 8.7 está integralmente aprovada.
+
+## Etapa 8.8 — Polimento Final, Navegação e Responsividade
+
+### Auditoria realizada
+
+Foram revisados os fluxos existentes de login, cadastro, restauração de sessão e logout; dashboard; criação, histórico e detalhe de prompts; Meu uso; Créditos e planos; retornos success/cancel de pagamento; histórico e detalhe financeiro; e Minha conta. Recuperação e redefinição de senha continuam não expostas no frontend e não foram criadas nesta etapa.
+
+A auditoria incluiu rotas e redirects, deep links e restauração da sessão, botões de voltar, AppBars, estados de loading/erro/vazio/retry, feedback de sucesso, textos visíveis, layouts desktop/tablet/mobile, testes existentes e busca por valores comerciais ou secrets hardcoded.
+
+### Problemas encontrados e correções
+
+O problema comprovado foi a navegação fragmentada: o dashboard oferecia todos os destinos, mas as demais telas exibiam subconjuntos diferentes. A área de prompts tinha navegação própria; Meu uso, Créditos e planos e Pagamentos ofereciam pares distintos de atalhos; detalhes, retornos de checkout e Minha conta dependiam do botão voltar ou de destinos contextuais. Isso tornava algumas áreas acessíveis apenas após retornar ao dashboard.
+
+Foi criado um menu principal único e reutilizável, presente nas AppBars de todas as telas autenticadas. Ele oferece acesso coerente a Dashboard, Criar prompt, Meus prompts, Meu uso, Créditos e planos, Pagamentos e Minha conta. Ações contextuais permanecem nas respectivas telas, incluindo voltar, atualizar, copiar, editar e Sair da conta. Os atalhos diferentes e redundantes das AppBars foram removidos.
+
+No dashboard, o logout textual passa a ser um ícone com tooltip em larguras inferiores a 600 px, preservando a ação sem comprimir o título e o novo menu. Em desktop, o botão textual existente permanece. O menu utiliza ícones, rótulos legíveis e tooltip de navegação principal.
+
+Nenhum contrato, dado, regra financeira ou comportamento de autenticação foi alterado. Os redirects globais continuam protegendo todas as rotas privadas e preservando destinos internos durante restore/login. Os testes de boot real para `/payments/success` e `/payments/cancel` continuam cobrindo refresh e deep link.
+
+### Responsividade, estados e testes
+
+Os layouts existentes já utilizavam scroll, limites de largura, Wrap/LayoutBuilder e breakpoints nas principais áreas. A cobertura anterior de mobile para prompts, uso, comércio, pagamentos e conta foi preservada. Foram acrescentados testes do menu em 320, 768 e 1.280 px, dashboard em 320 px, retorno de pagamento em 320 px e detalhe financeiro em 320 px, todos sem overflow.
+
+Loading, erro, retry e estados vazios já existentes foram auditados e preservados. Nenhum saldo, preço, crédito, plano, limite, status financeiro ou dado de usuário hardcoded foi encontrado. Tokens, refresh tokens e chaves de idempotência permanecem somente nos mecanismos internos existentes e não são exibidos ou registrados.
+
+Arquivos criados nesta etapa:
+
+- `frontend/lib/core/widgets/app_navigation_menu.dart`;
+- `frontend/test/core/navigation/app_navigation_menu_test.dart`.
+
+Arquivos modificados nesta etapa:
+
+- telas de dashboard, prompts, uso, comércio/retorno, pagamentos/detalhe e conta para adoção do menu;
+- testes de autenticação, prompts, comércio e pagamentos para navegação e responsividade;
+- este relatório.
+
+### Limitações
+
+Esta etapa não introduz recuperação/reset de senha no frontend, gerenciamento de sessões, exclusão self-service nem qualquer operação financeira nova. A consistência visual foi polida sem redesign ou nova dependência.
+
+### Validação manual da Etapa 8.8
+
+O smoke test manual contra o frontend e o backend reais foi aprovado. Pelo menu principal da aplicação, a navegação desktop abriu corretamente Dashboard, Criar prompt, Meus prompts, Meu uso, Créditos e planos, Pagamentos e Minha conta.
+
+O dashboard exibiu os dados reais do usuário e manteve seus atalhos funcionais. A criação de prompt carregou o formulário e os modos GUPMAX Rápido, Pro e Expert, sem executar geração. Meus prompts carregou o histórico existente e manteve paginação e Novo prompt disponíveis, sem criar, editar ou excluir registros.
+
+Meu uso carregou saldo, plano Starter, limites do período e o estado real de uso de IA. Créditos e planos apresentou Mercado Pago, Stripe, os pacotes de 500, 1.500, 5.000 e 10.000 créditos e os planos Free, Starter, Pro e Business. Pagamentos carregou situação comercial, assinatura, saldo, filtros e histórico financeiro. Nenhuma compra, assinatura, criação de checkout ou outra operação financeira foi iniciada.
+
+Minha conta carregou dados pessoais, alteração de senha, card Conta e a seção Sessão com Sair da conta. Nenhum dado pessoal foi alterado; o logout não foi repetido porque já havia sido aprovado no smoke test da Etapa 8.7.
+
+A responsividade manual foi aprovada no dashboard, Minha conta e Créditos e planos em viewport mobile. Os cards foram reorganizados em coluna, a navegação permaneceu acessível, botões permaneceram dentro dos cards, textos continuaram legíveis e não houve overflow horizontal aparente.
+
+Durante o smoke test não houve cobrança, checkout, pagamento, concessão de créditos, chamada OpenAI nem alteração de dados pessoais. Navegação desktop e mobile, responsividade e ausência de regressão visual nas áreas principais foram aprovadas. Com as validações automatizadas e manuais concluídas, a Etapa 8.8 está integralmente aprovada.

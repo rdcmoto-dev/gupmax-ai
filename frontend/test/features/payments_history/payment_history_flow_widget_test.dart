@@ -99,6 +99,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('detalhe permanece legível em viewport mobile', (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          paymentHistoryRepositoryProvider
+              .overrideWithValue(FakePaymentHistoryRepository()),
+        ],
+        child: const MaterialApp(
+          home: PaymentDetailPage(paymentId: 'payment-1'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pendente'), findsOneWidget);
+    expect(find.byKey(const Key('app_navigation_menu')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('erro oferece retry e recupera o conteúdo', (tester) async {
     final repository = FakePaymentHistoryRepository()
       ..error = const AppException('Falha temporária');

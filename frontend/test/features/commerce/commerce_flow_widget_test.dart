@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gupmax_ai/features/commerce/commerce_providers.dart';
 import 'package:gupmax_ai/features/commerce/domain/commerce_models.dart';
 import 'package:gupmax_ai/features/commerce/presentation/commerce_page.dart';
+import 'package:gupmax_ai/features/commerce/presentation/payment_return_page.dart';
 
 import '../../support/fake_commerce_repository.dart';
 
@@ -57,6 +58,30 @@ void main() {
     expect(find.text('Stripe'), findsOneWidget);
     expect(find.text('500 créditos'), findsAtLeastNWidgets(1));
     expect(find.text('Pro'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('retorno de pagamento permanece responsivo em mobile',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = FakeCommerceRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          commerceRepositoryProvider.overrideWithValue(repository),
+          checkoutNavigationProvider
+              .overrideWithValue(FakeCheckoutNavigation()),
+        ],
+        child: const MaterialApp(home: PaymentReturnPage(canceled: true)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pagamento pendente'), findsOneWidget);
+    expect(find.byKey(const Key('app_navigation_menu')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

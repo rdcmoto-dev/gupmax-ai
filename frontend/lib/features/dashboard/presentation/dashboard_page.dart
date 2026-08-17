@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_navigation_menu.dart';
 import '../../auth/auth_providers.dart';
 
 class DashboardPage extends ConsumerWidget {
@@ -14,17 +15,27 @@ class DashboardPage extends ConsumerWidget {
     if (user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final roleLabel = user.role == 'admin' ? 'Administrador' : 'Usuário';
     return Scaffold(
       appBar: AppBar(
         title: const Text('GUPMAX AI'),
         actions: [
-          TextButton.icon(
-            key: const Key('logout_button'),
-            onPressed: auth.isSubmitting ? null : auth.logout,
-            icon: const Icon(Icons.logout),
-            label: const Text('Sair'),
-          ),
+          const AppNavigationMenu(),
+          if (compact)
+            IconButton(
+              key: const Key('logout_button'),
+              tooltip: 'Sair',
+              onPressed: auth.isSubmitting ? null : auth.logout,
+              icon: const Icon(Icons.logout),
+            )
+          else
+            TextButton.icon(
+              key: const Key('logout_button'),
+              onPressed: auth.isSubmitting ? null : auth.logout,
+              icon: const Icon(Icons.logout),
+              label: const Text('Sair'),
+            ),
           const SizedBox(width: 12),
         ],
       ),

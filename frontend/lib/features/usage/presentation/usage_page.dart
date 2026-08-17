@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_navigation_menu.dart';
 import '../domain/usage_models.dart';
 import '../usage_providers.dart';
 import 'usage_controller.dart';
@@ -26,18 +26,7 @@ class _UsagePageState extends ConsumerState<UsagePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meu uso'),
-        actions: [
-          IconButton(
-            tooltip: 'Créditos e planos',
-            onPressed: () => context.go('/credits'),
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-          ),
-          IconButton(
-            tooltip: 'Dashboard',
-            onPressed: () => context.go('/dashboard'),
-            icon: const Icon(Icons.dashboard_outlined),
-          ),
-        ],
+        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
       ),
       body: SafeArea(
         child: state.isLoading || (state.summary == null && state.error == null)

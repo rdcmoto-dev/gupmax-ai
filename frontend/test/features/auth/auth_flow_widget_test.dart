@@ -91,4 +91,24 @@ void main() {
     expect(find.text('Bem-vindo ao GUPMAX AI'), findsOneWidget);
     expect(repository.logoutCalls, 1);
   });
+
+  testWidgets('dashboard preserva navegação e logout em largura mobile',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = FakeAuthRepository();
+    await pumpApp(tester, repository);
+    await tester.enterText(
+        find.byKey(const Key('login_email')), 'teste@example.com');
+    await tester.enterText(
+        find.byKey(const Key('login_password')), 'valid-password');
+    await tester.tap(find.byKey(const Key('login_submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('app_navigation_menu')), findsOneWidget);
+    expect(find.byKey(const Key('logout_button')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

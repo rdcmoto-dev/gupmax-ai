@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_navigation_menu.dart';
 import '../../usage/domain/usage_models.dart';
 import '../domain/payment_history_models.dart';
 import '../payments_history_providers.dart';
@@ -27,18 +28,7 @@ class _PaymentHistoryPageState extends ConsumerState<PaymentHistoryPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pagamentos'),
-        actions: [
-          IconButton(
-            tooltip: 'Créditos e planos',
-            onPressed: () => context.go('/credits'),
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-          ),
-          IconButton(
-            tooltip: 'Meu uso',
-            onPressed: () => context.go('/usage'),
-            icon: const Icon(Icons.insights_outlined),
-          ),
-        ],
+        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
       ),
       body: SafeArea(
         child: state.isLoading || (state.summary == null && state.error == null)
