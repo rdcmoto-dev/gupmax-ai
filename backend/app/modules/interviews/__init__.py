@@ -1,0 +1,1 @@
+"""Intelligent prompt interview domain."""
