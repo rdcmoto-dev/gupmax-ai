@@ -250,3 +250,7 @@ O toggle comunica consumo possível, apresenta loading da estimativa e é desabi
 Gateway e repositories falsos cobrem fluxo determinístico gratuito, sucesso nos três modos, estimativa, saldo insuficiente antes do provider, reserva, settlement, release, usage, ledger, falha do provider, saída inválida, idempotência de Prompt/usage/créditos e preservação da IA em entrevistas. Nenhuma chamada OpenAI real ou operação financeira externa é executada.
 
 O Gateway atual não expõe schema estruturado específico para Prompt; por isso a saída textual é validada contra limites e requisitos explícitos. A estimativa usa contagem aproximada de entrada e máximo configurado de saída; o settlement usa tokens reais. O smoke test manual controlado permanece pendente e deve usar ambiente dev/sandbox, poucos créditos e uma única geração.
+
+### Adendo visual
+
+Atualização da identidade de cores do frontend, com azul como cor dominante, dourado como acento premium e superfícies claras.

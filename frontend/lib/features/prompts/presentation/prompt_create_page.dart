@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../interviews/interview_providers.dart';
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
@@ -270,11 +271,12 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
             ),
             const SizedBox(height: 20),
             Card(
-              color: Theme.of(context).colorScheme.secondaryContainer,
+              color: AppColors.paleBlue,
               child: SwitchListTile(
                 key: const Key('optimize_with_ai'),
                 value: _optimize,
-                secondary: const Icon(Icons.psychology_outlined),
+                secondary: const Icon(Icons.psychology_outlined,
+                    color: AppColors.gold),
                 title: const Text('Otimizar com IA (opcional)'),
                 subtitle: state.isEstimating
                     ? const Text('Calculando estimativa de créditos...')
@@ -556,23 +558,22 @@ class _ModeCard extends StatelessWidget {
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                color: selected
-                    ? Theme.of(context).colorScheme.primaryContainer
-                    : Theme.of(context).colorScheme.surface,
+                color: selected ? _selectedColor : AppColors.surface,
                 border: Border.all(
                   width: selected ? 2 : 1,
-                  color: selected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.outlineVariant,
+                  color: selected ? _accentColor : AppColors.border,
                 ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(selected
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_off),
+                    Icon(
+                      selected
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: _accentColor,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                         child: Text(title,
@@ -586,4 +587,16 @@ class _ModeCard extends StatelessWidget {
           ),
         ),
       );
+
+  Color get _accentColor => switch (mode) {
+        PromptMode.basic => AppColors.brightBlue,
+        PromptMode.pro => AppColors.gold,
+        PromptMode.expert => AppColors.deepBlue,
+      };
+
+  Color get _selectedColor => switch (mode) {
+        PromptMode.basic => AppColors.paleBlue,
+        PromptMode.pro => AppColors.paleGold,
+        PromptMode.expert => const Color(0xFFDDECF8),
+      };
 }
