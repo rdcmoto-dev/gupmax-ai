@@ -142,6 +142,96 @@ void main() {
     expect(find.text('Provider: openai'), findsOneWidget);
   });
 
+  testWidgets('GUPMAX Score abre análise e prepara refinamento sem executar',
+      (tester) async {
+    final repository = FakePromptRepository()
+      ..records.add(FakePromptRepository().sample());
+    await pumpApp(tester, repository);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('gupmax_score_card')), findsOneWidget);
+    expect(find.text('72 / 100'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('toggle_score_analysis')));
+    await tester.pumpAndSettle();
+    await tester
+        .ensureVisible(find.byKey(const Key('improve_prompt_from_score')));
+    await tester.tap(find.byKey(const Key('improve_prompt_from_score')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('refinement_form')), findsOneWidget);
+    expect(
+        find.text('Defina para quem a resposta será criada.'), findsOneWidget);
+    expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('refine_with_ai')))
+            .value,
+        isFalse);
+    expect(find.byKey(const Key('gupmax_score_card')), findsOneWidget);
+    expect(repository.refineCalls, 0);
+    expect(repository.estimateRefinementCalls, 0);
+  });
+
+  testWidgets('scores de V1 V2 V3 acompanham a versão selecionada',
+      (tester) async {
+    final repository = FakePromptRepository();
+    repository.records.addAll([
+      repository.sample(id: 'v1'),
+      repository.sample(
+          id: 'v2', versionNumber: 2, parentPromptId: 'v1', rootPromptId: 'v1'),
+      repository.sample(
+          id: 'v3', versionNumber: 3, parentPromptId: 'v2', rootPromptId: 'v1'),
+    ]);
+    repository.scoreResults.addAll({
+      'v1': const PromptQualityScore(
+          promptId: 'v1',
+          score: 50,
+          rating: 'needs_improvement',
+          criteria: [],
+          strengths: [],
+          improvements: [],
+          suggestions: []),
+      'v2': const PromptQualityScore(
+          promptId: 'v2',
+          score: 70,
+          rating: 'good',
+          criteria: [],
+          strengths: [],
+          improvements: [],
+          suggestions: []),
+      'v3': const PromptQualityScore(
+          promptId: 'v3',
+          score: 90,
+          rating: 'excellent',
+          criteria: [],
+          strengths: [],
+          improvements: [],
+          suggestions: []),
+    });
+    await pumpApp(tester, repository);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_v3')));
+    await tester.pumpAndSettle();
+
+    expect(repository.scoreCalls, 3);
+    expect(find.text('90 / 100'), findsOneWidget);
+    final useV1 = find
+        .descendant(
+          of: find.byKey(const Key('prompt_versions')),
+          matching: find.widgetWithText(TextButton, 'Usar esta'),
+        )
+        .first;
+    await tester.ensureVisible(useV1);
+    await tester.pumpAndSettle();
+    await tester.tap(useV1);
+    await tester.pumpAndSettle();
+    expect(find.text('50 / 100'), findsOneWidget);
+    expect(find.byKey(const Key('gupmax_score_card')), findsOneWidget);
+  });
+
   testWidgets('404 de versions preserva prompt antigo como versão 1',
       (tester) async {
     final repository = FakePromptRepository()

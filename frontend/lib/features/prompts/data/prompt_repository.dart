@@ -31,6 +31,7 @@ abstract interface class PromptRepositoryContract {
   Future<PromptRecord> update(String id, PromptUpdateInput input);
   Future<PromptRecord> refine(String id, PromptRefineInput input);
   Future<PromptVersionPageData> versions(String id);
+  Future<PromptQualityScore> score(String id);
   Future<AiCreditEstimate> estimateRefinement(
       PromptRecord prompt, PromptRefineInput input);
   Future<void> delete(String id);
@@ -187,6 +188,17 @@ class PromptRepository implements PromptRepositoryContract {
       return PromptVersionPageData.fromJson(response.data!);
     } catch (error) {
       _debugHttp('GET', '/prompts/{id}/versions', error: error);
+      _mapError(error);
+    }
+  }
+
+  @override
+  Future<PromptQualityScore> score(String id) async {
+    try {
+      final response =
+          await _client.dio.get<Map<String, dynamic>>('/prompts/$id/score');
+      return PromptQualityScore.fromJson(response.data!);
+    } catch (error) {
       _mapError(error);
     }
   }

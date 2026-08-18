@@ -14,6 +14,9 @@ class FakePromptRepository implements PromptRepositoryContract {
   int refineCalls = 0;
   int getCalls = 0;
   int versionsCalls = 0;
+  int scoreCalls = 0;
+  AppException? scoreError;
+  final Map<String, PromptQualityScore> scoreResults = {};
   Completer<PromptRecord>? generateCompleter;
   PromptGenerateInput? generatedInput;
   int? requestedOffset;
@@ -32,6 +35,9 @@ class FakePromptRepository implements PromptRepositoryContract {
     String generatedPrompt = '## OBJECTIVE\nCrie uma campanha',
     PromptMode mode = PromptMode.pro,
     int? totalTokens,
+    int versionNumber = 1,
+    String? parentPromptId,
+    String? rootPromptId,
   }) {
     final now = DateTime.utc(2026, 8, 14);
     return PromptRecord(
@@ -50,7 +56,9 @@ class FakePromptRepository implements PromptRepositoryContract {
       totalTokens: totalTokens,
       createdAt: now,
       updatedAt: now,
-      versionNumber: 1,
+      versionNumber: versionNumber,
+      parentPromptId: parentPromptId,
+      rootPromptId: rootPromptId,
     );
   }
 
@@ -147,6 +155,31 @@ class FakePromptRepository implements PromptRepositoryContract {
       ..sort((a, b) => a.versionNumber.compareTo(b.versionNumber));
     if (result.isEmpty) result.add(current);
     return PromptVersionPageData(items: result, total: result.length);
+  }
+
+  @override
+  Future<PromptQualityScore> score(String id) async {
+    scoreCalls += 1;
+    if (scoreError != null) throw scoreError!;
+    return scoreResults[id] ??
+        PromptQualityScore(
+          promptId: id,
+          score: 72,
+          rating: 'good',
+          criteria: const [
+            PromptQualityCriterion(
+              key: 'objective',
+              label: 'Objetivo',
+              score: 18,
+              maxScore: 20,
+              status: 'good',
+              feedback: 'O objetivo está claro.',
+            ),
+          ],
+          strengths: const ['Objetivo está bem definido.'],
+          improvements: const ['Detalhe melhor: público.'],
+          suggestions: const ['Defina para quem a resposta será criada.'],
+        );
   }
 
   @override

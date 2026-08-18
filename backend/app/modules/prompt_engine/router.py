@@ -13,6 +13,7 @@ from app.modules.prompt_engine.schemas import (
     PromptGenerateRequest,
     PromptGenerateResponse,
     PromptPage,
+    PromptQualityResponse,
     PromptRead,
     PromptRefineRequest,
     PromptUpdateRequest,
@@ -78,6 +79,13 @@ async def list_prompts(
 @router.get("/{prompt_id}", response_model=PromptRead, summary="Obtém um prompt")
 async def get_prompt(prompt_id: UUID, session: DbSession, current_user: CurrentUser) -> PromptRead:
     return await PromptService(session).accessible(prompt_id, current_user)
+
+
+@router.get("/{prompt_id}/score", response_model=PromptQualityResponse, summary="Calcula o GUPMAX Score")
+async def get_prompt_score(prompt_id: UUID, session: DbSession, current_user: CurrentUser) -> PromptQualityResponse:
+    service = PromptService(session)
+    prompt = await service.accessible(prompt_id, current_user)
+    return service.quality_evaluator.evaluate(prompt)
 
 
 @router.get("/{prompt_id}/versions", response_model=PromptVersionPage, summary="Lista versões de um prompt")

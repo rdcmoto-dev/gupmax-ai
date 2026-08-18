@@ -19,6 +19,7 @@ from app.modules.credits.service import CreditService
 from app.modules.prompt_engine.builder import PromptBuilder
 from app.modules.prompt_engine.enums import PromptStatus
 from app.modules.prompt_engine.model import Prompt
+from app.modules.prompt_engine.quality import PromptQualityEvaluator
 from app.modules.prompt_engine.repository import PromptRepository
 from app.modules.prompt_engine.schemas import (
     PromptGenerateRequest,
@@ -45,6 +46,7 @@ class PromptService:
         self.billing = billing
         self.credits = credits
         self.builder = PromptBuilder()
+        self.quality_evaluator = PromptQualityEvaluator()
 
     async def generate(
         self, user: User, data: PromptGenerateRequest, *, idempotency_key: str | None = None

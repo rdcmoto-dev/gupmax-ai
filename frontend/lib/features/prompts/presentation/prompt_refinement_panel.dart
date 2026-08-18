@@ -9,8 +9,10 @@ import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
 
 class PromptRefinementPanel extends ConsumerStatefulWidget {
-  const PromptRefinementPanel({required this.prompt, super.key});
+  const PromptRefinementPanel(
+      {required this.prompt, this.initialInstruction, super.key});
   final PromptRecord prompt;
+  final String? initialInstruction;
 
   @override
   ConsumerState<PromptRefinementPanel> createState() =>
@@ -25,6 +27,10 @@ class _PromptRefinementPanelState extends ConsumerState<PromptRefinementPanel> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialInstruction != null) {
+      _instruction.text = widget.initialInstruction!;
+      _expanded = true;
+    }
     if (kDebugMode) {
       final controller = ref.read(promptControllerProvider);
       debugPrint(
@@ -254,6 +260,14 @@ class _PromptRefinementPanelState extends ConsumerState<PromptRefinementPanel> {
                               : AppColors.deepBlue,
                         ),
                         trailing: Wrap(children: [
+                          if (state.scores[version.id] case final score?)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Chip(
+                                key: Key('version_score_${version.id}'),
+                                label: Text('Score ${score.score}'),
+                              ),
+                            ),
                           IconButton(
                             tooltip: 'Copiar versão',
                             onPressed: () => _copy(version.generatedPrompt),
@@ -289,10 +303,13 @@ class _PromptRefinementPanelState extends ConsumerState<PromptRefinementPanel> {
               _ComparisonCard(
                   title: 'VERSÃO ${previousVersion.versionNumber} — ANTERIOR',
                   prompt: previousVersion,
+                  score: state.scores[previousVersion.id],
                   onCopy: _copy),
               _ComparisonCard(
                   title: 'VERSÃO ${current.versionNumber} — NOVA',
                   prompt: current,
+                  score: state.scores[current.id],
+                  previousScore: state.scores[previousVersion.id],
                   onCopy: _copy),
             ];
             return constraints.maxWidth < 720
@@ -314,9 +331,15 @@ class _PromptRefinementPanelState extends ConsumerState<PromptRefinementPanel> {
 
 class _ComparisonCard extends StatelessWidget {
   const _ComparisonCard(
-      {required this.title, required this.prompt, required this.onCopy});
+      {required this.title,
+      required this.prompt,
+      required this.onCopy,
+      this.score,
+      this.previousScore});
   final String title;
   final PromptRecord prompt;
+  final PromptQualityScore? score;
+  final PromptQualityScore? previousScore;
   final Future<void> Function(String) onCopy;
 
   @override
@@ -327,6 +350,11 @@ class _ComparisonCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(title, style: Theme.of(context).textTheme.titleSmall),
+              if (score != null)
+                Text(
+                  'Score ${score!.score}${previousScore == null ? '' : ' (${score!.score - previousScore!.score >= 0 ? '+' : ''}${score!.score - previousScore!.score} pontos)'}',
+                  key: Key('comparison_score_${prompt.id}'),
+                ),
               const SizedBox(height: 12),
               SelectableText(prompt.generatedPrompt),
               const SizedBox(height: 12),

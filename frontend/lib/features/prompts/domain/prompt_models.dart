@@ -1,5 +1,75 @@
 enum PromptMode { basic, pro, expert }
 
+class PromptQualityCriterion {
+  const PromptQualityCriterion({
+    required this.key,
+    required this.label,
+    required this.score,
+    required this.maxScore,
+    required this.status,
+    required this.feedback,
+  });
+
+  factory PromptQualityCriterion.fromJson(Map<String, dynamic> json) =>
+      PromptQualityCriterion(
+        key: json['key'] as String,
+        label: json['label'] as String,
+        score: json['score'] as int,
+        maxScore: json['max_score'] as int,
+        status: json['status'] as String,
+        feedback: json['feedback'] as String,
+      );
+
+  final String key;
+  final String label;
+  final int score;
+  final int maxScore;
+  final String status;
+  final String feedback;
+}
+
+class PromptQualityScore {
+  const PromptQualityScore({
+    required this.promptId,
+    required this.score,
+    required this.rating,
+    required this.criteria,
+    required this.strengths,
+    required this.improvements,
+    required this.suggestions,
+  });
+
+  factory PromptQualityScore.fromJson(Map<String, dynamic> json) =>
+      PromptQualityScore(
+        promptId: json['prompt_id'] as String,
+        score: json['score'] as int,
+        rating: json['rating'] as String,
+        criteria: (json['criteria'] as List<dynamic>)
+            .map((item) =>
+                PromptQualityCriterion.fromJson(item as Map<String, dynamic>))
+            .toList(),
+        strengths: (json['strengths'] as List<dynamic>).cast<String>(),
+        improvements: (json['improvements'] as List<dynamic>).cast<String>(),
+        suggestions: (json['suggestions'] as List<dynamic>).cast<String>(),
+      );
+
+  final String promptId;
+  final int score;
+  final String rating;
+  final List<PromptQualityCriterion> criteria;
+  final List<String> strengths;
+  final List<String> improvements;
+  final List<String> suggestions;
+
+  String get ratingLabel => switch (rating) {
+        'excellent' => 'Excelente',
+        'very_good' => 'Muito bom',
+        'good' => 'Bom',
+        'needs_improvement' => 'Pode melhorar',
+        _ => 'Fraco',
+      };
+}
+
 enum PromptCategory {
   marketing('marketing', 'Marketing'),
   sales('vendas', 'Vendas'),

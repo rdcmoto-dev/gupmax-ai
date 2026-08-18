@@ -104,3 +104,22 @@ class PromptPage(BaseModel):
 class PromptVersionPage(BaseModel):
     items: list[PromptRead]
     total: int
+
+
+class PromptQualityCriterion(BaseModel):
+    key: str
+    label: str
+    score: int = Field(ge=0)
+    max_score: int = Field(gt=0)
+    status: str
+    feedback: str
+
+
+class PromptQualityResponse(BaseModel):
+    prompt_id: UUID
+    score: int = Field(ge=0, le=100)
+    rating: str
+    criteria: list[PromptQualityCriterion]
+    strengths: list[str]
+    improvements: list[str]
+    suggestions: list[str]

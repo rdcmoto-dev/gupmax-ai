@@ -278,3 +278,31 @@ A rota existente `/prompts/:id` ganhou a ação “Refinar prompt”, campo de i
 O refinamento não autoriza mudanças em ownership, billing, wallet ou instruções internas. API keys, tokens, system prompts e secrets não são expostos. Testes com gateways falsos cobrem refino determinístico e IA, Basic/Pro/Expert, linhagem, preservação da versão anterior, alteração explícita de tom, validação, IDOR, idempotência, usage, reserva, settlement, release, metadata do ledger, falha do provider e ausência de duplicação. Nenhuma chamada OpenAI real é feita.
 
 O mapeamento determinístico é deliberadamente conservador: reconhece alterações simples de tom, idioma e concisão; instruções mais livres são preservadas como orientação de refinamento, sem tentar simular compreensão semântica ampla. A comparação é textual e não implementa diff avançado ou editor rico. O smoke test manual da Etapa 9.5 permanece pendente.
+
+## Etapa 9.6 — GUPMAX Score
+
+### Arquitetura e critérios
+
+`PromptQualityEvaluator` calcula a avaliação sob demanda diretamente sobre cada Prompt persistido. O evaluator apenas analisa as seções estruturadas já produzidas pelo Prompt Engine; não executa o conteúdo, não altera o Prompt e não acessa AI Gateway, billing, credits, wallet ou ledger. Nenhuma migration ou persistência de score foi necessária.
+
+O score total varia de 0 a 100 e agrega dez critérios: objetivo, contexto, público, instruções, clareza, formato de saída, restrições, tom, idioma e especificidade. Cada critério informa nota, máximo, estado e feedback relacionado à presença e profundidade observadas. As classificações são Fraco, Pode melhorar, Bom, Muito bom e Excelente. Pontos fortes são derivados somente de critérios bem atendidos; melhorias e sugestões acionáveis são produzidas somente para itens ausentes ou parciais.
+
+Os pesos somam 100 em todos os modos. Basic privilegia objetivo, instruções e clareza e reduz o peso de contexto profundo, público, formato e restrições, permitindo nota alta para prompts simples e claros. Pro aumenta a expectativa de contexto, público, tom e instruções. Expert distribui mais peso para contexto, instruções, restrições, formato e especificidade, sem conceder bônus por comprimento ou por uso de IA.
+
+A especificidade usa regras pequenas por categoria para Marketing, Vendas, Redes sociais, E-commerce, Programação, Negócios, Educação, Escrita, Imagem, Vídeo, Produtividade e Geral. Os sinais são adequados ao domínio, como canal/CTA em Marketing, stack/funcionalidades em Programação e plataforma/duração em Vídeo. Prompts originados de entrevistas aproveitam as mesmas seções e facts já incorporados ao resultado final.
+
+### API, ownership e versões
+
+O endpoint autenticado `GET /api/v1/prompts/{prompt_id}/score` avalia exclusivamente o Prompt persistido solicitado. O acesso reutiliza a regra de ownership do Prompt Engine; Prompt inexistente ou de outro usuário retorna 404 uniforme. O cálculo é barato, determinístico e repetível, portanto cada versão possui seu próprio score sem armazenamento adicional. Prompts antigos e versões 1 compatíveis funcionam sem backfill.
+
+### Frontend e comparação
+
+A página Resultado apresenta o card GUPMAX SCORE com nota, classificação e progresso. “Ver análise” expande critérios, feedbacks, pontos fortes, melhorias e sugestões sem sobrecarregar o topo da página. “Melhorar este prompt” abre o painel de refinamento existente e preenche a instrução com as sugestões; nenhuma nova versão é criada até confirmação explícita do usuário, e a opção de IA permanece desligada.
+
+O histórico mostra o score de cada versão. A comparação anterior × nova apresenta as duas notas e a diferença em pontos, em colunas no desktop e empilhada no mobile. Loading e erro do score são isolados dos estados de detalhe, versões, estimate e refinamento.
+
+### Segurança, custo e limitações
+
+O score determinístico não chama OpenAI, não cria Usage ou reservation, não consome créditos e não gera lançamentos no ledger. Ele não favorece prompts otimizados por IA e não reabre entrevistas. Testes cobrem faixa 0–100, repetibilidade, Basic/Pro/Expert, as 12 categorias, prompt simples versus completo, ownership/IDOR, ausência de efeitos financeiros, versões, loading, erro, extremos 0/100, classificação, expansão, critérios, sugestões, ação de melhoria e layout mobile.
+
+A análise é estrutural e baseada em seções e sinais explícitos; ela não mede veracidade, criatividade, segurança factual ou qualidade da futura resposta de um modelo. O smoke test manual da Etapa 9.6 permanece pendente.

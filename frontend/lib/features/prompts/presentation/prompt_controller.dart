@@ -19,6 +19,9 @@ class PromptController extends ChangeNotifier {
   bool isEstimating = false;
   List<PromptRecord> items = [];
   List<PromptRecord> versions = [];
+  final Map<String, PromptQualityScore> scores = {};
+  bool isLoadingScores = false;
+  String? scoreError;
   int total = 0;
   int offset = 0;
   static const pageSize = 20;
@@ -76,6 +79,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       selected = await _repository.generate(input);
+      await _loadScores([selected!]);
       return selected;
     } on AppException catch (exception) {
       error = exception.message;
@@ -111,6 +115,8 @@ class PromptController extends ChangeNotifier {
     refinementEstimateError = null;
     selected = null;
     versions = [];
+    scores.clear();
+    scoreError = null;
     notifyListeners();
     try {
       selected = await _repository.get(id);
@@ -123,6 +129,9 @@ class PromptController extends ChangeNotifier {
           versionsError = 'Não foi possível carregar o histórico de versões.';
         }
       }
+      isLoading = false;
+      notifyListeners();
+      await _loadScores(versions);
       error = null;
       return selected;
     } on AppException catch (exception) {
@@ -130,6 +139,22 @@ class PromptController extends ChangeNotifier {
       return null;
     } finally {
       isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadScores(List<PromptRecord> prompts) async {
+    isLoadingScores = true;
+    scoreError = null;
+    notifyListeners();
+    try {
+      for (final prompt in prompts) {
+        scores[prompt.id] = await _repository.score(prompt.id);
+      }
+    } on AppException catch (exception) {
+      scoreError = exception.message;
+    } finally {
+      isLoadingScores = false;
       notifyListeners();
     }
   }
@@ -178,6 +203,7 @@ class PromptController extends ChangeNotifier {
       selected = await _repository.refine(prompt.id, input);
       final page = await _repository.versions(selected!.id);
       versions = page.items;
+      await _loadScores(versions);
       estimate = null;
       return selected;
     } on AppException catch (exception) {

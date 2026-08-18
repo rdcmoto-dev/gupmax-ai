@@ -7,6 +7,7 @@ import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
 import 'prompt_refinement_panel.dart';
 import 'prompt_scaffold.dart';
+import 'prompt_score_card.dart';
 
 class PromptDetailPage extends ConsumerStatefulWidget {
   const PromptDetailPage({required this.promptId, super.key});
@@ -17,6 +18,7 @@ class PromptDetailPage extends ConsumerStatefulWidget {
 }
 
 class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
+  String? _scoreInstruction;
   @override
   void initState() {
     super.initState();
@@ -138,10 +140,14 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(promptControllerProvider);
     final selected = state.selected;
+    final routeBelongsToLoadedVersions =
+        state.versions.any((version) => version.id == widget.promptId);
+    final selectedBelongsToLoadedVersions = selected != null &&
+        state.versions.any((version) => version.id == selected.id);
     final prompt = selected != null &&
             (selected.id == widget.promptId ||
-                selected.rootPromptId == widget.promptId ||
-                selected.parentPromptId == widget.promptId)
+                (routeBelongsToLoadedVersions &&
+                    selectedBelongsToLoadedVersions))
         ? selected
         : null;
     return PromptScaffold(
@@ -205,7 +211,20 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                             style: TextStyle(
                                 color: Theme.of(context).colorScheme.error)),
                       const SizedBox(height: 16),
-                      PromptRefinementPanel(prompt: prompt),
+                      PromptScoreCard(
+                        score: state.scores[prompt.id],
+                        loading: state.isLoadingScores,
+                        error: state.scoreError,
+                        onImprove: (instruction) =>
+                            setState(() => _scoreInstruction = instruction),
+                      ),
+                      const SizedBox(height: 16),
+                      PromptRefinementPanel(
+                        key:
+                            ValueKey('${prompt.id}-${_scoreInstruction ?? ''}'),
+                        prompt: prompt,
+                        initialInstruction: _scoreInstruction,
+                      ),
                       const SizedBox(height: 16),
                       Card(
                           child: Padding(
