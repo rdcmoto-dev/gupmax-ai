@@ -11,13 +11,28 @@ class PromptController extends ChangeNotifier {
   bool isSubmitting = false;
   bool isLoading = false;
   String? error;
+  String? versionsError;
+  String? refinementError;
+  String? refinementEstimateError;
   PromptRecord? selected;
   AiCreditEstimate? estimate;
   bool isEstimating = false;
   List<PromptRecord> items = [];
+  List<PromptRecord> versions = [];
   int total = 0;
   int offset = 0;
   static const pageSize = 20;
+
+  void _setRefinementError(String? value, String source) {
+    if (kDebugMode) {
+      debugPrint(
+        '[prompt_refinement] controller=${identityHashCode(this)} '
+        'source=$source before=${refinementError ?? 'null'} '
+        'after=${value ?? 'null'}',
+      );
+    }
+    refinementError = value;
+  }
 
   Future<void> estimateOptimization(PromptGenerateInput input) async {
     isEstimating = true;
@@ -34,6 +49,22 @@ class PromptController extends ChangeNotifier {
   }
 
   void clearEstimate() {
+    if (kDebugMode) {
+      debugPrint(
+        '[prompt_refinement] controller=${identityHashCode(this)} '
+        'event=clear_estimate estimate=${estimate == null ? 'no' : 'yes'} '
+        'refinement_error=${refinementError ?? 'null'} '
+        'estimate_error=${refinementEstimateError ?? 'null'}',
+      );
+    }
+    estimate = null;
+    refinementEstimateError = null;
+    notifyListeners();
+  }
+
+  void beginRefinement() {
+    _setRefinementError(null, 'begin_refinement');
+    refinementEstimateError = null;
     estimate = null;
     notifyListeners();
   }
@@ -75,9 +106,24 @@ class PromptController extends ChangeNotifier {
   Future<PromptRecord?> load(String id) async {
     isLoading = true;
     error = null;
+    versionsError = null;
+    _setRefinementError(null, 'load');
+    refinementEstimateError = null;
+    selected = null;
+    versions = [];
     notifyListeners();
     try {
       selected = await _repository.get(id);
+      try {
+        final page = await _repository.versions(id);
+        versions = page.items;
+      } on AppException catch (exception) {
+        versions = [selected!];
+        if (exception.statusCode != 404) {
+          versionsError = 'Não foi possível carregar o histórico de versões.';
+        }
+      }
+      error = null;
       return selected;
     } on AppException catch (exception) {
       error = exception.message;
@@ -86,6 +132,66 @@ class PromptController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> estimateRefinement(
+      PromptRecord prompt, PromptRefineInput input) async {
+    if (kDebugMode) {
+      debugPrint(
+        '[prompt_refinement] controller=${identityHashCode(this)} '
+        'event=estimate_start optimize_with_ai=${input.optimizeWithAi}',
+      );
+    }
+    isEstimating = true;
+    estimate = null;
+    refinementEstimateError = null;
+    notifyListeners();
+    try {
+      estimate = await _repository.estimateRefinement(prompt, input);
+    } on AppException catch (exception) {
+      refinementEstimateError = exception.message;
+      if (kDebugMode) {
+        debugPrint(
+          '[prompt_refinement] controller=${identityHashCode(this)} '
+          'source=estimate_error estimate_error=${exception.message}',
+        );
+      }
+    } finally {
+      isEstimating = false;
+      notifyListeners();
+    }
+  }
+
+  Future<PromptRecord?> refine(
+      PromptRecord prompt, PromptRefineInput input) async {
+    if (kDebugMode) {
+      debugPrint(
+        '[prompt_refinement] controller=${identityHashCode(this)} '
+        'event=refine_start optimize_with_ai=${input.optimizeWithAi}',
+      );
+    }
+    if (isSubmitting) return null;
+    isSubmitting = true;
+    _setRefinementError(null, 'refine_start');
+    notifyListeners();
+    try {
+      selected = await _repository.refine(prompt.id, input);
+      final page = await _repository.versions(selected!.id);
+      versions = page.items;
+      estimate = null;
+      return selected;
+    } on AppException catch (exception) {
+      _setRefinementError(exception.message, 'refine_error');
+      return null;
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  void selectVersion(PromptRecord prompt) {
+    selected = prompt;
+    notifyListeners();
   }
 
   Future<bool> update(String id, PromptUpdateInput input) async {

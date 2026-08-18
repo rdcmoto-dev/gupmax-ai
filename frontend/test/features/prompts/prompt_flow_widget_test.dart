@@ -142,6 +142,245 @@ void main() {
     expect(find.text('Provider: openai'), findsOneWidget);
   });
 
+  testWidgets('404 de versions preserva prompt antigo como versão 1',
+      (tester) async {
+    final repository = FakePromptRepository()
+      ..records.add(FakePromptRepository().sample(
+        mode: PromptMode.basic,
+        status: 'optimized',
+        provider: 'openai',
+        model: 'gpt-5.6-luna',
+        totalTokens: 439,
+      ))
+      ..versionsError =
+          const AppException('Prompt não encontrado.', statusCode: 404);
+    await pumpApp(tester, repository);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('generated_prompt')), findsOneWidget);
+    expect(find.byKey(const Key('result_version')), findsOneWidget);
+    expect(find.byKey(const Key('prompt_error')), findsNothing);
+    expect(find.text('Prompt não encontrado.'), findsNothing);
+    expect(find.byKey(const Key('refine_prompt')), findsOneWidget);
+    expect(find.byKey(const Key('prompt_versions')), findsOneWidget);
+    final estimatesBeforeOpen = repository.estimateRefinementCalls;
+    final refinementsBeforeOpen = repository.refineCalls;
+    await tester.tap(find.byKey(const Key('refine_prompt')));
+    await tester.pumpAndSettle();
+    const instruction = 'Deixe mais persuasivo e mantenha curto.';
+    await tester.enterText(
+        find.byKey(const Key('refinement_instruction')), instruction);
+    await tester.pump();
+
+    expect(find.text(instruction), findsOneWidget);
+    expect(
+        tester
+            .widget<SwitchListTile>(find.byKey(const Key('refine_with_ai')))
+            .value,
+        isFalse);
+    expect(repository.estimateRefinementCalls, 0);
+    expect(repository.estimateRefinementCalls, estimatesBeforeOpen);
+    expect(repository.refineCalls, refinementsBeforeOpen);
+    expect(find.text('Prompt não encontrado.'), findsNothing);
+    expect(find.byKey(const Key('prompt_error')), findsNothing);
+    expect(find.byKey(const Key('refinement_error')), findsNothing);
+  });
+
+  testWidgets('nova interação limpa refinementError histórico sem requests',
+      (tester) async {
+    final repository = FakePromptRepository()
+      ..records.add(FakePromptRepository().sample())
+      ..estimateRefinementError =
+          const AppException('Prompt não encontrado.', statusCode: 404);
+    await pumpApp(tester, repository);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('refine_prompt')));
+    await tester.pumpAndSettle();
+    const instruction = 'Deixe mais persuasivo e mantenha curto.';
+    await tester.enterText(
+        find.byKey(const Key('refinement_instruction')), instruction);
+    tester
+        .widget<SwitchListTile>(find.byKey(const Key('refine_with_ai')))
+        .onChanged!(true);
+    await tester.pumpAndSettle();
+    expect(find.text('Prompt não encontrado.'), findsOneWidget);
+    final container = ProviderScope.containerOf(
+        tester.element(find.byKey(const Key('refine_prompt'))));
+    final controller = container.read(promptControllerProvider);
+    expect(controller.refinementError, isNull);
+    expect(controller.refinementEstimateError, 'Prompt não encontrado.');
+    final getCallsBeforeReopen = repository.getCalls;
+    final versionsCallsBeforeReopen = repository.versionsCalls;
+
+    tester
+        .widget<SwitchListTile>(find.byKey(const Key('refine_with_ai')))
+        .onChanged!(false);
+    await tester.pumpAndSettle();
+    expect(controller.refinementEstimateError, isNull);
+    expect(find.text('Prompt não encontrado.'), findsNothing);
+    await tester.tap(find.byKey(const Key('refine_prompt')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('refine_prompt')));
+    await tester.pumpAndSettle();
+
+    expect(identical(controller, container.read(promptControllerProvider)),
+        isTrue);
+    expect(controller.refinementError, isNull);
+    expect(controller.error, isNull);
+    expect(find.text('Prompt não encontrado.'), findsNothing);
+    expect(find.text(instruction), findsOneWidget);
+    expect(repository.estimateRefinementCalls, 1);
+    expect(repository.refineCalls, 0);
+    expect(repository.getCalls, getCallsBeforeReopen);
+    expect(repository.versionsCalls, versionsCallsBeforeReopen);
+    expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('submit_refinement')))
+            .onPressed,
+        isNotNull);
+  });
+
+  testWidgets('ação Refinar prompt fica visível ao abrir resultado persistido',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repository = FakePromptRepository()
+      ..records.add(FakePromptRepository().sample(
+        status: 'optimized',
+        provider: 'openai',
+        model: 'gpt-5.6-luna',
+        generatedPrompt:
+            List.filled(25, 'Crie uma campanha persuasiva para Instagram.')
+                .join('\n'),
+      ));
+    await pumpApp(tester, repository);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+    await tester.pumpAndSettle();
+
+    final action = find.byKey(const Key('refine_prompt'));
+    expect(action, findsOneWidget);
+    expect(tester.getRect(action).top, lessThan(720));
+  });
+
+  for (final testCase
+      in <({String name, PromptMode mode, String status, String text})>[
+    (
+      name: 'Rápido sem IA',
+      mode: PromptMode.basic,
+      status: 'generated',
+      text: '## OBJECTIVE\nCrie uma campanha',
+    ),
+    (
+      name: 'Pro com IA',
+      mode: PromptMode.pro,
+      status: 'optimized',
+      text: '## OBJECTIVE\nCrie uma campanha',
+    ),
+    (
+      name: 'Expert sem IA',
+      mode: PromptMode.expert,
+      status: 'generated',
+      text: '## OBJECTIVE\nCrie uma campanha',
+    ),
+    (
+      name: 'originado de entrevista',
+      mode: PromptMode.expert,
+      status: 'generated',
+      text:
+          '## CONTEXT\nInstagram\n\n## AUDIENCE\nJovens\n\n## CONSTRAINTS\nCurto',
+    ),
+  ]) {
+    testWidgets('Refinar prompt acessível para ${testCase.name}',
+        (tester) async {
+      final repository = FakePromptRepository()
+        ..records.add(FakePromptRepository().sample(
+          mode: testCase.mode,
+          status: testCase.status,
+          provider: testCase.status == 'optimized' ? 'openai' : null,
+          model: testCase.status == 'optimized' ? 'gpt-5.6-luna' : null,
+          generatedPrompt: testCase.text,
+        ));
+      await pumpApp(tester, repository);
+      await tester.tap(find.byKey(const Key('my_prompts_button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+      await tester.pumpAndSettle();
+
+      final action = find.byKey(const Key('refine_prompt'));
+      expect(action, findsOneWidget);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('refinement_instruction')), findsOneWidget);
+      expect(find.byKey(const Key('refine_with_ai')), findsOneWidget);
+    });
+  }
+
+  testWidgets('refino determinístico cria versão e preserva anterior',
+      (tester) async {
+    final repository = FakePromptRepository()
+      ..records.add(FakePromptRepository().sample());
+    await pumpApp(tester, repository);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('refine_prompt')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('refinement_instruction')),
+        'Deixe mais persuasivo e mantenha curto.');
+    final submit = find.byKey(const Key('submit_refinement'));
+    await tester.ensureVisible(submit);
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(repository.refinedInput?.optimizeWithAi, isFalse);
+    expect(find.text('Versão 2'), findsWidgets);
+    expect(find.textContaining('Versão 1'), findsWidgets);
+    expect(find.text('Comparar versões'), findsOneWidget);
+    expect(find.textContaining('ANTERIOR'), findsOneWidget);
+    expect(find.textContaining('NOVA'), findsOneWidget);
+  });
+
+  testWidgets('refino com IA mostra estimate e bloqueia sem saldo',
+      (tester) async {
+    final repository = FakePromptRepository()
+      ..records.add(FakePromptRepository().sample())
+      ..estimateResult = const AiCreditEstimate(
+          estimatedCredits: 8, availableCredits: 2, canExecute: false);
+    await pumpApp(tester, repository);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('refine_prompt')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('refinement_instruction')), 'Deixe mais curto.');
+    tester
+        .widget<SwitchListTile>(find.byKey(const Key('refine_with_ai')))
+        .onChanged!(true);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('refinement_estimate')), findsOneWidget);
+    expect(find.text('Estimativa: 8 créditos'), findsOneWidget);
+    expect(find.text('Créditos e planos'), findsOneWidget);
+    expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('submit_refinement')))
+            .onPressed,
+        isNull);
+    expect(repository.refinedInput, isNull);
+  });
+
   testWidgets('histórico vazio exibe estado dedicado', (tester) async {
     await pumpApp(tester, FakePromptRepository());
     await tester.tap(find.byKey(const Key('my_prompts_button')));

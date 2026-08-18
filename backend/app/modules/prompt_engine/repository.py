@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode
@@ -24,6 +24,23 @@ class PromptRepository:
 
     async def get_by_idempotency_key(self, user_id: UUID, key: str) -> Prompt | None:
         return await self.session.scalar(select(Prompt).where(Prompt.user_id == user_id, Prompt.idempotency_key == key))
+
+    async def versions(self, root_id: UUID) -> list[Prompt]:
+        return list(
+            (
+                await self.session.scalars(
+                    select(Prompt)
+                    .where(or_(Prompt.id == root_id, Prompt.root_prompt_id == root_id))
+                    .order_by(Prompt.version_number)
+                )
+            ).all()
+        )
+
+    async def next_version(self, root_id: UUID) -> int:
+        current = await self.session.scalar(
+            select(func.max(Prompt.version_number)).where(or_(Prompt.id == root_id, Prompt.root_prompt_id == root_id))
+        )
+        return (current or 0) + 1
 
     async def list(
         self,

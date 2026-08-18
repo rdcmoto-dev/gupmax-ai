@@ -254,3 +254,27 @@ O Gateway atual não expõe schema estruturado específico para Prompt; por isso
 ### Adendo visual
 
 Atualização da identidade de cores do frontend, com azul como cor dominante, dourado como acento premium e superfícies claras.
+
+## Etapa 9.5 — Refinamento e versões
+
+### Modelagem e contratos
+
+O versionamento reutiliza a tabela `prompts`. A migration `0010_prompt_versions`, sucessora direta de `0009`, adiciona `parent_prompt_id`, `root_prompt_id`, `version_number` e `refinement_instruction`, com chaves estrangeiras, índices e unicidade de número dentro da raiz. A versão original permanece como v1; cada refino cria um novo Prompt ligado à versão imediatamente anterior e à raiz da família, sem sobrescrever conteúdo histórico.
+
+Os endpoints autenticados `POST /api/v1/prompts/{prompt_id}/refine` e `GET /api/v1/prompts/{prompt_id}/versions` seguem o mesmo ownership seguro dos detalhes existentes: recurso inexistente ou pertencente a outro usuário retorna a resposta uniforme já adotada contra IDOR. A instrução é normalizada, não pode ser vazia e possui limite de 1.000 caracteres. O header `Idempotency-Key` usa o mecanismo de chave e fingerprint já existente e impede versão, usage ou cobrança duplicados.
+
+### Refino determinístico e IA
+
+Sem IA, o serviço parte do texto integral da versão anterior e aplica alterações estruturadas reconhecidas de tom, idioma e concisão; a instrução também é registrada em seção própria. Campos não alterados, categoria, modo Basic/Pro/Expert e requisitos existentes permanecem no novo texto. Em conflitos explícitos, como profissional → persuasivo, a instrução mais recente substitui somente a seção correspondente.
+
+Com IA, o fluxo reutiliza entitlement, estimate, reserva, AI Gateway, validação de saída, usage, settlement e release da Etapa 9.4. O prompt e a instrução são delimitados como conteúdo não confiável. A saída precisa manter as seções da versão anterior. O ledger conserva os tipos existentes e registra `purpose=prompt_refinement` no metadata. Falha do provider libera usage e créditos, remove a versão em processamento e mantém integralmente a versão anterior.
+
+### Histórico, comparação e frontend
+
+A rota existente `/prompts/:id` ganhou a ação “Refinar prompt”, campo de instrução, opção de IA, estimativa real, bloqueio por saldo, loading e mensagens do backend. A mesma página lista o histórico cronológico com data, modo, categoria, indicação de IA e instrução de refino. A comparação simples apresenta versão anterior e nova lado a lado no desktop e em coluna no mobile, com cópia independente e escolha local da versão exibida. Nenhuma rota adicional foi necessária, preservando deep link e refresh atuais.
+
+### Segurança, testes e limitações
+
+O refinamento não autoriza mudanças em ownership, billing, wallet ou instruções internas. API keys, tokens, system prompts e secrets não são expostos. Testes com gateways falsos cobrem refino determinístico e IA, Basic/Pro/Expert, linhagem, preservação da versão anterior, alteração explícita de tom, validação, IDOR, idempotência, usage, reserva, settlement, release, metadata do ledger, falha do provider e ausência de duplicação. Nenhuma chamada OpenAI real é feita.
+
+O mapeamento determinístico é deliberadamente conservador: reconhece alterações simples de tom, idioma e concisão; instruções mais livres são preservadas como orientação de refinamento, sem tentar simular compreensão semântica ampla. A comparação é textual e não implementa diff avançado ou editor rico. O smoke test manual da Etapa 9.5 permanece pendente.

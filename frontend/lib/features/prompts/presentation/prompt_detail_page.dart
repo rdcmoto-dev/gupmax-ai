@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
+import 'prompt_refinement_panel.dart';
 import 'prompt_scaffold.dart';
 
 class PromptDetailPage extends ConsumerStatefulWidget {
@@ -20,10 +21,7 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      final state = ref.read(promptControllerProvider);
-      if (state.selected?.id != widget.promptId) {
-        state.load(widget.promptId);
-      }
+      ref.read(promptControllerProvider).load(widget.promptId);
     });
   }
 
@@ -139,8 +137,13 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(promptControllerProvider);
-    final prompt =
-        state.selected?.id == widget.promptId ? state.selected : null;
+    final selected = state.selected;
+    final prompt = selected != null &&
+            (selected.id == widget.promptId ||
+                selected.rootPromptId == widget.promptId ||
+                selected.parentPromptId == widget.promptId)
+        ? selected
+        : null;
     return PromptScaffold(
       title: 'Resultado',
       child: state.isLoading
@@ -172,6 +175,9 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                       const SizedBox(height: 8),
                       Wrap(spacing: 8, runSpacing: 8, children: [
                         Chip(
+                            key: const Key('result_version'),
+                            label: Text('Versão ${prompt.versionNumber}')),
+                        Chip(
                             key: const Key('result_mode'),
                             avatar: const Icon(Icons.tune, size: 18),
                             label: Text(_modeLabel(prompt.mode))),
@@ -198,6 +204,8 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                             key: const Key('prompt_error'),
                             style: TextStyle(
                                 color: Theme.of(context).colorScheme.error)),
+                      const SizedBox(height: 16),
+                      PromptRefinementPanel(prompt: prompt),
                       const SizedBox(height: 16),
                       Card(
                           child: Padding(

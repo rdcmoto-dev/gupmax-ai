@@ -49,6 +49,21 @@ class PromptUpdateRequest(BaseModel):
     mode: PromptMode | None = None
 
 
+class PromptRefineRequest(BaseModel):
+    instruction: str = Field(min_length=3, max_length=1000)
+    optimize_with_ai: bool = False
+    provider: str = Field(default="openai", min_length=1, max_length=50)
+    model: str | None = Field(default=None, min_length=1, max_length=200)
+
+    @field_validator("instruction")
+    @classmethod
+    def normalize_instruction(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("must not be blank")
+        return normalized
+
+
 class PromptRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -67,6 +82,10 @@ class PromptRead(BaseModel):
     input_tokens: int | None
     output_tokens: int | None
     total_tokens: int | None
+    parent_prompt_id: UUID | None
+    root_prompt_id: UUID | None
+    version_number: int
+    refinement_instruction: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -80,3 +99,8 @@ class PromptPage(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+class PromptVersionPage(BaseModel):
+    items: list[PromptRead]
+    total: int

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/app_exception.dart';
 import '../../../core/network/api_client.dart';
@@ -18,18 +19,41 @@ String promptGenerateErrorMessage(int? status) => switch (status) {
       _ => 'Não foi possível conectar ao serviço. Tente novamente.',
     };
 
+String promptEstimateErrorMessage(int? status) => status == 404
+    ? 'Não foi possível calcular a estimativa.'
+    : promptGenerateErrorMessage(status);
+
 abstract interface class PromptRepositoryContract {
   Future<PromptRecord> generate(PromptGenerateInput input);
   Future<AiCreditEstimate> estimate(PromptGenerateInput input);
   Future<PromptPageData> list({required int offset, int limit = 20});
   Future<PromptRecord> get(String id);
   Future<PromptRecord> update(String id, PromptUpdateInput input);
+  Future<PromptRecord> refine(String id, PromptRefineInput input);
+  Future<PromptVersionPageData> versions(String id);
+  Future<AiCreditEstimate> estimateRefinement(
+      PromptRecord prompt, PromptRefineInput input);
   Future<void> delete(String id);
 }
 
 class PromptRepository implements PromptRepositoryContract {
   const PromptRepository(this._client);
   final ApiClient _client;
+
+  static void _debugHttp(String method, String endpoint,
+      {Response<dynamic>? response, Object? error}) {
+    if (!kDebugMode) return;
+    final dioError = error is DioException ? error : null;
+    final status = response?.statusCode ?? dioError?.response?.statusCode;
+    final data = dioError?.response?.data;
+    final detail = data is Map<String, dynamic> && data['detail'] is String
+        ? data['detail'] as String
+        : null;
+    debugPrint(
+      '[prompt_http] method=$method endpoint=$endpoint '
+      'status=${status ?? 'none'} detail=${detail ?? 'none'}',
+    );
+  }
 
   @override
   Future<PromptRecord> generate(PromptGenerateInput input) async {
@@ -63,9 +87,36 @@ class PromptRepository implements PromptRepositoryContract {
           'max_output_tokens': 2000,
         },
       );
+      _debugHttp('POST', '/credits/estimate', response: response);
       return AiCreditEstimate.fromJson(response.data!);
     } catch (error) {
-      _mapError(error);
+      _debugHttp('POST', '/credits/estimate', error: error);
+      _mapEstimateError(error);
+    }
+  }
+
+  @override
+  Future<AiCreditEstimate> estimateRefinement(
+      PromptRecord prompt, PromptRefineInput input) async {
+    try {
+      final estimatedInputTokens =
+          ((prompt.generatedPrompt.length + input.instruction.length) / 4)
+              .ceil();
+      final response = await _client.dio.post<Map<String, dynamic>>(
+        '/credits/estimate',
+        data: {
+          'operation_type': 'prompt_optimization',
+          'provider': input.provider,
+          'model': input.model,
+          'estimated_input_tokens': estimatedInputTokens,
+          'max_output_tokens': 2000,
+        },
+      );
+      _debugHttp('POST', '/credits/estimate', response: response);
+      return AiCreditEstimate.fromJson(response.data!);
+    } catch (error) {
+      _debugHttp('POST', '/credits/estimate', error: error);
+      _mapEstimateError(error);
     }
   }
 
@@ -87,8 +138,10 @@ class PromptRepository implements PromptRepositoryContract {
     try {
       final response =
           await _client.dio.get<Map<String, dynamic>>('/prompts/$id');
+      _debugHttp('GET', '/prompts/{id}', response: response);
       return PromptRecord.fromJson(response.data!);
     } catch (error) {
+      _debugHttp('GET', '/prompts/{id}', error: error);
       _mapError(error);
     }
   }
@@ -107,6 +160,38 @@ class PromptRepository implements PromptRepositoryContract {
   }
 
   @override
+  Future<PromptRecord> refine(String id, PromptRefineInput input) async {
+    try {
+      final response = await _client.dio.post<Map<String, dynamic>>(
+        '/prompts/$id/refine',
+        data: input.toJson(),
+        options: Options(headers: {
+          'Idempotency-Key':
+              'flutter-refine-${DateTime.now().microsecondsSinceEpoch}',
+        }),
+      );
+      _debugHttp('POST', '/prompts/{id}/refine', response: response);
+      return PromptRecord.fromJson(response.data!);
+    } catch (error) {
+      _debugHttp('POST', '/prompts/{id}/refine', error: error);
+      _mapError(error);
+    }
+  }
+
+  @override
+  Future<PromptVersionPageData> versions(String id) async {
+    try {
+      final response =
+          await _client.dio.get<Map<String, dynamic>>('/prompts/$id/versions');
+      _debugHttp('GET', '/prompts/{id}/versions', response: response);
+      return PromptVersionPageData.fromJson(response.data!);
+    } catch (error) {
+      _debugHttp('GET', '/prompts/{id}/versions', error: error);
+      _mapError(error);
+    }
+  }
+
+  @override
   Future<void> delete(String id) async {
     try {
       await _client.dio.delete<void>('/prompts/$id');
@@ -120,6 +205,15 @@ class PromptRepository implements PromptRepositoryContract {
       final status = error.response?.statusCode;
       final message = promptGenerateErrorMessage(status);
       throw AppException(message, statusCode: status);
+    }
+    throw const AppException('Ocorreu um erro inesperado. Tente novamente.');
+  }
+
+  Never _mapEstimateError(Object error) {
+    if (error is DioException) {
+      final status = error.response?.statusCode;
+      throw AppException(promptEstimateErrorMessage(status),
+          statusCode: status);
     }
     throw const AppException('Ocorreu um erro inesperado. Tente novamente.');
   }

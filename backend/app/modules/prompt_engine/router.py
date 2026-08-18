@@ -14,7 +14,9 @@ from app.modules.prompt_engine.schemas import (
     PromptGenerateResponse,
     PromptPage,
     PromptRead,
+    PromptRefineRequest,
     PromptUpdateRequest,
+    PromptVersionPage,
 )
 from app.modules.prompt_engine.service import PromptService
 from app.modules.users.dependencies import DbSession, get_current_user
@@ -76,6 +78,28 @@ async def list_prompts(
 @router.get("/{prompt_id}", response_model=PromptRead, summary="Obtém um prompt")
 async def get_prompt(prompt_id: UUID, session: DbSession, current_user: CurrentUser) -> PromptRead:
     return await PromptService(session).accessible(prompt_id, current_user)
+
+
+@router.get("/{prompt_id}/versions", response_model=PromptVersionPage, summary="Lista versões de um prompt")
+async def list_prompt_versions(prompt_id: UUID, session: DbSession, current_user: CurrentUser) -> PromptVersionPage:
+    items = await PromptService(session).versions(prompt_id, current_user)
+    return PromptVersionPage(items=items, total=len(items))
+
+
+@router.post("/{prompt_id}/refine", response_model=PromptGenerateResponse, status_code=status.HTTP_201_CREATED)
+async def refine_prompt(
+    prompt_id: UUID,
+    data: PromptRefineRequest,
+    session: DbSession,
+    current_user: CurrentUser,
+    gateway: AIGateway,
+    billing: Billing,
+    credits: Credits,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=8, max_length=200)] = None,
+) -> PromptGenerateResponse:
+    return await PromptService(session, gateway, billing, credits).refine(
+        prompt_id, current_user, data, idempotency_key=idempotency_key
+    )
 
 
 @router.put("/{prompt_id}", response_model=PromptRead, summary="Atualiza um prompt")

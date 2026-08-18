@@ -233,6 +233,8 @@ class CreditService:
         estimated_input_tokens: int,
         max_output_tokens: int,
         idempotency_key: str,
+        *,
+        purpose: str | None = None,
     ) -> CreditReservation:
         existing = await self.repository.reservation_by_key(idempotency_key)
         if existing:
@@ -275,7 +277,7 @@ class CreditService:
                 reference_id=str(reservation.id),
                 idempotency_key=f"reservation:{idempotency_key}",
                 description=f"Reserved credits for {operation.value}",
-                transaction_metadata={"reserved_credits": amount},
+                transaction_metadata={"reserved_credits": amount, **({"purpose": purpose} if purpose else {})},
             )
         )
         await self.session.commit()
@@ -331,6 +333,7 @@ class CreditService:
         *,
         effective_provider: str | None = None,
         effective_model: str | None = None,
+        purpose: str | None = None,
     ) -> CreditReservation:
         reservation = await self.repository.reservation(reservation_id)
         if reservation is None:
@@ -382,6 +385,7 @@ class CreditService:
                     "output_tokens": output_tokens,
                     "calculated_credits": calculated,
                     "charged_credits": final_cost,
+                    **({"purpose": purpose} if purpose else {}),
                 },
             )
         )

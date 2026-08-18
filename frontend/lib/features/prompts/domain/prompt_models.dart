@@ -147,6 +147,27 @@ class PromptUpdateInput {
       }..removeWhere((_, value) => value == null);
 }
 
+class PromptRefineInput {
+  const PromptRefineInput({
+    required this.instruction,
+    this.optimizeWithAi = false,
+    this.provider = 'openai',
+    this.model,
+  });
+
+  final String instruction;
+  final bool optimizeWithAi;
+  final String provider;
+  final String? model;
+
+  Map<String, dynamic> toJson() => {
+        'instruction': instruction,
+        'optimize_with_ai': optimizeWithAi,
+        'provider': provider,
+        'model': model,
+      };
+}
+
 class PromptRecord {
   const PromptRecord({
     required this.id,
@@ -166,6 +187,10 @@ class PromptRecord {
     this.inputTokens,
     this.outputTokens,
     this.totalTokens,
+    this.parentPromptId,
+    this.rootPromptId,
+    this.versionNumber = 1,
+    this.refinementInstruction,
   });
 
   factory PromptRecord.fromJson(Map<String, dynamic> json) => PromptRecord(
@@ -184,6 +209,10 @@ class PromptRecord {
         inputTokens: json['input_tokens'] as int?,
         outputTokens: json['output_tokens'] as int?,
         totalTokens: json['total_tokens'] as int?,
+        parentPromptId: json['parent_prompt_id'] as String?,
+        rootPromptId: json['root_prompt_id'] as String?,
+        versionNumber: json['version_number'] as int? ?? 1,
+        refinementInstruction: json['refinement_instruction'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
         updatedAt: DateTime.parse(json['updated_at'] as String),
       );
@@ -203,8 +232,27 @@ class PromptRecord {
   final int? inputTokens;
   final int? outputTokens;
   final int? totalTokens;
+  final String? parentPromptId;
+  final String? rootPromptId;
+  final int versionNumber;
+  final String? refinementInstruction;
   final DateTime createdAt;
   final DateTime updatedAt;
+}
+
+class PromptVersionPageData {
+  const PromptVersionPageData({required this.items, required this.total});
+
+  factory PromptVersionPageData.fromJson(Map<String, dynamic> json) =>
+      PromptVersionPageData(
+        items: (json['items'] as List<dynamic>)
+            .map((item) => PromptRecord.fromJson(item as Map<String, dynamic>))
+            .toList(),
+        total: json['total'] as int,
+      );
+
+  final List<PromptRecord> items;
+  final int total;
 }
 
 class PromptPageData {
