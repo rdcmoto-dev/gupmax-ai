@@ -54,14 +54,16 @@ class PromptService:
     async def generate(
         self, user: User, data: PromptGenerateRequest, *, idempotency_key: str | None = None
     ) -> PromptGenerateResponse:
+        explicit_fields = data.model_fields_set
         profile = await self.smart_profile.enabled(user.id) if self.smart_profile is not None else None
         data = SmartProfileService.apply(data, profile)
         explicit_facts = DeterministicFactExtractor().extract(data.input, data.category)
         overrides = data.model_dump()
         for key in ("language", "tone", "audience"):
-            if key in explicit_facts:
+            if key in explicit_facts and key not in explicit_fields:
                 overrides[key] = explicit_facts[key].value
-        if channel := explicit_facts.get("channel") or explicit_facts.get("platform"):
+        channel = explicit_facts.get("channel") or explicit_facts.get("platform")
+        if channel is not None and "additional_information" not in explicit_fields:
             overrides["additional_information"] = f"Canal/plataforma: {channel.detail or channel.value}"
         data = PromptGenerateRequest.model_validate(overrides)
         deterministic = self.builder.build(data)

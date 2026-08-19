@@ -8,6 +8,11 @@ class AppNavigationMenu extends StatelessWidget {
     (path: '/dashboard', label: 'Dashboard', icon: Icons.dashboard_outlined),
     (path: '/prompts/new', label: 'Criar prompt', icon: Icons.auto_awesome),
     (path: '/prompts', label: 'Meus prompts', icon: Icons.history),
+    (
+      path: '/templates',
+      label: 'Meus templates',
+      icon: Icons.bookmarks_outlined
+    ),
     (path: '/usage', label: 'Meu uso', icon: Icons.insights_outlined),
     (
       path: '/credits',

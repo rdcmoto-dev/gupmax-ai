@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
+import '../../templates/template_providers.dart';
 import 'prompt_refinement_panel.dart';
 import 'prompt_scaffold.dart';
 import 'prompt_score_card.dart';
@@ -136,6 +137,62 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
     }
   }
 
+  Future<void> _saveTemplate(PromptRecord prompt) async {
+    final name = TextEditingController(text: prompt.title);
+    final description = TextEditingController();
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Salvar como template'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            key: const Key('template_name'),
+            controller: name,
+            decoration: const InputDecoration(labelText: 'Nome do template'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('template_description'),
+            controller: description,
+            decoration: const InputDecoration(labelText: 'Descrição opcional'),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            key: const Key('confirm_save_template'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (save == true && name.text.trim().length >= 3) {
+      final saved = await ref.read(templateControllerProvider).savePrompt(
+            prompt.id,
+            name.text.trim(),
+            description.text.trim().isEmpty ? null : description.text.trim(),
+          );
+      if (saved && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Template salvo com sucesso.')),
+        );
+      } else if (mounted) {
+        final error = ref.read(templateControllerProvider).error;
+        if (error != null) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(error)));
+        }
+      }
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      name.dispose();
+      description.dispose();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(promptControllerProvider);
@@ -263,6 +320,12 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                         OutlinedButton(
                             onPressed: () => context.go('/prompts'),
                             child: const Text('Ver histórico')),
+                        OutlinedButton.icon(
+                          key: const Key('save_as_template'),
+                          onPressed: () => _saveTemplate(prompt),
+                          icon: const Icon(Icons.bookmark_add_outlined),
+                          label: const Text('Salvar como template'),
+                        ),
                       ]),
                     ]),
     );

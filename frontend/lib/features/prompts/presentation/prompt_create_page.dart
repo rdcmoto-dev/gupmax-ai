@@ -5,12 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../account/account_providers.dart';
 import '../../interviews/interview_providers.dart';
+import '../../templates/domain/prompt_template.dart';
+import '../../templates/template_providers.dart';
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
 import 'prompt_scaffold.dart';
 
 class PromptCreatePage extends ConsumerStatefulWidget {
-  const PromptCreatePage({super.key});
+  const PromptCreatePage({this.templateId, super.key});
+  final String? templateId;
 
   @override
   ConsumerState<PromptCreatePage> createState() => _PromptCreatePageState();
@@ -34,6 +37,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   PromptMode _mode = PromptMode.basic;
   PromptCategory _category = PromptCategory.general;
   bool _optimize = false;
+  String? _templateName;
 
   static const _examples = [
     'Criar anúncio para um produto',
@@ -47,8 +51,68 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(
-        ref.read(accountControllerProvider).loadSmartProfile);
+    Future<void>.microtask(() async {
+      await ref.read(accountControllerProvider).loadSmartProfile();
+      if (widget.templateId != null) {
+        final template =
+            await ref.read(templateControllerProvider).get(widget.templateId!);
+        if (template != null && mounted) _applyTemplate(template);
+      }
+    });
+  }
+
+  void _applyTemplate(PromptTemplateRecord template) {
+    setState(() {
+      _templateName = template.name;
+      _input.text = template.baseInput;
+      _language.text = template.language;
+      _tone.text = template.tone ?? '';
+      _context.text = template.context ?? '';
+      _audience.text = template.audience ?? '';
+      _instructions.text = template.instructions.join('\n');
+      _constraints.text = template.constraints.join('\n');
+      _outputFormat.text = template.outputFormat ?? '';
+      _additionalInformation.text = template.additionalInformation ?? '';
+      _mode = template.mode;
+      _category = template.category;
+      _optimize = false;
+    });
+  }
+
+  Future<void> _chooseTemplate() async {
+    final controller = ref.read(templateControllerProvider);
+    await controller.load();
+    if (!mounted) return;
+    final selected = await showDialog<PromptTemplateRecord>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Começar com um template'),
+        content: SizedBox(
+          width: 520,
+          child: controller.items.isEmpty
+              ? const Text('Você ainda não possui templates.')
+              : ListView(
+                  shrinkWrap: true,
+                  children: controller.items
+                      .where((item) => item.isActive)
+                      .map((item) => ListTile(
+                            key: Key('choose_template_${item.id}'),
+                            title: Text(item.name),
+                            subtitle: Text(
+                                '${item.category.label} • ${item.mode.name.toUpperCase()}'),
+                            onTap: () => Navigator.pop(context, item),
+                          ))
+                      .toList(),
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar')),
+        ],
+      ),
+    );
+    if (selected != null) _applyTemplate(selected);
   }
 
   String? _optional(TextEditingController controller) {
@@ -167,6 +231,20 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Card(
+              child: ListTile(
+                key: const Key('choose_template_button'),
+                leading: const Icon(Icons.bookmarks_outlined),
+                title: Text(_templateName == null
+                    ? 'Começar com um template'
+                    : 'Template: $_templateName'),
+                subtitle: const Text(
+                    'Use como ponto de partida e revise tudo antes de construir.'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _chooseTemplate,
+              ),
+            ),
+            const SizedBox(height: 16),
             if (smartProfile.isEnabled && smartProfile.hasData) ...[
               Card(
                 key: const Key('smart_profile_active'),

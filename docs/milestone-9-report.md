@@ -338,3 +338,29 @@ Consultar, salvar, aplicar ou apagar o perfil não chama OpenAI, não cria Usage
 O smoke real confirmou criação, salvamento, ativação/desativação, persistência após reload, card e toggle em Minha conta, indicador “Smart Profile ativo” e acesso às preferências em Criar Prompt. Em uma nova geração Basic/Marketing determinística, sem campos manuais e sem IA, as oito preferências foram aplicadas: idioma, tom, público, canal/plataforma, formato de saída, contexto, restrições e orientações. Pro e Expert preservam a integração pela camada de facts e a precedência final permanece: solicitação explícita atual > entrevista atual > Smart Profile > fallback/default.
 
 A correção final incluiu `CONTEXT` e `AUDIENCE` entre as seções estruturais do `PromptBuilder` também no modo Basic, mantendo a omissão de seções vazias. O Smart Profile é aplicado somente em novas gerações, não modifica o perfil salvo, entrevistas ou prompts históricos e não é reaplicado em refinamentos. Seu funcionamento determinístico não exige chamada de IA, Usage, reserva, settlement, créditos ou lançamento no ledger.
+
+## Etapa 9.8 — GUPMAX Templates
+
+### Modelagem e API
+
+A migration reversível `0012_prompt_templates`, sucessora direta de `0011`, cria templates privados vinculados ao usuário. O registro mantém nome, descrição, categoria, modo, conteúdo/base, campos estruturais reutilizáveis, estado ativo, Prompt de origem opcional e datas. Provider, model, tokens, Usage, score, reservation, ledger e idempotency key não são copiados.
+
+Os endpoints autenticados `GET/POST /api/v1/templates`, `GET/PUT/DELETE /api/v1/templates/{id}` e `POST /api/v1/templates/from-prompt/{prompt_id}` implementam criação manual, listagem, consulta, edição, exclusão e captura de uma versão específica. Todos derivam o proprietário da sessão; acesso cruzado retorna 404 uniforme. Excluir ou editar um template não altera o Prompt de origem, versões ou Prompts derivados.
+
+### Reutilização, precedência e frontend
+
+Salvar como template captura somente a versão atualmente exibida. A página Meus templates oferece cards responsivos com Usar, Editar e Excluir. A tela Criar Prompt permite escolher um template ou recebê-lo por deep link, pré-carrega os campos relevantes e nunca gera automaticamente. O usuário pode revisar modo, categoria, conteúdo e preferências antes de construir.
+
+O template é um ponto de partida local: alterações no formulário vencem seus valores e não modificam o registro salvo. Campos preenchidos pelo template vencem fallbacks do Smart Profile; informação explícita atual e entrevista permanecem superiores. Basic, Pro, Expert e as 12 categorias usam os fluxos existentes. Refinar um Prompt derivado não reaplica nem modifica o template, e cada Prompt novo recebe seu próprio GUPMAX Score.
+
+### Segurança, custos e limitações
+
+Conteúdo de template é tratado somente como dado do usuário, nunca como autorização ou instrução interna, e não é registrado integralmente em logs. Criar, consultar, editar, excluir ou selecionar templates não chama OpenAI, não cria Usage/reservation/settlement, não consome créditos e não altera wallet ou ledger.
+
+Não fazem parte desta etapa marketplace, templates públicos, compartilhamento, colaboração, equipes, ranking, comentários, compra ou venda.
+
+### Status e smoke test manual
+
+**Status: CONCLUÍDA. Smoke manual: APROVADO.**
+
+O smoke real confirmou o fluxo Resultado → Salvar como template → Meus templates → Usar, sem geração automática. Um template Basic/Marketing com tom profissional e canal Instagram preencheu o novo formulário; antes da geração determinística, o usuário alterou explicitamente esses valores para tom casual e canal TikTok. O Prompt resultante preservou casual/TikTok, enquanto o template original permaneceu profissional/Instagram ao ser reaberto. Assim, ficou validada em ambiente real a precedência valor atual explícito > template > Smart Profile > defaults, sem chamada OpenAI, consumo de créditos ou efeitos em Usage e ledger pelas operações de template.

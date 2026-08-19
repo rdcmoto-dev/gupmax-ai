@@ -17,6 +17,7 @@ import '../../features/payments_history/presentation/payment_history_page.dart';
 import '../../features/prompts/presentation/prompt_create_page.dart';
 import '../../features/prompts/presentation/prompt_detail_page.dart';
 import '../../features/prompts/presentation/prompt_list_page.dart';
+import '../../features/templates/presentation/template_list_page.dart';
 import '../../features/usage/presentation/usage_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -36,7 +37,12 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
       GoRoute(path: '/account', builder: (_, __) => const AccountPage()),
       GoRoute(path: '/prompts', builder: (_, __) => const PromptListPage()),
       GoRoute(
-          path: '/prompts/new', builder: (_, __) => const PromptCreatePage()),
+        path: '/prompts/new',
+        builder: (_, state) => PromptCreatePage(
+          templateId: state.uri.queryParameters['template'],
+        ),
+      ),
+      GoRoute(path: '/templates', builder: (_, __) => const TemplateListPage()),
       GoRoute(
         path: '/interviews/:id',
         builder: (_, state) =>

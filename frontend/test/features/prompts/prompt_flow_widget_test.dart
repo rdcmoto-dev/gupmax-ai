@@ -13,16 +13,19 @@ import 'package:gupmax_ai/features/auth/presentation/auth_controller.dart';
 import 'package:gupmax_ai/features/interviews/interview_providers.dart';
 import 'package:gupmax_ai/features/prompts/domain/prompt_models.dart';
 import 'package:gupmax_ai/features/prompts/prompt_providers.dart';
+import 'package:gupmax_ai/features/templates/template_providers.dart';
 
 import '../../support/fake_auth_repository.dart';
 import '../../support/fake_account_repository.dart';
 import '../../support/fake_interview_repository.dart';
 import '../../support/fake_prompt_repository.dart';
+import '../../support/fake_template_repository.dart';
 
 void main() {
   Future<void> pumpApp(WidgetTester tester, FakePromptRepository prompts,
       [FakeInterviewRepository? interviews,
-      FakeAccountRepository? accountRepository]) async {
+      FakeAccountRepository? accountRepository,
+      FakeTemplateRepository? templateRepository]) async {
     final auth = AuthController(
       repository: FakeAuthRepository(),
       expiryBus: SessionExpiryBus(),
@@ -38,6 +41,8 @@ void main() {
           promptRepositoryProvider.overrideWithValue(prompts),
           interviewRepositoryProvider
               .overrideWithValue(interviews ?? FakeInterviewRepository()),
+          templateRepositoryProvider.overrideWithValue(
+              templateRepository ?? FakeTemplateRepository()),
         ],
         child: const GupmaxApp(),
       ),
@@ -173,6 +178,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('IA utilizada'), findsOneWidget);
     expect(find.text('Provider: openai'), findsOneWidget);
+  });
+
+  testWidgets('salva versão exibida como template e apresenta confirmação',
+      (tester) async {
+    final prompts = FakePromptRepository()
+      ..records.add(FakePromptRepository().sample());
+    final templates = FakeTemplateRepository();
+    await pumpApp(tester, prompts, null, null, templates);
+    await tester.tap(find.byKey(const Key('my_prompts_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('prompt_prompt-1')));
+    await tester.pumpAndSettle();
+    final action = find.byKey(const Key('save_as_template'));
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(find.text('Salvar como template'), findsAtLeastNWidgets(1));
+    await tester.enterText(
+        find.byKey(const Key('template_name')), 'Campanha para pizzaria');
+    await tester.tap(find.byKey(const Key('confirm_save_template')));
+    await tester.pumpAndSettle();
+    expect(templates.saveCalls, 1);
+    expect(find.text('Template salvo com sucesso.'), findsOneWidget);
   });
 
   testWidgets('GUPMAX Score abre análise e prepara refinamento sem executar',
