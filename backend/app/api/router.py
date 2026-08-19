@@ -7,6 +7,7 @@ from app.modules.credits.router import router as credits_router
 from app.modules.interviews.router import router as interviews_router
 from app.modules.payments.router import router as payments_router
 from app.modules.prompt_engine.router import router as prompt_router
+from app.modules.smart_profile.router import router as smart_profile_router
 from app.modules.users.router import router as users_router
 
 api_router = APIRouter()
@@ -18,3 +19,4 @@ api_router.include_router(billing_router, prefix="/billing", tags=["billing"])
 api_router.include_router(credits_router, prefix="/credits", tags=["credits"])
 api_router.include_router(payments_router, prefix="/payments", tags=["payments"])
 api_router.include_router(interviews_router, prefix="/interviews", tags=["interviews"])
+api_router.include_router(smart_profile_router, prefix="/profile", tags=["profile"])

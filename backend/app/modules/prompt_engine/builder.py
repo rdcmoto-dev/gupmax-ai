@@ -13,8 +13,7 @@ class PromptBuilder:
     def build(self, data: PromptGenerateRequest) -> str:
         role = data.role or self.DEFAULT_ROLES.get(data.category.value, self.DEFAULT_ROLES["geral"])
         sections: list[tuple[str, str | None]] = [("ROLE", role), ("OBJECTIVE", data.input)]
-        if data.mode != PromptMode.BASIC:
-            sections.extend((("CONTEXT", data.context), ("AUDIENCE", data.audience)))
+        sections.extend((("CONTEXT", data.context), ("AUDIENCE", data.audience)))
         instructions = data.instructions or self._default_instructions(data.mode)
         sections.append(("INSTRUCTIONS", self._list(instructions)))
         if data.mode == PromptMode.EXPERT or data.constraints:

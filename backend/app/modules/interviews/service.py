@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.interviews.enums import InterviewStatus, QuestionType
-from app.modules.interviews.facts import DeterministicFactExtractor, InterviewFact
+from app.modules.interviews.facts import DeterministicFactExtractor, FactSource, InterviewFact
 from app.modules.interviews.model import InterviewSession
 from app.modules.interviews.question_generator import DeterministicQuestionGenerator
 from app.modules.interviews.repository import InterviewRepository
@@ -20,6 +20,7 @@ from app.modules.interviews.schemas import (
     InterviewRead,
 )
 from app.modules.prompt_engine.schemas import PromptGenerateRequest
+from app.modules.smart_profile.service import SmartProfileService
 from app.modules.users.model import User
 
 
@@ -30,9 +31,19 @@ class InterviewService:
         self.fact_extractor = DeterministicFactExtractor()
 
     async def start(self, user: User, data: InterviewCreateRequest) -> InterviewRead:
-        facts = self.fact_extractor.extract(data.initial_request, data.category)
+        profile = await SmartProfileService(self.repository.session).enabled(user.id)
+        facts = self.fact_extractor.from_profile(profile) if profile is not None else {}
+        facts.update(self.fact_extractor.extract(data.initial_request, data.category))
         if data.known_fields is not None:
-            facts.update(self.fact_extractor.from_form(data.known_fields))
+            form_facts = self.fact_extractor.from_form(data.known_fields)
+            for key, fact in form_facts.items():
+                current = facts.get(key)
+                if (
+                    key not in {"language", "tone", "audience"}
+                    or current is None
+                    or current.source == FactSource.PROFILE
+                ):
+                    facts[key] = fact
         questions = self.generator.generate(data.mode, data.category, set(facts))
         interview = await self.repository.create(
             user_id=user.id,

@@ -7,18 +7,22 @@ import 'package:gupmax_ai/app/app.dart';
 import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:gupmax_ai/core/network/session_expiry_bus.dart';
 import 'package:gupmax_ai/features/auth/auth_providers.dart';
+import 'package:gupmax_ai/features/account/account_providers.dart';
+import 'package:gupmax_ai/features/account/domain/smart_profile.dart';
 import 'package:gupmax_ai/features/auth/presentation/auth_controller.dart';
 import 'package:gupmax_ai/features/interviews/interview_providers.dart';
 import 'package:gupmax_ai/features/prompts/domain/prompt_models.dart';
 import 'package:gupmax_ai/features/prompts/prompt_providers.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_account_repository.dart';
 import '../../support/fake_interview_repository.dart';
 import '../../support/fake_prompt_repository.dart';
 
 void main() {
   Future<void> pumpApp(WidgetTester tester, FakePromptRepository prompts,
-      [FakeInterviewRepository? interviews]) async {
+      [FakeInterviewRepository? interviews,
+      FakeAccountRepository? accountRepository]) async {
     final auth = AuthController(
       repository: FakeAuthRepository(),
       expiryBus: SessionExpiryBus(),
@@ -29,6 +33,8 @@ void main() {
       ProviderScope(
         overrides: [
           authControllerProvider.overrideWith((ref) => auth),
+          accountRepositoryProvider
+              .overrideWithValue(accountRepository ?? FakeAccountRepository()),
           promptRepositoryProvider.overrideWithValue(prompts),
           interviewRepositoryProvider
               .overrideWithValue(interviews ?? FakeInterviewRepository()),
@@ -57,6 +63,33 @@ void main() {
     await tester.pump();
     expect(find.text('Use pelo menos 3 caracteres.'), findsOneWidget);
     expect(repository.generatedInput, isNull);
+  });
+
+  testWidgets('indica Smart Profile ativo sem sobrescrever override local',
+      (tester) async {
+    final prompts = FakePromptRepository();
+    final account = FakeAccountRepository()
+      ..smartProfileValue = const SmartProfile(
+        isEnabled: true,
+        defaultTone: 'profissional',
+        defaultAudience: 'Empresários',
+      );
+    await pumpApp(tester, prompts, null, account);
+    await openCreate(tester);
+    expect(account.smartProfileCalls, 1);
+    expect(find.byKey(const Key('smart_profile_active')), findsOneWidget);
+    await tester.enterText(
+        find.byKey(const Key('prompt_input')), 'Crie um anúncio casual');
+    final complementary = find.byKey(const Key('complementary_information'));
+    await tester.ensureVisible(complementary);
+    await tester.tap(complementary);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('prompt_tone')), 'casual');
+    await submitPrompt(tester);
+    await tester.pumpAndSettle();
+    expect(prompts.generatedInput?.tone, 'casual');
+    expect(account.smartProfileValue.defaultTone, 'profissional');
+    expect(account.smartProfileSaveCalls, 0);
   });
 
   testWidgets('cria, mostra loading, resultado e copia prompt', (tester) async {

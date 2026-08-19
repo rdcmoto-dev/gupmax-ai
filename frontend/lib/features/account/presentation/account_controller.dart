@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../auth/domain/auth_models.dart';
 import '../data/account_repository.dart';
+import '../domain/smart_profile.dart';
 
 class AccountController extends ChangeNotifier {
   AccountController(this._repository);
@@ -15,6 +16,9 @@ class AccountController extends ChangeNotifier {
   bool isChangingPassword = false;
   String? error;
   String? successMessage;
+  SmartProfile smartProfile = const SmartProfile();
+  bool isLoadingSmartProfile = false;
+  bool isSavingSmartProfile = false;
 
   Future<void> load() async {
     isLoading = true;
@@ -23,10 +27,58 @@ class AccountController extends ChangeNotifier {
     notifyListeners();
     try {
       user = await _repository.profile();
+      await loadSmartProfile();
     } on AppException catch (exception) {
       error = exception.message;
     } finally {
       isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadSmartProfile() async {
+    isLoadingSmartProfile = true;
+    notifyListeners();
+    try {
+      smartProfile = await _repository.smartProfile();
+    } on AppException catch (exception) {
+      error = exception.message;
+    } finally {
+      isLoadingSmartProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> saveSmartProfile(SmartProfile value) async {
+    isSavingSmartProfile = true;
+    error = null;
+    successMessage = null;
+    notifyListeners();
+    try {
+      smartProfile = await _repository.saveSmartProfile(value);
+      successMessage = 'Preferências salvas com sucesso.';
+      return true;
+    } on AppException catch (exception) {
+      error = exception.message;
+      return false;
+    } finally {
+      isSavingSmartProfile = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteSmartProfile() async {
+    isSavingSmartProfile = true;
+    error = null;
+    notifyListeners();
+    try {
+      await _repository.deleteSmartProfile();
+      smartProfile = const SmartProfile();
+      successMessage = 'Preferências removidas.';
+    } on AppException catch (exception) {
+      error = exception.message;
+    } finally {
+      isSavingSmartProfile = false;
       notifyListeners();
     }
   }

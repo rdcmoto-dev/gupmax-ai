@@ -10,6 +10,7 @@ from app.modules.prompt_engine.schemas import PromptGenerateRequest
 
 
 class FactSource(StrEnum):
+    PROFILE = "profile"
     INITIAL_REQUEST = "initial_request"
     FORM = "form"
     ANSWER = "answer"
@@ -84,7 +85,15 @@ class DeterministicFactExtractor:
         if category == PromptCategory.PROGRAMMING and self._contains(normalized, "site"):
             facts["platform"] = self._fact("site", detail="site")
 
-        tone = next((tone for tone in TONES if re.search(rf"\btom\s+(?:de\s+)?{re.escape(tone)}\b", normalized)), None)
+        tone = next(
+            (
+                tone
+                for tone in TONES
+                if re.search(rf"\btom\s+(?:de\s+)?{re.escape(tone)}\b", normalized)
+                or re.search(rf"\b(?:anuncio|texto|comunicacao)\s+{re.escape(tone)}\b", normalized)
+            ),
+            None,
+        )
         if tone:
             facts["tone"] = self._fact(self._display_tone(tone))
 
@@ -137,6 +146,24 @@ class DeterministicFactExtractor:
             key: InterviewFact(value=value, source=FactSource.FORM, confidence=1.0)
             for key, value in fields.items()
             if value is not None and value != [] and (key != "optimize_with_ai" or value is True)
+        }
+
+    @staticmethod
+    def from_profile(profile: Any) -> dict[str, InterviewFact]:
+        fields: dict[str, Any] = {
+            "language": profile.default_language,
+            "tone": profile.default_tone,
+            "audience": profile.default_audience,
+            "channel": profile.default_channel,
+            "context": profile.business_context,
+            "output_format": profile.default_output_format,
+            "constraints": profile.default_constraints,
+            "instructions": profile.default_instructions,
+        }
+        return {
+            key: InterviewFact(value=value, source=FactSource.PROFILE, confidence=1.0)
+            for key, value in fields.items()
+            if value is not None and value != []
         }
 
     @staticmethod

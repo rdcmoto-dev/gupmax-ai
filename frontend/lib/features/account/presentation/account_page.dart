@@ -8,6 +8,7 @@ import '../../auth/domain/auth_models.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../account_providers.dart';
 import 'account_controller.dart';
+import 'smart_profile_card.dart';
 
 class AccountPage extends ConsumerStatefulWidget {
   const AccountPage({super.key});
@@ -100,6 +101,8 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                           const SizedBox(height: 24),
                           if (user != null) ...[
                             _buildProfileCard(context, account, user),
+                            const SizedBox(height: 20),
+                            SmartProfileCard(controller: account),
                             const SizedBox(height: 20),
                             _buildPasswordCard(context, account),
                             const SizedBox(height: 20),

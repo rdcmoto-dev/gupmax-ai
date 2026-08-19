@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/domain/auth_models.dart';
+import '../domain/smart_profile.dart';
 
 abstract interface class AccountRepositoryContract {
   Future<AuthUser> profile();
@@ -15,6 +16,9 @@ abstract interface class AccountRepositoryContract {
     required String currentPassword,
     required String newPassword,
   });
+  Future<SmartProfile> smartProfile();
+  Future<SmartProfile> saveSmartProfile(SmartProfile profile);
+  Future<void> deleteSmartProfile();
 }
 
 class AccountRepository implements AccountRepositoryContract {
@@ -64,6 +68,39 @@ class AccountRepository implements AccountRepositoryContract {
       );
     } catch (error) {
       _mapError(error, fallback: 'Não foi possível alterar sua senha.');
+    }
+  }
+
+  @override
+  Future<SmartProfile> smartProfile() async {
+    try {
+      final response = await _client.dio
+          .get<Map<String, dynamic>>('/profile/prompt-preferences');
+      return SmartProfile.fromJson(response.data!);
+    } catch (error) {
+      _mapError(error, fallback: 'Não foi possível carregar o Smart Profile.');
+    }
+  }
+
+  @override
+  Future<SmartProfile> saveSmartProfile(SmartProfile profile) async {
+    try {
+      final response = await _client.dio.put<Map<String, dynamic>>(
+        '/profile/prompt-preferences',
+        data: profile.toJson(),
+      );
+      return SmartProfile.fromJson(response.data!);
+    } catch (error) {
+      _mapError(error, fallback: 'Não foi possível salvar o Smart Profile.');
+    }
+  }
+
+  @override
+  Future<void> deleteSmartProfile() async {
+    try {
+      await _client.dio.delete<void>('/profile/prompt-preferences');
+    } catch (error) {
+      _mapError(error, fallback: 'Não foi possível limpar o Smart Profile.');
     }
   }
 

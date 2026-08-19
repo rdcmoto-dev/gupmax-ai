@@ -306,3 +306,35 @@ O histórico mostra o score de cada versão. A comparação anterior × nova apr
 O score determinístico não chama OpenAI, não cria Usage ou reservation, não consome créditos e não gera lançamentos no ledger. Ele não favorece prompts otimizados por IA e não reabre entrevistas. Testes cobrem faixa 0–100, repetibilidade, Basic/Pro/Expert, as 12 categorias, prompt simples versus completo, ownership/IDOR, ausência de efeitos financeiros, versões, loading, erro, extremos 0/100, classificação, expansão, critérios, sugestões, ação de melhoria e layout mobile.
 
 A análise é estrutural e baseada em seções e sinais explícitos; ela não mede veracidade, criatividade, segurança factual ou qualidade da futura resposta de um modelo. O smoke test manual da Etapa 9.6 permanece pendente.
+
+## Etapa 9.7 — Smart Profile
+
+### Objetivo, consentimento e modelagem
+
+O GUPMAX Smart Profile permite que cada usuário salve explicitamente um único conjunto de preferências reutilizáveis. A migration `0011_smart_profile`, sucessora direta de `0010`, cria `user_prompt_preferences` com vínculo único e cascata ao usuário. O perfil pode permanecer vazio, ser ativado ou desativado sem perda dos dados e ser removido integralmente. Não existe aprendizado automático, inferência silenciosa ou armazenamento de prompts no perfil.
+
+Os campos opcionais são idioma, tom, público, canal/plataforma, formato de saída, contexto do negócio/projeto, restrições e orientações padrão. Strings vazias são normalizadas para `null`, listas são normalizadas e todos os campos possuem limites explícitos.
+
+### Endpoints, ownership e privacidade
+
+Os endpoints autenticados `GET`, `PUT` e `DELETE /api/v1/profile/prompt-preferences` consultam, fazem upsert e removem exclusivamente o perfil do usuário atual. Nenhum `user_id` é aceito no payload. Perfil inexistente retorna uma representação vazia e desativada. O conteúdo não é registrado em logs e não altera prompts ou entrevistas históricos.
+
+### Precedência e integrações
+
+O perfil habilitado fornece somente fallbacks. Informações explícitas da solicitação atual — incluindo idioma, tom, público e canal detectáveis — vencem o perfil; campos atuais preenchidos também permanecem locais à operação. Respostas de entrevista vencem todos os facts anteriores. O perfil entra na entrevista com origem `profile` e confiança 1.0, abaixo de extração/formulário/resposta, reduzindo perguntas redundantes em Pro sem eliminar perguntas avançadas necessárias em Expert.
+
+Basic continua direto e recebe fallbacks sem formulário obrigatório. Pro e Expert reutilizam a camada de facts adaptativa. Refinamento parte apenas da versão atual e não reaplica o perfil. O GUPMAX Score avalia o texto final sem bônus pela origem das informações.
+
+### Frontend e segurança operacional
+
+Minha conta ganhou o card Smart Profile com controle de ativação, campos curtos responsivos, campos multiline, salvar e limpar preferências. A tela Criar Prompt mostra “Smart Profile ativo” quando há dados habilitados e oferece acesso às preferências. Overrides feitos no formulário atual não atualizam o perfil automaticamente.
+
+Consultar, salvar, aplicar ou apagar o perfil não chama OpenAI, não cria Usage ou reservation, não consome créditos e não altera wallet, ledger ou pagamentos. As limitações atuais são deliberadas: um perfil por usuário, sem histórico, equipes, sincronização externa, aprendizado ou sugestões automáticas.
+
+### Status e smoke test manual
+
+**Status: CONCLUÍDA. Smoke manual: APROVADO.**
+
+O smoke real confirmou criação, salvamento, ativação/desativação, persistência após reload, card e toggle em Minha conta, indicador “Smart Profile ativo” e acesso às preferências em Criar Prompt. Em uma nova geração Basic/Marketing determinística, sem campos manuais e sem IA, as oito preferências foram aplicadas: idioma, tom, público, canal/plataforma, formato de saída, contexto, restrições e orientações. Pro e Expert preservam a integração pela camada de facts e a precedência final permanece: solicitação explícita atual > entrevista atual > Smart Profile > fallback/default.
+
+A correção final incluiu `CONTEXT` e `AUDIENCE` entre as seções estruturais do `PromptBuilder` também no modo Basic, mantendo a omissão de seções vazias. O Smart Profile é aplicado somente em novas gerações, não modifica o perfil salvo, entrevistas ou prompts históricos e não é reaplicado em refinamentos. Seu funcionamento determinístico não exige chamada de IA, Usage, reserva, settlement, créditos ou lançamento no ledger.

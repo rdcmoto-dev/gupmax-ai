@@ -22,6 +22,7 @@ from app.modules.credits.model import (  # noqa: F401
 from app.modules.interviews.model import InterviewAnswer, InterviewSession  # noqa: F401
 from app.modules.payments.model import Payment, PaymentEvent  # noqa: F401
 from app.modules.prompt_engine.model import Prompt  # noqa: F401
+from app.modules.smart_profile.model import UserPromptPreferences  # noqa: F401
 from app.modules.users.model import User  # noqa: F401
 
 config = context.config

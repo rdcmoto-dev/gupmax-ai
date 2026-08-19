@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:gupmax_ai/features/account/data/account_repository.dart';
+import 'package:gupmax_ai/features/account/domain/smart_profile.dart';
 import 'package:gupmax_ai/features/auth/domain/auth_models.dart';
 
 class FakeAccountRepository implements AccountRepositoryContract {
@@ -13,6 +14,10 @@ class FakeAccountRepository implements AccountRepositoryContract {
   int passwordCalls = 0;
   String? updatedName;
   String? updatedEmail;
+  SmartProfile smartProfileValue = const SmartProfile();
+  int smartProfileCalls = 0;
+  int smartProfileSaveCalls = 0;
+  int smartProfileDeleteCalls = 0;
 
   @override
   Future<AuthUser> profile() async {
@@ -49,6 +54,28 @@ class FakeAccountRepository implements AccountRepositoryContract {
   }) async {
     passwordCalls++;
     if (error case final currentError?) throw currentError;
+  }
+
+  @override
+  Future<SmartProfile> smartProfile() async {
+    smartProfileCalls++;
+    if (error case final currentError?) throw currentError;
+    return smartProfileValue;
+  }
+
+  @override
+  Future<SmartProfile> saveSmartProfile(SmartProfile profile) async {
+    smartProfileSaveCalls++;
+    if (error case final currentError?) throw currentError;
+    smartProfileValue = profile;
+    return profile;
+  }
+
+  @override
+  Future<void> deleteSmartProfile() async {
+    smartProfileDeleteCalls++;
+    if (error case final currentError?) throw currentError;
+    smartProfileValue = const SmartProfile();
   }
 }
 

@@ -7,6 +7,7 @@ import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:gupmax_ai/core/network/session_expiry_bus.dart';
 import 'package:gupmax_ai/core/routing/app_router.dart';
 import 'package:gupmax_ai/features/account/account_providers.dart';
+import 'package:gupmax_ai/features/account/domain/smart_profile.dart';
 import 'package:gupmax_ai/features/account/presentation/account_page.dart';
 import 'package:gupmax_ai/features/auth/auth_providers.dart';
 import 'package:gupmax_ai/features/auth/presentation/auth_controller.dart';
@@ -223,6 +224,91 @@ void main() {
     await _pumpAccount(tester, FakeAccountRepository());
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('carrega edita salva desativa e exclui Smart Profile',
+      (tester) async {
+    final repository = FakeAccountRepository()
+      ..smartProfileValue = const SmartProfile(
+        isEnabled: true,
+        defaultLanguage: 'pt-BR',
+        defaultTone: 'profissional',
+        defaultAudience: 'Pequenos negócios',
+      );
+    await _pumpAccount(tester, repository);
+    await tester.pumpAndSettle();
+    final card = find.byKey(const Key('smart_profile_card'));
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+    expect(card, findsOneWidget);
+    expect(find.text('pt-BR'), findsOneWidget);
+    await tester.enterText(
+        find.byKey(const Key('smart_profile_field_1')), 'casual');
+    tester
+        .widget<SwitchListTile>(find.byKey(const Key('smart_profile_enabled')))
+        .onChanged!(false);
+    final save = find.byKey(const Key('save_smart_profile'));
+    tester.widget<FilledButton>(save).onPressed!();
+    await tester.pumpAndSettle();
+    expect(repository.smartProfileSaveCalls, 1);
+    expect(repository.smartProfileValue.defaultTone, 'casual');
+    expect(repository.smartProfileValue.isEnabled, isFalse);
+    final delete = find.byKey(const Key('delete_smart_profile'));
+    tester.widget<OutlinedButton>(delete).onPressed!();
+    await tester.pumpAndSettle();
+    expect(repository.smartProfileDeleteCalls, 1);
+    expect(repository.smartProfileValue.hasData, isFalse);
+  });
+
+  testWidgets('perfil vazio ainda exibe Smart Profile e carrega preferências',
+      (tester) async {
+    final repository = FakeAccountRepository();
+
+    await _pumpAccount(tester, repository);
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const Key('smart_profile_card'));
+    await tester.ensureVisible(card);
+    expect(card, findsOneWidget);
+    expect(find.text('Smart Profile'), findsOneWidget);
+    expect(repository.smartProfileCalls, 1);
+  });
+
+  testWidgets('ativa Smart Profile pela UI e preserva toggle após recarregar',
+      (tester) async {
+    final repository = FakeAccountRepository()
+      ..smartProfileValue = const SmartProfile(
+        isEnabled: false,
+        defaultAudience: 'Pequenos negócios',
+      );
+
+    await _pumpAccount(tester, repository);
+    await tester.pumpAndSettle();
+
+    final toggle = find.byKey(const Key('smart_profile_enabled'));
+    await tester.ensureVisible(toggle);
+    expect(
+      find.text('Usar minhas preferências em novos prompts'),
+      findsOneWidget,
+    );
+    expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+
+    final save = find.byKey(const Key('save_smart_profile'));
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(repository.smartProfileValue.isEnabled, isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pumpAccount(tester, repository);
+    await tester.pumpAndSettle();
+    final reloadedToggle = find.byKey(const Key('smart_profile_enabled'));
+    await tester.ensureVisible(reloadedToggle);
+    expect(tester.widget<SwitchListTile>(reloadedToggle).value, isTrue);
   });
 }
 

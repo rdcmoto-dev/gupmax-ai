@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../account/account_providers.dart';
 import '../../interviews/interview_providers.dart';
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
@@ -42,6 +43,13 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
     'Melhorar um texto',
     'Criar código',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(
+        ref.read(accountControllerProvider).loadSmartProfile);
+  }
 
   String? _optional(TextEditingController controller) {
     final value = controller.text.trim();
@@ -150,6 +158,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   Widget build(BuildContext context) {
     final state = ref.watch(promptControllerProvider);
     final interviewState = ref.watch(interviewControllerProvider);
+    final smartProfile = ref.watch(accountControllerProvider).smartProfile;
     final isSubmitting = state.isSubmitting || interviewState.isSubmitting;
     return PromptScaffold(
       title: 'Criar prompt',
@@ -158,6 +167,24 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (smartProfile.isEnabled && smartProfile.hasData) ...[
+              Card(
+                key: const Key('smart_profile_active'),
+                color: AppColors.paleGold,
+                child: ListTile(
+                  leading:
+                      const Icon(Icons.auto_awesome, color: AppColors.gold),
+                  title: const Text('Smart Profile ativo'),
+                  subtitle: const Text(
+                      'Preferências serão aplicadas apenas onde você não informar um valor.'),
+                  trailing: TextButton(
+                    onPressed: () => context.go('/account'),
+                    child: const Text('Ver preferências'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             _HeroCard(input: _input, validate: _validateRequired),
             const SizedBox(height: 20),
             _SectionCard(

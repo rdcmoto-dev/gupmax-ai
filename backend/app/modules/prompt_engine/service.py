@@ -16,6 +16,7 @@ from app.modules.billing.service import BillingService
 from app.modules.credits.enums import CreditOperationType
 from app.modules.credits.model import CreditReservation
 from app.modules.credits.service import CreditService
+from app.modules.interviews.facts import DeterministicFactExtractor
 from app.modules.prompt_engine.builder import PromptBuilder
 from app.modules.prompt_engine.enums import PromptStatus
 from app.modules.prompt_engine.model import Prompt
@@ -27,6 +28,7 @@ from app.modules.prompt_engine.schemas import (
     PromptRefineRequest,
     PromptUpdateRequest,
 )
+from app.modules.smart_profile.service import SmartProfileService
 from app.modules.users.model import User
 from app.modules.users.roles import Role
 
@@ -47,10 +49,21 @@ class PromptService:
         self.credits = credits
         self.builder = PromptBuilder()
         self.quality_evaluator = PromptQualityEvaluator()
+        self.smart_profile = SmartProfileService(session) if isinstance(session, AsyncSession) else None
 
     async def generate(
         self, user: User, data: PromptGenerateRequest, *, idempotency_key: str | None = None
     ) -> PromptGenerateResponse:
+        profile = await self.smart_profile.enabled(user.id) if self.smart_profile is not None else None
+        data = SmartProfileService.apply(data, profile)
+        explicit_facts = DeterministicFactExtractor().extract(data.input, data.category)
+        overrides = data.model_dump()
+        for key in ("language", "tone", "audience"):
+            if key in explicit_facts:
+                overrides[key] = explicit_facts[key].value
+        if channel := explicit_facts.get("channel") or explicit_facts.get("platform"):
+            overrides["additional_information"] = f"Canal/plataforma: {channel.detail or channel.value}"
+        data = PromptGenerateRequest.model_validate(overrides)
         deterministic = self.builder.build(data)
         key = idempotency_key or str(uuid4())
         fingerprint = self._fingerprint(data)
