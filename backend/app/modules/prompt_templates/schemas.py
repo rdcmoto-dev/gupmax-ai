@@ -3,12 +3,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.modules.prompt_engine.enums import PromptCategory, PromptMode
+from app.modules.prompt_engine.enums import PromptCategory, PromptMode, TargetAI
 
 
 class TemplateFields(BaseModel):
     category: PromptCategory = PromptCategory.GENERAL
     mode: PromptMode = PromptMode.BASIC
+    target_ai: TargetAI = TargetAI.GENERIC
     template_content: str = Field(min_length=3, max_length=30_000)
     base_input: str = Field(min_length=3, max_length=10_000)
     language: str = Field(default="pt-BR", min_length=2, max_length=20)
@@ -65,6 +66,7 @@ class TemplateUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     category: PromptCategory | None = None
     mode: PromptMode | None = None
+    target_ai: TargetAI | None = None
     template_content: str | None = Field(default=None, min_length=3, max_length=30_000)
     base_input: str | None = Field(default=None, min_length=3, max_length=10_000)
     is_active: bool | None = None

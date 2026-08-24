@@ -36,6 +36,7 @@ class PromptTemplateService:
             description=data.description,
             category=prompt.category,
             mode=prompt.mode,
+            target_ai=prompt.target_ai,
             template_content=prompt.generated_prompt,
             base_input=sections.get("OBJECTIVE", prompt.original_input),
             language=sections.get("LANGUAGE", prompt.language),

@@ -1,5 +1,23 @@
 enum PromptMode { basic, pro, expert }
 
+enum TargetAI {
+  generic('generic', 'Genérico / Outra IA'),
+  chatgpt('chatgpt', 'ChatGPT'),
+  claude('claude', 'Claude'),
+  gemini('gemini', 'Gemini'),
+  midjourney('midjourney', 'Midjourney'),
+  imageGenerator('image_generator', 'Gerador de imagem'),
+  videoGenerator('video_generator', 'Gerador de vídeo'),
+  codingAssistant('coding_assistant', 'Assistente de programação');
+
+  const TargetAI(this.value, this.label);
+  final String value;
+  final String label;
+
+  static TargetAI fromValue(String? value) =>
+      values.firstWhere((item) => item.value == (value ?? 'generic'));
+}
+
 class PromptQualityCriterion {
   const PromptQualityCriterion({
     required this.key,
@@ -111,6 +129,7 @@ class PromptGenerateInput {
     this.provider = 'openai',
     this.model,
     this.projectId,
+    this.targetAi = TargetAI.generic,
   });
 
   final String input;
@@ -130,6 +149,7 @@ class PromptGenerateInput {
   final String provider;
   final String? model;
   final String? projectId;
+  final TargetAI targetAi;
 
   factory PromptGenerateInput.fromJson(Map<String, dynamic> json) =>
       PromptGenerateInput(
@@ -152,6 +172,7 @@ class PromptGenerateInput {
         provider: json['provider'] as String? ?? 'openai',
         model: json['model'] as String?,
         projectId: json['project_id'] as String?,
+        targetAi: TargetAI.fromValue(json['target_ai'] as String?),
       );
 
   Map<String, dynamic> toJson() => {
@@ -172,6 +193,7 @@ class PromptGenerateInput {
         'provider': provider,
         'model': model,
         'project_id': projectId,
+        'target_ai': targetAi.value,
       };
 }
 
@@ -266,6 +288,7 @@ class PromptRecord {
     this.versionNumber = 1,
     this.refinementInstruction,
     this.projectId,
+    this.targetAi = TargetAI.generic,
   });
 
   factory PromptRecord.fromJson(Map<String, dynamic> json) => PromptRecord(
@@ -289,6 +312,7 @@ class PromptRecord {
         versionNumber: json['version_number'] as int? ?? 1,
         refinementInstruction: json['refinement_instruction'] as String?,
         projectId: json['project_id'] as String?,
+        targetAi: TargetAI.fromValue(json['target_ai'] as String?),
         createdAt: DateTime.parse(json['created_at'] as String),
         updatedAt: DateTime.parse(json['updated_at'] as String),
       );
@@ -313,6 +337,7 @@ class PromptRecord {
   final int versionNumber;
   final String? refinementInstruction;
   final String? projectId;
+  final TargetAI targetAi;
   final DateTime createdAt;
   final DateTime updatedAt;
 }

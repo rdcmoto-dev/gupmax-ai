@@ -20,7 +20,7 @@ from app.modules.interviews.facts import DeterministicFactExtractor
 from app.modules.projects.model import ProjectStatus
 from app.modules.projects.service import ProjectService
 from app.modules.prompt_engine.builder import PromptBuilder
-from app.modules.prompt_engine.enums import PromptStatus
+from app.modules.prompt_engine.enums import PromptStatus, TargetAI
 from app.modules.prompt_engine.model import Prompt
 from app.modules.prompt_engine.quality import PromptQualityEvaluator
 from app.modules.prompt_engine.repository import PromptRepository
@@ -216,6 +216,7 @@ class PromptService:
             "language": language,
             "tone": tone,
             "mode": source.mode,
+            "target_ai": source.target_ai,
             "provider": None,
             "model": None,
             "input_tokens": None,
@@ -441,6 +442,7 @@ class PromptService:
             "language": data.language,
             "tone": data.tone,
             "mode": data.mode,
+            "target_ai": data.target_ai,
             "provider": None,
             "model": None,
             "input_tokens": None,
@@ -481,10 +483,14 @@ class PromptService:
                 )
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="AI provider returned invalid output")
         required = [
-            ("section.role", "## ROLE"),
-            ("section.objective", "## OBJECTIVE"),
-            ("section.instructions", "## INSTRUCTIONS"),
-            ("section.language", "## LANGUAGE"),
+            *((
+                ("section.role", "## ROLE"),
+                ("section.objective", "## OBJECTIVE"),
+                ("section.instructions", "## INSTRUCTIONS"),
+                ("section.language", "## LANGUAGE"),
+            ) if data.target_ai == TargetAI.GENERIC else (
+                ("target_structure", PromptBuilder().build(data).splitlines()[0]),
+            )),
             ("context", data.context),
             ("audience", data.audience),
             ("role", data.role),

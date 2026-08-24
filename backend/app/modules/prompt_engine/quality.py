@@ -47,6 +47,14 @@ class PromptQualityEvaluator:
         PromptCategory.PRODUCTIVITY: ("prazo", "prioridade", "etapa", "resultado", "formato"),
         PromptCategory.GENERAL: ("objetivo", "contexto", "público", "formato", "restrição"),
     }
+    SECTION_ALIASES = {
+        "OBJECTIVE": ("TASK", "SUBJECT", "MAIN SUBJECT", "SCENE"),
+        "CONTEXT": ("TECHNICAL CONTEXT", "ENVIRONMENT"),
+        "INSTRUCTIONS": ("REQUIREMENTS", "ACTION"),
+        "OUTPUT FORMAT": ("EXPECTED FORMAT", "EXPECTED BEHAVIOR", "COMPOSITION"),
+        "CONSTRAINTS": ("RESTRICTIONS", "VISUAL RESTRICTIONS"),
+        "TONE": ("MOOD", "VISUAL STYLE"),
+    }
 
     def evaluate(self, prompt: Prompt) -> PromptQualityResponse:
         sections = self._sections(prompt.generated_prompt)
@@ -97,7 +105,8 @@ class PromptQualityEvaluator:
         if key == "specificity":
             hits = sum(term in text for term in self.CATEGORY_TERMS[prompt.category])
             return min(1.0, 0.35 + hits * 0.18)
-        value = sections.get(section or "", "").strip()
+        names = (section or "", *self.SECTION_ALIASES.get(section or "", ()))
+        value = next((sections[name].strip() for name in names if sections.get(name, "").strip()), "")
         if not value:
             return 0.0
         words = len(value.split())

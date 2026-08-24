@@ -70,7 +70,7 @@ class _PromptListPageState extends ConsumerState<PromptListPage> {
                         const CircleAvatar(child: Icon(Icons.auto_awesome)),
                     title: Text(prompt.title),
                     subtitle: Text(
-                        '${prompt.category.label} • ${prompt.mode.name.toUpperCase()} • ${_date(prompt.createdAt)}'),
+                        '${prompt.category.label} • ${prompt.mode.name.toUpperCase()} • ${prompt.targetAi.label} • ${_date(prompt.createdAt)}'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => context.go('/prompts/${prompt.id}'),
                   ),

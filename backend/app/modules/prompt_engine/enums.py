@@ -22,6 +22,17 @@ class PromptMode(StrEnum):
     EXPERT = "expert"
 
 
+class TargetAI(StrEnum):
+    GENERIC = "generic"
+    CHATGPT = "chatgpt"
+    CLAUDE = "claude"
+    GEMINI = "gemini"
+    MIDJOURNEY = "midjourney"
+    IMAGE_GENERATOR = "image_generator"
+    VIDEO_GENERATOR = "video_generator"
+    CODING_ASSISTANT = "coding_assistant"
+
+
 class PromptStatus(StrEnum):
     PROCESSING = "processing"
     GENERATED = "generated"

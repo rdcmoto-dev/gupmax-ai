@@ -60,6 +60,32 @@ void main() {
     tester.widget<FilledButton>(button).onPressed!();
   }
 
+  testWidgets(
+      'seleciona e envia Target AI com default generico e layout mobile',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repository = FakePromptRepository();
+    await pumpApp(tester, repository);
+    await openCreate(tester);
+    for (final target in TargetAI.values) {
+      expect(find.byKey(Key('target_ai_${target.value}')), findsOneWidget);
+    }
+    expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const Key('target_ai_generic')))
+            .selected,
+        isTrue);
+    await tester.ensureVisible(find.byKey(const Key('target_ai_chatgpt')));
+    await tester.tap(find.byKey(const Key('target_ai_chatgpt')));
+    await tester.enterText(
+        find.byKey(const Key('prompt_input')), 'Crie uma campanha');
+    await submitPrompt(tester);
+    await tester.pumpAndSettle();
+    expect(repository.generatedInput?.targetAi, TargetAI.chatgpt);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('valida formulário antes de criar', (tester) async {
     final repository = FakePromptRepository();
     await pumpApp(tester, repository);

@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.modules.ai_gateway.schemas import TokenUsageResponse
-from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus
+from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus, TargetAI
 
 
 class PromptGenerateRequest(BaseModel):
@@ -14,6 +14,7 @@ class PromptGenerateRequest(BaseModel):
     language: str = Field(default="pt-BR", min_length=2, max_length=20, pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z]{2,4})?$")
     tone: str | None = Field(default=None, min_length=2, max_length=80)
     mode: PromptMode = PromptMode.BASIC
+    target_ai: TargetAI = TargetAI.GENERIC
     optimize_with_ai: bool = False
     title: str | None = Field(default=None, min_length=3, max_length=160)
     context: str | None = Field(default=None, max_length=4_000)
@@ -78,6 +79,7 @@ class PromptRead(BaseModel):
     language: str
     tone: str | None
     mode: PromptMode
+    target_ai: TargetAI
     status: PromptStatus
     provider: str | None
     model: str | None

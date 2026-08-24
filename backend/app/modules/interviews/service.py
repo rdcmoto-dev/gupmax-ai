@@ -169,6 +169,7 @@ class InterviewService:
             "provider",
             "model",
             "project_id",
+            "target_ai",
         }
         context_lines = [
             f"{questions[key].text} {self._format(value)}"
@@ -204,6 +205,7 @@ class InterviewService:
             model=self._optional_string(values.get("model")),
             optimize_with_ai=values.get("optimize_with_ai") is True,
             project_id=values.get("project_id"),
+            target_ai=values.get("target_ai", "generic"),
         )
 
     @staticmethod

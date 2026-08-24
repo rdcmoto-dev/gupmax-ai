@@ -38,6 +38,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   final _model = TextEditingController();
   PromptMode _mode = PromptMode.basic;
   PromptCategory _category = PromptCategory.general;
+  TargetAI _targetAi = TargetAI.generic;
   bool _optimize = false;
   String? _templateName;
   String? _projectName;
@@ -90,6 +91,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
           '';
       _mode = template.mode;
       _category = template.category;
+      _targetAi = template.targetAi;
       _optimize = false;
     });
   }
@@ -195,6 +197,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         provider: _provider.text.trim(),
         model: _optional(_model),
         projectId: widget.projectId,
+        targetAi: _targetAi,
       );
 
   Future<void> _submit() async {
@@ -217,6 +220,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       provider: _provider.text.trim(),
       model: _optional(_model),
       projectId: widget.projectId,
+      targetAi: _targetAi,
     );
     if (_mode != PromptMode.basic) {
       final interview = await ref.read(interviewControllerProvider).start(
@@ -359,6 +363,25 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
             const SizedBox(height: 20),
             _SectionCard(
               number: '2',
+              title: 'Em qual IA você pretende usar este prompt?',
+              subtitle:
+                  'O GUPMAX adapta a estrutura do prompt para a ferramenta escolhida.',
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: TargetAI.values
+                    .map((target) => ChoiceChip(
+                          key: Key('target_ai_${target.value}'),
+                          label: Text(target.label),
+                          selected: _targetAi == target,
+                          onSelected: (_) => setState(() => _targetAi = target),
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _SectionCard(
+              number: '3',
               title: 'Qual é o tipo da sua criação?',
               subtitle:
                   'Escolha uma das categorias aceitas pelo Prompt Engine.',
@@ -382,7 +405,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
               clipBehavior: Clip.antiAlias,
               child: ExpansionTile(
                 key: const Key('complementary_information'),
-                leading: const CircleAvatar(child: Text('3')),
+                leading: const CircleAvatar(child: Text('4')),
                 title: const Text('Conte mais para o GUPMAX'),
                 subtitle: const Text(
                     'Opcional: contexto, público, tom, formato e outras orientações.'),

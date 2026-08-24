@@ -5,7 +5,7 @@ from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, Uuid, 
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.modules.prompt_engine.enums import PromptCategory, PromptMode
+from app.modules.prompt_engine.enums import PromptCategory, PromptMode, TargetAI
 
 
 class PromptTemplate(Base):
@@ -25,6 +25,7 @@ class PromptTemplate(Base):
     description: Mapped[str | None] = mapped_column(String(1000))
     category: Mapped[PromptCategory] = mapped_column(String(40), nullable=False, index=True)
     mode: Mapped[PromptMode] = mapped_column(String(20), nullable=False, index=True)
+    target_ai: Mapped[TargetAI] = mapped_column(String(40), nullable=False, default=TargetAI.GENERIC, index=True)
     template_content: Mapped[str] = mapped_column(Text, nullable=False)
     base_input: Mapped[str] = mapped_column(Text, nullable=False)
     language: Mapped[str] = mapped_column(String(20), nullable=False, default="pt-BR")

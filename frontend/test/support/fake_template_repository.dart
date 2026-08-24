@@ -82,6 +82,7 @@ PromptTemplateRecord sample({
   String baseInput = 'Criar campanha para pizzaria',
   PromptCategory category = PromptCategory.marketing,
   PromptMode mode = PromptMode.basic,
+  TargetAI targetAi = TargetAI.generic,
   String tone = 'casual',
   String additionalInformation = 'Canal/plataforma: TikTok',
 }) =>
@@ -92,6 +93,7 @@ PromptTemplateRecord sample({
       sourcePromptId: sourcePromptId,
       category: category,
       mode: mode,
+      targetAi: targetAi,
       templateContent: templateContent,
       baseInput: baseInput,
       language: 'pt-BR',

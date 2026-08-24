@@ -128,6 +128,7 @@ class FakePromptRepository implements PromptRepositoryContract {
           ? 'persuasivo'
           : source.tone,
       mode: source.mode,
+      targetAi: source.targetAi,
       status: input.optimizeWithAi ? 'optimized' : 'generated',
       provider: input.optimizeWithAi ? input.provider : null,
       model: input.optimizeWithAi ? (input.model ?? 'gpt-5.6-luna') : null,
@@ -196,6 +197,7 @@ class FakePromptRepository implements PromptRepositoryContract {
       language: input.language ?? current.language,
       tone: input.tone ?? current.tone,
       mode: input.mode ?? current.mode,
+      targetAi: current.targetAi,
       status: current.status,
       createdAt: current.createdAt,
       updatedAt: current.updatedAt,

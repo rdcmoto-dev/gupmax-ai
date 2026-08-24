@@ -22,6 +22,7 @@ class PromptTemplateRecord {
     this.additionalInformation,
     this.isActive = true,
     this.projectId,
+    this.targetAi = TargetAI.generic,
   });
 
   factory PromptTemplateRecord.fromJson(Map<String, dynamic> json) =>
@@ -46,6 +47,7 @@ class PromptTemplateRecord {
         additionalInformation: json['additional_information'] as String?,
         isActive: json['is_active'] as bool? ?? true,
         projectId: json['project_id'] as String?,
+        targetAi: TargetAI.fromValue(json['target_ai'] as String?),
         createdAt: DateTime.parse(json['created_at'] as String),
         updatedAt: DateTime.parse(json['updated_at'] as String),
       );
@@ -68,6 +70,7 @@ class PromptTemplateRecord {
   final String? additionalInformation;
   final bool isActive;
   final String? projectId;
+  final TargetAI targetAi;
   final DateTime createdAt;
   final DateTime updatedAt;
 }

@@ -1,3 +1,4 @@
+import re
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -6,7 +7,7 @@ from pydantic import ValidationError
 
 from app.modules.ai_gateway.schemas import GenerateTextRequest, GenerateTextResponse, TokenUsageResponse
 from app.modules.prompt_engine.builder import PromptBuilder
-from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus
+from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus, TargetAI
 from app.modules.prompt_engine.schemas import PromptGenerateRequest
 from app.modules.prompt_engine.service import PromptService
 from app.modules.users.roles import Role
@@ -47,6 +48,191 @@ def test_builder_modes_control_detail() -> None:
     assert "## CONSTRAINTS" not in basic
     assert "## CONSTRAINTS" in expert
     assert "Não invente dados" in expert
+
+
+@pytest.mark.parametrize(
+    ("target", "heading"),
+    [
+        (TargetAI.GENERIC, "## OBJECTIVE"),
+        (TargetAI.CHATGPT, "## OBJECTIVE"),
+        (TargetAI.CLAUDE, "## TASK"),
+        (TargetAI.GEMINI, "## OBJECTIVE"),
+        (TargetAI.MIDJOURNEY, "## SUBJECT"),
+        (TargetAI.IMAGE_GENERATOR, "## MAIN SUBJECT"),
+        (TargetAI.VIDEO_GENERATOR, "## SCENE"),
+        (TargetAI.CODING_ASSISTANT, "## TECHNICAL ROLE"),
+    ],
+)
+@pytest.mark.parametrize("mode", ["basic", "pro", "expert"])
+def test_builder_adapts_every_target_in_every_mode(target: TargetAI, heading: str, mode: str) -> None:
+    built = PromptBuilder().build(
+        PromptGenerateRequest(
+            input="Crie uma solução detalhada",
+            category="programacao",
+            mode=mode,
+            target_ai=target,
+            context="Aplicação web",
+            constraints=["Não invente dependências"],
+        )
+    )
+    assert heading in built
+    assert "Crie uma solução detalhada" in built
+    if target in {TargetAI.GENERIC, TargetAI.CHATGPT, TargetAI.CLAUDE, TargetAI.GEMINI, TargetAI.CODING_ASSISTANT}:
+        assert "Não invente dependências" in built
+    else:
+        assert "Não invente dependências" not in built
+
+
+SMOKE_INPUT = (
+    "Criar uma imagem publicitária de uma pizza artesanal italiana sobre uma mesa de madeira, "
+    "em uma pizzaria elegante."
+)
+INCOMPATIBLE_PROFILE_FIELDS = {
+    "context": "Pequena empresa brasileira que vende produtos e serviços pela internet.",
+    "audience": "donos de pequenos negócios",
+    "tone": "profissional",
+    "instructions": ["Priorize recomendações aplicáveis e objetivas."],
+    "constraints": ["Use linguagem clara e prática."],
+    "output_format": "lista objetiva",
+    "additional_information": "Canal/plataforma: Instagram",
+}
+
+
+@pytest.mark.parametrize("target", [TargetAI.MIDJOURNEY, TargetAI.IMAGE_GENERATOR])
+@pytest.mark.parametrize("mode", ["basic", "pro", "expert"])
+def test_visual_targets_reject_semantically_incompatible_profile_fields(target: TargetAI, mode: str) -> None:
+    built = PromptBuilder().build(
+        PromptGenerateRequest(input=SMOKE_INPUT, category="imagem", mode=mode, target_ai=target,
+                              **INCOMPATIBLE_PROFILE_FIELDS)
+    )
+    assert SMOKE_INPUT in built
+    assert "## ENVIRONMENT" in built
+    assert "mesa de madeira" in built
+    assert "pizzaria elegante" in built
+    assert "## COMPOSITION" in built
+    assert "## VISUAL STYLE" in built
+    if target == TargetAI.MIDJOURNEY:
+        assert "## MOOD\nElegante" in built
+    details_heading = "RELEVANT DETAILS" if target == TargetAI.MIDJOURNEY else "IMPORTANT DETAILS"
+    assert f"## {details_heading}" in built
+    assert built.count("## ") == len(set(re.findall(r"(?m)^## ([^\n]+)$", built)))
+    for incompatible in INCOMPATIBLE_PROFILE_FIELDS.values():
+        for value in incompatible if isinstance(incompatible, list) else [incompatible]:
+            assert value not in built
+
+
+@pytest.mark.parametrize("target", [TargetAI.VIDEO_GENERATOR, TargetAI.CODING_ASSISTANT])
+def test_specialized_targets_do_not_relabel_unrelated_business_fields(target: TargetAI) -> None:
+    built = PromptBuilder().build(
+        PromptGenerateRequest(input=SMOKE_INPUT, mode="expert", target_ai=target,
+                              **INCOMPATIBLE_PROFILE_FIELDS)
+    )
+    assert SMOKE_INPUT in built
+    for incompatible in INCOMPATIBLE_PROFILE_FIELDS.values():
+        for value in incompatible if isinstance(incompatible, list) else [incompatible]:
+            assert value not in built
+
+
+def test_video_target_extracts_explicit_duration_action_and_environment() -> None:
+    built = PromptBuilder().build(
+        PromptGenerateRequest(
+            input=(
+                "Criar um vídeo publicitário de 15 segundos mostrando uma pizza artesanal sendo servida "
+                "em uma pizzaria elegante."
+            ),
+            target_ai=TargetAI.VIDEO_GENERATOR,
+            mode="basic",
+            **INCOMPATIBLE_PROFILE_FIELDS,
+        )
+    )
+    assert "## SUBJECT\numa pizza artesanal" in built
+    assert "## ACTION\nsendo servida" in built
+    assert "## ENVIRONMENT\numa pizzaria elegante" in built
+    assert "## TEMPORAL CONTEXT\n15 segundos" in built
+    assert built.count("## ") == len(set(re.findall(r"(?m)^## ([^\n]+)$", built)))
+
+
+def test_video_smoke_separates_scene_subject_and_complete_action_sequence() -> None:
+    request = (
+        "Criar um vídeo publicitário de 15 segundos mostrando uma pizza artesanal italiana sendo preparada, "
+        "saindo do forno e sendo servida em uma mesa de madeira em uma pizzaria elegante."
+    )
+    built = PromptBuilder().build(
+        PromptGenerateRequest(
+            input=request,
+            category="video",
+            mode="basic",
+            target_ai=TargetAI.VIDEO_GENERATOR,
+            **INCOMPATIBLE_PROFILE_FIELDS,
+        )
+    )
+    assert "## SCENE" in built
+    assert "## SUBJECT\numa pizza artesanal italiana" in built
+    assert "sendo preparada; saindo do forno; sendo servida" in built
+    assert "## ENVIRONMENT\numa mesa de madeira; uma pizzaria elegante" in built
+    assert "## TEMPORAL CONTEXT\n15 segundos" in built
+    sections = PromptService._structured_sections(built)
+    assert sections["SCENE"] != sections["SUBJECT"]
+    assert sections["SCENE"] != request
+    for incompatible in INCOMPATIBLE_PROFILE_FIELDS.values():
+        for value in incompatible if isinstance(incompatible, list) else [incompatible]:
+            assert value not in built
+
+
+@pytest.mark.parametrize(
+    ("prompt_text", "subject", "actions"),
+    [
+        (
+            "Crie um vídeo de 20 segundos mostrando um tênis sendo retirado da caixa, colocado nos pés "
+            "e usado durante uma caminhada em uma rua de Paris.",
+            "um tênis",
+            ("sendo retirado da caixa", "colocado nos pés", "usado durante uma caminhada"),
+        ),
+        (
+            "Crie um vídeo de 10 segundos mostrando um café sendo preparado, servido em uma xícara "
+            "e colocado sobre uma mesa.",
+            "um café",
+            ("sendo preparado", "servido em uma xícara", "colocado sobre uma mesa"),
+        ),
+    ],
+)
+def test_video_action_sequence_is_generic(prompt_text: str, subject: str, actions: tuple[str, ...]) -> None:
+    built = PromptBuilder().build(
+        PromptGenerateRequest(input=prompt_text, target_ai=TargetAI.VIDEO_GENERATOR)
+    )
+    assert f"## SUBJECT\n{subject}" in built
+    assert all(action in built for action in actions)
+
+
+def test_coding_target_extracts_stack_and_keeps_explicit_requirement() -> None:
+    request = "Criar uma API REST em Python com FastAPI para cadastro de produtos."
+    built = PromptBuilder().build(
+        PromptGenerateRequest(
+            input=request,
+            target_ai=TargetAI.CODING_ASSISTANT,
+            mode="basic",
+            **INCOMPATIBLE_PROFILE_FIELDS,
+        )
+    )
+    assert "## STACK\nPython, FastAPI" in built
+    assert f"## REQUIREMENTS\n{request}" in built
+    assert built.count("## ") == len(set(re.findall(r"(?m)^## ([^\n]+)$", built)))
+
+
+@pytest.mark.parametrize("target", [TargetAI.GENERIC, TargetAI.CHATGPT, TargetAI.CLAUDE, TargetAI.GEMINI])
+def test_general_targets_preserve_compatible_general_fields(target: TargetAI) -> None:
+    built = PromptBuilder().build(
+        PromptGenerateRequest(input=SMOKE_INPUT, mode="pro", target_ai=target, **INCOMPATIBLE_PROFILE_FIELDS)
+    )
+    assert INCOMPATIBLE_PROFILE_FIELDS["context"] in built
+    assert INCOMPATIBLE_PROFILE_FIELDS["audience"] in built
+    assert INCOMPATIBLE_PROFILE_FIELDS["output_format"] in built
+
+
+def test_missing_target_ai_defaults_to_generic_and_invalid_target_is_rejected() -> None:
+    assert PromptGenerateRequest(input="Crie algo útil").target_ai == TargetAI.GENERIC
+    with pytest.raises(ValueError):
+        PromptGenerateRequest(input="Crie algo útil", target_ai="unknown")
 
 
 @pytest.mark.parametrize(

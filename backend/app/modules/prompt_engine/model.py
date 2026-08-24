@@ -5,7 +5,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstr
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus
+from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus, TargetAI
 
 
 class Prompt(Base):
@@ -29,6 +29,7 @@ class Prompt(Base):
     language: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     tone: Mapped[str | None] = mapped_column(String(80))
     mode: Mapped[PromptMode] = mapped_column(String(20), nullable=False, index=True)
+    target_ai: Mapped[TargetAI] = mapped_column(String(40), nullable=False, default=TargetAI.GENERIC, index=True)
     status: Mapped[PromptStatus] = mapped_column(String(20), nullable=False)
     provider: Mapped[str | None] = mapped_column(String(50))
     model: Mapped[str | None] = mapped_column(String(200))

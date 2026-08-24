@@ -255,6 +255,9 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                             label: Text(_modeLabel(prompt.mode))),
                         Chip(label: Text(prompt.category.label)),
                         Chip(
+                            key: const Key('result_target_ai'),
+                            label: Text('Destino: ${prompt.targetAi.label}')),
+                        Chip(
                             key: const Key('result_ai_status'),
                             avatar: Icon(
                                 prompt.status == 'optimized'
