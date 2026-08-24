@@ -22,6 +22,96 @@ class _TemplateListPageState extends ConsumerState<TemplateListPage> {
     Future.microtask(ref.read(templateControllerProvider).load);
   }
 
+  Future<void> _create() async {
+    final name = TextEditingController();
+    final content = TextEditingController();
+    var category = PromptCategory.general;
+    var mode = PromptMode.basic;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Novo template'),
+          content: SizedBox(
+            width: 620,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                  key: const Key('template_create_name'),
+                  controller: name,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(labelText: 'Nome'),
+                ),
+                TextField(
+                  key: const Key('template_create_content'),
+                  controller: content,
+                  minLines: 4,
+                  maxLines: 10,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(labelText: 'Conteúdo/base'),
+                ),
+                if (detectTemplateVariables(content.text).isNotEmpty)
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      const Text('Variáveis encontradas:'),
+                      ...detectTemplateVariables(content.text)
+                          .map((variable) => Chip(label: Text(variable.label))),
+                    ],
+                  ),
+                DropdownButtonFormField<PromptCategory>(
+                  initialValue: category,
+                  items: PromptCategory.values
+                      .map((item) => DropdownMenuItem(
+                          value: item, child: Text(item.label)))
+                      .toList(),
+                  onChanged: (value) => setState(() => category = value!),
+                  decoration: const InputDecoration(labelText: 'Categoria'),
+                ),
+                DropdownButtonFormField<PromptMode>(
+                  initialValue: mode,
+                  items: PromptMode.values
+                      .map((item) => DropdownMenuItem(
+                          value: item, child: Text(item.name.toUpperCase())))
+                      .toList(),
+                  onChanged: (value) => setState(() => mode = value!),
+                  decoration: const InputDecoration(labelText: 'Modo'),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar')),
+            FilledButton(
+              key: const Key('template_create_save'),
+              onPressed: name.text.trim().length >= 3 &&
+                      content.text.trim().length >= 3
+                  ? () => Navigator.pop(context, true)
+                  : null,
+              child: const Text('Criar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (save == true) {
+      await ref.read(templateControllerProvider).createTemplate({
+        'name': name.text.trim(),
+        'category': category.value,
+        'mode': mode.name,
+        'template_content': content.text.trim(),
+        'base_input': content.text.trim(),
+        'language': 'pt-BR',
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      name.dispose();
+      content.dispose();
+    });
+  }
+
   Future<void> _move(PromptTemplateRecord template) async {
     final controller = ref.read(projectControllerProvider);
     await controller.load();
@@ -72,8 +162,27 @@ class _TemplateListPageState extends ConsumerState<TemplateListPage> {
                     controller: content,
                     minLines: 4,
                     maxLines: 10,
+                    onChanged: (_) => setState(() {}),
                     decoration:
                         const InputDecoration(labelText: 'Conteúdo/base')),
+                if (detectTemplateVariables(content.text).isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          const Text('Variáveis encontradas:'),
+                          ...detectTemplateVariables(content.text)
+                              .map((variable) => Chip(
+                                    label: Text(variable.label),
+                                  )),
+                        ],
+                      ),
+                    ),
+                  ),
                 DropdownButtonFormField<PromptCategory>(
                   initialValue: category,
                   items: PromptCategory.values
@@ -152,9 +261,16 @@ class _TemplateListPageState extends ConsumerState<TemplateListPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(templateControllerProvider);
     return Scaffold(
-      appBar: AppBar(
-          title: const Text('Meus templates'),
-          actions: const [AppNavigationMenu(), SizedBox(width: 8)]),
+      appBar: AppBar(title: const Text('Meus templates'), actions: [
+        IconButton(
+          key: const Key('create_template_button'),
+          tooltip: 'Novo template',
+          onPressed: _create,
+          icon: const Icon(Icons.add),
+        ),
+        const AppNavigationMenu(),
+        const SizedBox(width: 8),
+      ]),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: state.loading
@@ -194,6 +310,12 @@ class _TemplateListPageState extends ConsumerState<TemplateListPage> {
                                                 const SizedBox(height: 8),
                                                 Text(
                                                     '${template.category.label} • ${template.mode.name.toUpperCase()}'),
+                                                if (template.hasVariables)
+                                                  Text(
+                                                    '${template.variables.length} ${template.variables.length == 1 ? 'variável' : 'variáveis'}',
+                                                    key: Key(
+                                                        'template_variables_${template.id}'),
+                                                  ),
                                                 Text(
                                                     'Atualizado em ${_date(template.updatedAt)}'),
                                                 if (template.projectId != null)

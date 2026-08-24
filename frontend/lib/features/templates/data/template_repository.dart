@@ -7,6 +7,7 @@ import '../domain/prompt_template.dart';
 abstract interface class TemplateRepositoryContract {
   Future<TemplatePageData> list();
   Future<PromptTemplateRecord> get(String id);
+  Future<PromptTemplateRecord> create(Map<String, dynamic> values);
   Future<PromptTemplateRecord> fromPrompt(
       String promptId, String name, String? description);
   Future<PromptTemplateRecord> update(String id, Map<String, dynamic> values);
@@ -22,6 +23,17 @@ class TemplateRepository implements TemplateRepositoryContract {
     try {
       final response = await client.dio.get<Map<String, dynamic>>('/templates');
       return TemplatePageData.fromJson(response.data!);
+    } catch (error) {
+      _map(error);
+    }
+  }
+
+  @override
+  Future<PromptTemplateRecord> create(Map<String, dynamic> values) async {
+    try {
+      final response = await client.dio
+          .post<Map<String, dynamic>>('/templates', data: values);
+      return PromptTemplateRecord.fromJson(response.data!);
     } catch (error) {
       _map(error);
     }

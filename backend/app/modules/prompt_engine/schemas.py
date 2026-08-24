@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from uuid import UUID
 
@@ -9,6 +10,8 @@ from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptSt
 
 class PromptGenerateRequest(BaseModel):
     project_id: UUID | None = None
+    template_id: UUID | None = None
+    variable_values: dict[str, str] = Field(default_factory=dict, max_length=20)
     input: str = Field(min_length=3, max_length=10_000)
     category: PromptCategory = PromptCategory.GENERAL
     language: str = Field(default="pt-BR", min_length=2, max_length=20, pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z]{2,4})?$")
@@ -50,6 +53,19 @@ class PromptGenerateRequest(BaseModel):
         if len(values) != len(set(values)):
             raise ValueError("comparison targets must be unique")
         return values
+
+    @field_validator("variable_values")
+    @classmethod
+    def validate_variable_values(cls, values: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for name, value in values.items():
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", name):
+                raise ValueError("invalid template variable name")
+            clean = value.strip()
+            if len(clean) > 4_000:
+                raise ValueError("template variable is too long")
+            normalized[name.casefold()] = clean
+        return normalized
 
 
 class PromptCompareRequest(PromptGenerateRequest):

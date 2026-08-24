@@ -21,7 +21,7 @@ class FactSource(StrEnum):
 class InterviewFact(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    value: str | bool | list[str]
+    value: str | bool | list[str] | dict[str, str]
     source: FactSource
     confidence: float = Field(ge=0, le=1)
     detail: str | None = None
@@ -144,6 +144,8 @@ class DeterministicFactExtractor:
             "project_id": str(data.project_id) if data.project_id is not None else None,
             "target_ai": data.target_ai.value,
             "comparison_target_ais": [target.value for target in data.comparison_target_ais],
+            "template_id": str(data.template_id) if data.template_id is not None else None,
+            "variable_values": data.variable_values,
             "optimize_with_ai": data.optimize_with_ai,
         }
         return {

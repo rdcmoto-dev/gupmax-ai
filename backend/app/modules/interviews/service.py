@@ -171,6 +171,8 @@ class InterviewService:
             "project_id",
             "target_ai",
             "comparison_target_ais",
+            "template_id",
+            "variable_values",
         }
         context_lines = [
             f"{questions[key].text} {self._format(value)}"
@@ -208,6 +210,8 @@ class InterviewService:
             project_id=values.get("project_id"),
             target_ai=values.get("target_ai", "generic"),
             comparison_target_ais=values.get("comparison_target_ais", []),
+            template_id=values.get("template_id"),
+            variable_values=values.get("variable_values", {}),
         )
 
     @staticmethod

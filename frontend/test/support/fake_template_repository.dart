@@ -13,6 +13,24 @@ class FakeTemplateRepository implements TemplateRepositoryContract {
   int saveCalls = 0;
   int updateCalls = 0;
   int deleteCalls = 0;
+  int createCalls = 0;
+
+  @override
+  Future<PromptTemplateRecord> create(Map<String, dynamic> values) async {
+    createCalls++;
+    final content = values['template_content'] as String;
+    final created = sample(
+      id: 'created-template',
+      name: values['name'] as String,
+      templateContent: content,
+      baseInput: values['base_input'] as String,
+      category: PromptCategory.fromValue(values['category'] as String),
+      mode: PromptMode.values.byName(values['mode'] as String),
+      variables: detectTemplateVariables(content),
+    );
+    items = [created, ...items];
+    return created;
+  }
 
   @override
   Future<TemplatePageData> list() async {
@@ -58,6 +76,8 @@ class FakeTemplateRepository implements TemplateRepositoryContract {
       mode: values['mode'] == null
           ? current.mode
           : PromptMode.values.byName(values['mode'] as String),
+      variables: detectTemplateVariables(
+          values['template_content'] as String? ?? current.templateContent),
     );
     items = [
       for (final item in items)
@@ -85,6 +105,7 @@ PromptTemplateRecord sample({
   TargetAI targetAi = TargetAI.generic,
   String tone = 'casual',
   String additionalInformation = 'Canal/plataforma: TikTok',
+  List<TemplateVariable> variables = const [],
 }) =>
     PromptTemplateRecord(
       id: id,
@@ -104,6 +125,7 @@ PromptTemplateRecord sample({
       constraints: const ['Não invente preços'],
       instructions: const ['Seja objetivo'],
       additionalInformation: additionalInformation,
+      variables: variables,
       createdAt: DateTime.utc(2026, 8, 19),
       updatedAt: DateTime.utc(2026, 8, 19),
     );

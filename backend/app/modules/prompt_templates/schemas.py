@@ -1,9 +1,17 @@
 from datetime import datetime
+from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode, TargetAI
+from app.modules.prompt_templates.variables import detect_variables, validate_variable_count, variable_label
+
+
+class TemplateVariable(BaseModel):
+    name: str
+    label: str
+    required: bool = True
 
 
 class TemplateFields(BaseModel):
@@ -37,6 +45,23 @@ class TemplateFields(BaseModel):
         if any(len(value) > 500 for value in normalized):
             raise ValueError("items must contain at most 500 characters")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_variables(self) -> Self:
+        validate_variable_count(
+            detect_variables(
+                self.template_content,
+                self.base_input,
+                self.tone,
+                self.audience,
+                self.context,
+                self.output_format,
+                self.additional_information,
+                *self.instructions,
+                *self.constraints,
+            )
+        )
+        return self
 
 
 class TemplateCreate(TemplateFields):
@@ -83,6 +108,27 @@ class TemplateRead(TemplateFields):
     description: str | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def variables(self) -> list[TemplateVariable]:
+        names = detect_variables(
+            self.template_content,
+            self.base_input,
+            self.tone,
+            self.audience,
+            self.context,
+            self.output_format,
+            self.additional_information,
+            *self.instructions,
+            *self.constraints,
+        )
+        return [TemplateVariable(name=name, label=variable_label(name)) for name in names]
+
+    @computed_field
+    @property
+    def has_variables(self) -> bool:
+        return bool(self.variables)
 
 
 class TemplatePage(BaseModel):

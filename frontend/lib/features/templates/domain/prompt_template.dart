@@ -1,5 +1,70 @@
 import '../../prompts/domain/prompt_models.dart';
 
+class TemplateVariable {
+  const TemplateVariable({
+    required this.name,
+    required this.label,
+    this.required = true,
+  });
+
+  factory TemplateVariable.fromJson(Map<String, dynamic> json) =>
+      TemplateVariable(
+        name: json['name'] as String,
+        label: json['label'] as String,
+        required: json['required'] as bool? ?? true,
+      );
+
+  final String name;
+  final String label;
+  final bool required;
+}
+
+List<TemplateVariable> detectTemplateVariables(String content) {
+  final result = <TemplateVariable>[];
+  final seen = <String>{};
+  final pattern = RegExp(r'\{([A-Za-z][A-Za-z0-9_]{0,63})\}');
+  for (final match in pattern.allMatches(content)) {
+    if ((match.start > 0 && content[match.start - 1] == '{') ||
+        (match.end < content.length && content[match.end] == '}')) {
+      continue;
+    }
+    final name = match.group(1)!.toLowerCase();
+    if (seen.add(name)) {
+      final label = switch (name) {
+        'publico' => 'Público',
+        'publico_alvo' => 'Público alvo',
+        'servico' => 'Serviço',
+        _ =>
+          '${name[0].toUpperCase()}${name.substring(1).replaceAll('_', ' ')}',
+      };
+      result.add(TemplateVariable(name: name, label: label));
+    }
+  }
+  return result;
+}
+
+List<TemplateVariable> _templateVariablesFromJson(Map<String, dynamic> json) {
+  final declared = (json['variables'] as List<dynamic>? ?? const [])
+      .map((item) => TemplateVariable.fromJson(item as Map<String, dynamic>))
+      .toList();
+  if (declared.isNotEmpty) return declared;
+  final contents = <String>[
+    for (final key in [
+      'template_content',
+      'base_input',
+      'tone',
+      'audience',
+      'context',
+      'output_format',
+      'additional_information',
+    ])
+      if (json[key] case final String value) value,
+    ...(json['instructions'] as List<dynamic>? ?? const []).cast<String>(),
+    ...(json['constraints'] as List<dynamic>? ?? const []).cast<String>(),
+  ];
+  return detectTemplateVariables(contents.join('\n'));
+}
+
 class PromptTemplateRecord {
   const PromptTemplateRecord({
     required this.id,
@@ -23,6 +88,7 @@ class PromptTemplateRecord {
     this.isActive = true,
     this.projectId,
     this.targetAi = TargetAI.generic,
+    this.variables = const [],
   });
 
   factory PromptTemplateRecord.fromJson(Map<String, dynamic> json) =>
@@ -48,6 +114,7 @@ class PromptTemplateRecord {
         isActive: json['is_active'] as bool? ?? true,
         projectId: json['project_id'] as String?,
         targetAi: TargetAI.fromValue(json['target_ai'] as String?),
+        variables: _templateVariablesFromJson(json),
         createdAt: DateTime.parse(json['created_at'] as String),
         updatedAt: DateTime.parse(json['updated_at'] as String),
       );
@@ -71,6 +138,8 @@ class PromptTemplateRecord {
   final bool isActive;
   final String? projectId;
   final TargetAI targetAi;
+  final List<TemplateVariable> variables;
+  bool get hasVariables => variables.isNotEmpty;
   final DateTime createdAt;
   final DateTime updatedAt;
 }

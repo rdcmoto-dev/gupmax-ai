@@ -58,6 +58,23 @@ class TemplateController extends ChangeNotifier {
     }
   }
 
+  Future<bool> createTemplate(Map<String, dynamic> values) async {
+    submitting = true;
+    error = null;
+    notifyListeners();
+    try {
+      final created = await repository.create(values);
+      items = [created, ...items];
+      return true;
+    } on AppException catch (exception) {
+      error = exception.message;
+      return false;
+    } finally {
+      submitting = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> updateTemplate(String id, Map<String, dynamic> values) async {
     submitting = true;
     error = null;

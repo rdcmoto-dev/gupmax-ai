@@ -2,12 +2,18 @@ import re
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.prompt_engine.service import PromptService
 from app.modules.prompt_templates.model import PromptTemplate
 from app.modules.prompt_templates.repository import PromptTemplateRepository
-from app.modules.prompt_templates.schemas import TemplateCreate, TemplateFromPrompt, TemplateUpdate
+from app.modules.prompt_templates.schemas import (
+    TemplateCreate,
+    TemplateFields,
+    TemplateFromPrompt,
+    TemplateUpdate,
+)
 from app.modules.users.model import User
 
 
@@ -51,9 +57,21 @@ class PromptTemplateService:
         )
 
     async def update(self, template_id: UUID, user: User, data: TemplateUpdate) -> PromptTemplate:
-        return await self.repository.update(
-            await self.accessible(template_id, user), data.model_dump(exclude_unset=True)
-        )
+        template = await self.accessible(template_id, user)
+        updates = data.model_dump(exclude_unset=True)
+        current = {
+            name: getattr(template, name)
+            for name in TemplateFields.model_fields
+            if hasattr(template, name)
+        }
+        try:
+            TemplateFields.model_validate({**current, **updates})
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Template supports at most 20 variables",
+            ) from exc
+        return await self.repository.update(template, updates)
 
     async def delete(self, template_id: UUID, user: User) -> None:
         await self.repository.delete(await self.accessible(template_id, user))

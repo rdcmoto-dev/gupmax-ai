@@ -47,6 +47,9 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   };
   String? _templateName;
   String? _projectName;
+  String? _selectedTemplateId;
+  List<TemplateVariable> _templateVariables = const [];
+  final Map<String, TextEditingController> _variableControllers = {};
 
   static const _examples = [
     'Criar anúncio para um produto',
@@ -60,6 +63,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   @override
   void initState() {
     super.initState();
+    _selectedTemplateId = widget.templateId;
     Future<void>.microtask(() async {
       await ref.read(accountControllerProvider).loadSmartProfile();
       if (widget.projectId != null) {
@@ -75,10 +79,35 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
     });
   }
 
+  @override
+  void didUpdateWidget(covariant PromptCreatePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.templateId != widget.templateId) {
+      _selectedTemplateId = widget.templateId;
+      if (widget.templateId == null) {
+        _clearTemplate();
+      } else {
+        Future<void>.microtask(() async {
+          final template = await ref
+              .read(templateControllerProvider)
+              .get(widget.templateId!);
+          if (template != null && mounted) _applyTemplate(template);
+        });
+      }
+    }
+  }
+
   void _applyTemplate(PromptTemplateRecord template) {
     final legacy = _structuredSections(template.baseInput);
+    final previousControllers = _variableControllers.values.toList();
+    _variableControllers
+      ..clear()
+      ..addEntries(template.variables
+          .map((variable) => MapEntry(variable.name, TextEditingController())));
     setState(() {
+      _selectedTemplateId = template.id;
       _templateName = template.name;
+      _templateVariables = template.variables;
       _input.text = legacy['OBJECTIVE'] ?? template.baseInput;
       _language.text = legacy['LANGUAGE'] ?? template.language;
       _tone.text = legacy['TONE'] ?? template.tone ?? '';
@@ -98,6 +127,26 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       _category = template.category;
       _targetAi = template.targetAi;
       _optimize = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final controller in previousControllers) {
+        controller.dispose();
+      }
+    });
+  }
+
+  void _clearTemplate() {
+    final previousControllers = _variableControllers.values.toList();
+    _variableControllers.clear();
+    setState(() {
+      _selectedTemplateId = null;
+      _templateName = null;
+      _templateVariables = const [];
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final controller in previousControllers) {
+        controller.dispose();
+      }
     });
   }
 
@@ -182,6 +231,10 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       .where((line) => line.isNotEmpty)
       .toList();
 
+  Map<String, String> _variableValues() => _variableControllers.map(
+        (name, controller) => MapEntry(name, controller.text.trim()),
+      );
+
   PromptGenerateInput _currentInput({required bool optimize}) =>
       PromptGenerateInput(
         input: _input.text.trim().isEmpty
@@ -205,6 +258,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         targetAi: _targetAi,
         comparisonTargetAis:
             _multiTarget ? _comparisonTargets.toList() : const [],
+        templateId: _selectedTemplateId,
+        variableValues: _variableValues(),
       );
 
   Future<void> _submit() async {
@@ -236,6 +291,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       targetAi: _targetAi,
       comparisonTargetAis:
           _multiTarget ? _comparisonTargets.toList() : const [],
+      templateId: _selectedTemplateId,
+      variableValues: _variableValues(),
     );
     if (_mode != PromptMode.basic) {
       final interview = await ref.read(interviewControllerProvider).start(
@@ -288,6 +345,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       _additionalInformation,
       _provider,
       _model,
+      ..._variableControllers.values,
     ]) {
       controller.dispose();
     }
@@ -331,6 +389,36 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                   trailing: TextButton(
                     onPressed: () => context.go('/prompts/new'),
                     child: const Text('Remover'),
+                  ),
+                ),
+              ),
+            ],
+            if (_templateVariables.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Card(
+                key: const Key('template_variables_form'),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Preencha os dados deste template',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 12),
+                      ..._templateVariables.map((variable) => TextFormField(
+                            key: Key('template_variable_${variable.name}'),
+                            controller: _variableControllers[variable.name],
+                            decoration: InputDecoration(
+                              labelText:
+                                  '${variable.label}${variable.required ? ' *' : ''}',
+                            ),
+                            maxLength: 4000,
+                            validator: (value) => variable.required &&
+                                    (value == null || value.trim().isEmpty)
+                                ? 'Preencha ${variable.label}.'
+                                : null,
+                          )),
+                    ],
                   ),
                 ),
               ),

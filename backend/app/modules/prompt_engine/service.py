@@ -34,6 +34,8 @@ from app.modules.prompt_engine.schemas import (
     PromptRefineRequest,
     PromptUpdateRequest,
 )
+from app.modules.prompt_templates.repository import PromptTemplateRepository
+from app.modules.prompt_templates.variables import detect_template_variables, validate_and_resolve
 from app.modules.smart_profile.service import SmartProfileService
 from app.modules.users.model import User
 from app.modules.users.roles import Role
@@ -200,6 +202,36 @@ class PromptService:
         return PromptCompareResponse(items=items)
 
     async def _prepare(self, user: User, data: PromptGenerateRequest) -> PromptGenerateRequest:
+        if data.template_id is not None:
+            template = await PromptTemplateRepository(self.repository.session).get(data.template_id)
+            if template is None or template.user_id != user.id:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+            variables = detect_template_variables(template)
+            if variables or data.variable_values:
+                resolved = validate_and_resolve(template, data.variable_values)
+                template_values = {
+                    "category": template.category,
+                    "mode": template.mode,
+                    "target_ai": (
+                        data.target_ai if "target_ai" in data.model_fields_set else template.target_ai
+                    ),
+                    **resolved,
+                }
+                semantic_variables = data.variable_values
+                audience = semantic_variables.get("publico_alvo") or semantic_variables.get("publico")
+                if audience:
+                    template_values["audience"] = audience
+                if semantic_variables.get("canal"):
+                    template_values["additional_information"] = (
+                        f"Canal/plataforma: {semantic_variables['canal']}"
+                    )
+                if semantic_variables.get("tom"):
+                    template_values["tone"] = semantic_variables["tom"]
+                if semantic_variables.get("idioma"):
+                    template_values["language"] = semantic_variables["idioma"]
+                if semantic_variables.get("contexto"):
+                    template_values["context"] = semantic_variables["contexto"]
+                data = PromptGenerateRequest.model_validate({**data.model_dump(), **template_values})
         data = self._normalize_structured_fields(data)
         explicit_fields = data.model_fields_set
         if data.project_id is not None:
