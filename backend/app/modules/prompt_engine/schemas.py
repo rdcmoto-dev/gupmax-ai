@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.modules.ai_gateway.schemas import TokenUsageResponse
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus, TargetAI
@@ -15,6 +15,7 @@ class PromptGenerateRequest(BaseModel):
     tone: str | None = Field(default=None, min_length=2, max_length=80)
     mode: PromptMode = PromptMode.BASIC
     target_ai: TargetAI = TargetAI.GENERIC
+    comparison_target_ais: list[TargetAI] = Field(default_factory=list, max_length=4)
     optimize_with_ai: bool = False
     title: str | None = Field(default=None, min_length=3, max_length=160)
     context: str | None = Field(default=None, max_length=4_000)
@@ -40,6 +41,42 @@ class PromptGenerateRequest(BaseModel):
         if any(not item.strip() or len(item) > 500 for item in values):
             raise ValueError("items must contain 1 to 500 characters")
         return [item.strip() for item in values]
+
+    @field_validator("comparison_target_ais")
+    @classmethod
+    def validate_comparison_targets(cls, values: list[TargetAI]) -> list[TargetAI]:
+        if values and len(values) < 2:
+            raise ValueError("comparison requires at least 2 targets")
+        if len(values) != len(set(values)):
+            raise ValueError("comparison targets must be unique")
+        return values
+
+
+class PromptCompareRequest(PromptGenerateRequest):
+    target_ais: list[TargetAI] = Field(min_length=2, max_length=4)
+
+    @model_validator(mode="after")
+    def deterministic_and_unique(self) -> PromptCompareRequest:
+        if self.optimize_with_ai:
+            raise ValueError("Multi-Target comparison is deterministic only")
+        if len(self.target_ais) != len(set(self.target_ais)):
+            raise ValueError("target_ais must be unique")
+        return self
+
+
+class PromptCompareItem(BaseModel):
+    target_ai: TargetAI
+    content: str
+    score: int = Field(ge=0, le=100)
+    rating: str
+    mode: PromptMode
+    category: PromptCategory
+    language: str
+    project_id: UUID | None
+
+
+class PromptCompareResponse(BaseModel):
+    items: list[PromptCompareItem]
 
 
 class PromptUpdateRequest(BaseModel):

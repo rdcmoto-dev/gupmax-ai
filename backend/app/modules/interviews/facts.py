@@ -143,6 +143,7 @@ class DeterministicFactExtractor:
             "model": data.model,
             "project_id": str(data.project_id) if data.project_id is not None else None,
             "target_ai": data.target_ai.value,
+            "comparison_target_ais": [target.value for target in data.comparison_target_ais],
             "optimize_with_ai": data.optimize_with_ai,
         }
         return {

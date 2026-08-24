@@ -130,6 +130,7 @@ class PromptGenerateInput {
     this.model,
     this.projectId,
     this.targetAi = TargetAI.generic,
+    this.comparisonTargetAis = const [],
   });
 
   final String input;
@@ -150,6 +151,7 @@ class PromptGenerateInput {
   final String? model;
   final String? projectId;
   final TargetAI targetAi;
+  final List<TargetAI> comparisonTargetAis;
 
   factory PromptGenerateInput.fromJson(Map<String, dynamic> json) =>
       PromptGenerateInput(
@@ -173,6 +175,10 @@ class PromptGenerateInput {
         model: json['model'] as String?,
         projectId: json['project_id'] as String?,
         targetAi: TargetAI.fromValue(json['target_ai'] as String?),
+        comparisonTargetAis:
+            (json['comparison_target_ais'] as List<dynamic>? ?? const [])
+                .map((value) => TargetAI.fromValue(value as String))
+                .toList(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -194,6 +200,70 @@ class PromptGenerateInput {
         'model': model,
         'project_id': projectId,
         'target_ai': targetAi.value,
+        'comparison_target_ais':
+            comparisonTargetAis.map((target) => target.value).toList(),
+      };
+
+  PromptGenerateInput forTarget(TargetAI target) => PromptGenerateInput(
+        input: input,
+        category: category,
+        language: language,
+        tone: tone,
+        mode: mode,
+        title: title,
+        context: context,
+        audience: audience,
+        role: role,
+        instructions: instructions,
+        constraints: constraints,
+        outputFormat: outputFormat,
+        additionalInformation: additionalInformation,
+        provider: provider,
+        model: model,
+        projectId: projectId,
+        targetAi: target,
+      );
+}
+
+class MultiTargetPreview {
+  const MultiTargetPreview({
+    required this.targetAi,
+    required this.content,
+    required this.score,
+    required this.rating,
+    required this.mode,
+    required this.category,
+    required this.language,
+    this.projectId,
+  });
+
+  factory MultiTargetPreview.fromJson(Map<String, dynamic> json) =>
+      MultiTargetPreview(
+        targetAi: TargetAI.fromValue(json['target_ai'] as String),
+        content: json['content'] as String,
+        score: json['score'] as int,
+        rating: json['rating'] as String,
+        mode: PromptMode.values.byName(json['mode'] as String),
+        category: PromptCategory.fromValue(json['category'] as String),
+        language: json['language'] as String,
+        projectId: json['project_id'] as String?,
+      );
+
+  final TargetAI targetAi;
+  final String content;
+  final int score;
+  final String rating;
+  final PromptMode mode;
+  final PromptCategory category;
+  final String language;
+  final String? projectId;
+
+  String get ratingLabel => switch (rating) {
+        'excellent' => 'Excelente',
+        'very_good' => 'Muito bom',
+        'good' => 'Bom',
+        'needs_improvement' => 'Pode melhorar',
+        _ => 'Fraco',
       };
 }
 

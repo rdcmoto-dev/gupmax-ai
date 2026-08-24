@@ -24,6 +24,11 @@ class PromptController extends ChangeNotifier {
   String? scoreError;
   int total = 0;
   int offset = 0;
+  bool isComparing = false;
+  String? comparisonError;
+  List<MultiTargetPreview> comparisonItems = [];
+  PromptGenerateInput? comparisonInput;
+  final Map<TargetAI, PromptRecord> savedComparisons = {};
   static const pageSize = 20;
 
   void _setRefinementError(String? value, String source) {
@@ -83,6 +88,50 @@ class PromptController extends ChangeNotifier {
       return selected;
     } on AppException catch (exception) {
       error = exception.message;
+      return null;
+    } finally {
+      isSubmitting = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> compare(PromptGenerateInput input) async {
+    if (isComparing) return false;
+    isComparing = true;
+    comparisonError = null;
+    comparisonItems = [];
+    comparisonInput = input;
+    savedComparisons.clear();
+    notifyListeners();
+    try {
+      comparisonItems = await _repository.compare(input);
+      return true;
+    } on AppException catch (exception) {
+      comparisonError = exception.message;
+      return false;
+    } finally {
+      isComparing = false;
+      notifyListeners();
+    }
+  }
+
+  Future<PromptRecord?> saveComparison(MultiTargetPreview preview) async {
+    final input = comparisonInput;
+    if (input == null) return null;
+    final existing = savedComparisons[preview.targetAi];
+    if (existing != null) return existing;
+    if (isSubmitting) return null;
+    isSubmitting = true;
+    comparisonError = null;
+    notifyListeners();
+    try {
+      final record =
+          await _repository.generate(input.forTarget(preview.targetAi));
+      savedComparisons[preview.targetAi] = record;
+      selected = record;
+      return record;
+    } on AppException catch (exception) {
+      comparisonError = exception.message;
       return null;
     } finally {
       isSubmitting = false;

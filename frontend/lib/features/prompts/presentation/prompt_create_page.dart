@@ -40,6 +40,11 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   PromptCategory _category = PromptCategory.general;
   TargetAI _targetAi = TargetAI.generic;
   bool _optimize = false;
+  bool _multiTarget = false;
+  final Set<TargetAI> _comparisonTargets = {
+    TargetAI.chatgpt,
+    TargetAI.claude,
+  };
   String? _templateName;
   String? _projectName;
 
@@ -198,17 +203,25 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         model: _optional(_model),
         projectId: widget.projectId,
         targetAi: _targetAi,
+        comparisonTargetAis:
+            _multiTarget ? _comparisonTargets.toList() : const [],
       );
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_multiTarget && _comparisonTargets.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Selecione pelo menos 2 IAs para comparar.'),
+      ));
+      return;
+    }
     final input = PromptGenerateInput(
       input: _input.text.trim(),
       category: _category,
       language: _language.text.trim(),
       tone: _optional(_tone),
       mode: _mode,
-      optimizeWithAi: _optimize,
+      optimizeWithAi: _multiTarget ? false : _optimize,
       title: _optional(_title),
       context: _optional(_context),
       audience: _optional(_audience),
@@ -221,6 +234,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       model: _optional(_model),
       projectId: widget.projectId,
       targetAi: _targetAi,
+      comparisonTargetAis:
+          _multiTarget ? _comparisonTargets.toList() : const [],
     );
     if (_mode != PromptMode.basic) {
       final interview = await ref.read(interviewControllerProvider).start(
@@ -234,8 +249,14 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       }
       return;
     }
-    final result = await ref.read(promptControllerProvider).generate(input);
-    if (mounted && result != null) context.go('/prompts/${result.id}');
+    final controller = ref.read(promptControllerProvider);
+    if (_multiTarget) {
+      final success = await controller.compare(input);
+      if (mounted && success) context.go('/prompts/compare');
+    } else {
+      final result = await controller.generate(input);
+      if (mounted && result != null) context.go('/prompts/${result.id}');
+    }
   }
 
   String? _validateRequired(String? value, int min, int max) {
@@ -278,7 +299,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
     final state = ref.watch(promptControllerProvider);
     final interviewState = ref.watch(interviewControllerProvider);
     final smartProfile = ref.watch(accountControllerProvider).smartProfile;
-    final isSubmitting = state.isSubmitting || interviewState.isSubmitting;
+    final isSubmitting =
+        state.isSubmitting || state.isComparing || interviewState.isSubmitting;
     return PromptScaffold(
       title: 'Criar prompt',
       child: Form(
@@ -366,17 +388,75 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
               title: 'Em qual IA você pretende usar este prompt?',
               subtitle:
                   'O GUPMAX adapta a estrutura do prompt para a ferramenta escolhida.',
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: TargetAI.values
-                    .map((target) => ChoiceChip(
-                          key: Key('target_ai_${target.value}'),
-                          label: Text(target.label),
-                          selected: _targetAi == target,
-                          onSelected: (_) => setState(() => _targetAi = target),
-                        ))
-                    .toList(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SwitchListTile(
+                    key: const Key('multi_target_toggle'),
+                    contentPadding: EdgeInsets.zero,
+                    value: _multiTarget,
+                    title: const Text('Comparar em várias IAs'),
+                    subtitle: const Text(
+                        'Crie de 2 a 4 versões determinísticas lado a lado.'),
+                    onChanged: (value) => setState(() {
+                      _multiTarget = value;
+                      if (value) _optimize = false;
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: (_multiTarget
+                            ? TargetAI.values
+                                .where((target) => target != TargetAI.generic)
+                            : TargetAI.values)
+                        .map((target) => ChoiceChip(
+                              key: Key(_multiTarget
+                                  ? 'compare_target_${target.value}'
+                                  : 'target_ai_${target.value}'),
+                              label: Text(target.label),
+                              selected: _multiTarget
+                                  ? _comparisonTargets.contains(target)
+                                  : _targetAi == target,
+                              onSelected: (_) {
+                                if (!_multiTarget) {
+                                  setState(() => _targetAi = target);
+                                  return;
+                                }
+                                if (_comparisonTargets.contains(target)) {
+                                  setState(
+                                      () => _comparisonTargets.remove(target));
+                                } else if (_comparisonTargets.length < 4) {
+                                  setState(
+                                      () => _comparisonTargets.add(target));
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'Escolha no máximo 4 IAs para comparar.'),
+                                    ),
+                                  );
+                                }
+                              },
+                            ))
+                        .toList(),
+                  ),
+                  if (_multiTarget) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      '${_comparisonTargets.length} de 4 IAs selecionadas',
+                      key: const Key('multi_target_selection_count'),
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'A comparação não usa otimização por IA, créditos ou histórico. '
+                      'Você decide depois qual versão salvar.',
+                      key: Key('multi_target_deterministic_message'),
+                    ),
+                  ],
+                ],
               ),
             ),
             const SizedBox(height: 20),
@@ -467,7 +547,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
               color: AppColors.paleBlue,
               child: SwitchListTile(
                 key: const Key('optimize_with_ai'),
-                value: _optimize,
+                value: _multiTarget ? false : _optimize,
                 secondary: const Icon(Icons.psychology_outlined,
                     color: AppColors.gold),
                 title: const Text('Otimizar com IA (opcional)'),
@@ -481,7 +561,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                           )
                         : const Text(
                             'O servidor decide disponibilidade e consumo de créditos. O GUPMAX nunca chama IA diretamente do navegador.'),
-                onChanged: isSubmitting
+                onChanged: isSubmitting || _multiTarget
                     ? null
                     : (value) {
                         setState(() => _optimize = value);
@@ -533,6 +613,12 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                   key: const Key('prompt_error'),
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
+            if (state.comparisonError != null) ...[
+              const SizedBox(height: 16),
+              Text(state.comparisonError!,
+                  key: const Key('comparison_error'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ],
             if (interviewState.error != null) ...[
               const SizedBox(height: 16),
               Text(interviewState.error!,
@@ -550,10 +636,14 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                   : const Icon(Icons.auto_awesome),
               label: Text(isSubmitting
                   ? _mode == PromptMode.basic
-                      ? 'Construindo seu prompt...'
+                      ? _multiTarget
+                          ? 'Comparando versões...'
+                          : 'Construindo seu prompt...'
                       : 'Preparando sua criação...'
                   : _mode == PromptMode.basic
-                      ? 'Construir meu prompt'
+                      ? _multiTarget
+                          ? 'Comparar prompts'
+                          : 'Construir meu prompt'
                       : 'Iniciar entrevista'),
             ),
           ],

@@ -19,6 +19,8 @@ class FakePromptRepository implements PromptRepositoryContract {
   final Map<String, PromptQualityScore> scoreResults = {};
   Completer<PromptRecord>? generateCompleter;
   PromptGenerateInput? generatedInput;
+  PromptGenerateInput? comparedInput;
+  int compareCalls = 0;
   int? requestedOffset;
   int totalOverride = 0;
   bool deleted = false;
@@ -38,6 +40,8 @@ class FakePromptRepository implements PromptRepositoryContract {
     int versionNumber = 1,
     String? parentPromptId,
     String? rootPromptId,
+    TargetAI targetAi = TargetAI.generic,
+    String? projectId,
   }) {
     final now = DateTime.utc(2026, 8, 14);
     return PromptRecord(
@@ -59,17 +63,43 @@ class FakePromptRepository implements PromptRepositoryContract {
       versionNumber: versionNumber,
       parentPromptId: parentPromptId,
       rootPromptId: rootPromptId,
+      targetAi: targetAi,
+      projectId: projectId,
     );
   }
 
   Never _throw() => throw error!;
 
   @override
+  Future<List<MultiTargetPreview>> compare(PromptGenerateInput input) async {
+    compareCalls += 1;
+    comparedInput = input;
+    if (error != null) _throw();
+    return input.comparisonTargetAis
+        .map((target) => MultiTargetPreview(
+              targetAi: target,
+              content: '## ${target.label.toUpperCase()}\n${input.input}',
+              score: 72 + target.index,
+              rating: 'good',
+              mode: input.mode,
+              category: input.category,
+              language: input.language,
+              projectId: input.projectId,
+            ))
+        .toList();
+  }
+
+  @override
   Future<PromptRecord> generate(PromptGenerateInput input) async {
     generatedInput = input;
     if (error != null) _throw();
     if (generateCompleter != null) return generateCompleter!.future;
-    final result = sample();
+    final result = sample(
+      id: 'prompt-${records.length + 1}',
+      targetAi: input.targetAi,
+      projectId: input.projectId,
+      mode: input.mode,
+    );
     records.insert(0, result);
     return result;
   }

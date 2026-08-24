@@ -168,6 +168,7 @@ def test_known_form_fields_omit_questions_and_feed_complete(client: TestClient) 
                 "instructions": ["Destaque conforto"],
                 "constraints": ["Não prometer frete grátis"],
                 "optimize_with_ai": True,
+                "comparison_target_ais": ["chatgpt", "claude"],
             },
         },
     )
@@ -188,6 +189,7 @@ def test_known_form_fields_omit_questions_and_feed_complete(client: TestClient) 
     assert prompt["constraints"] == ["Não prometer frete grátis"]
     assert "Lançamento de verão" in prompt["context"]
     assert prompt["optimize_with_ai"] is True
+    assert prompt["comparison_target_ais"] == ["chatgpt", "claude"]
 
 
 def test_programming_requirements_answer_is_preserved_once_in_final_context(client: TestClient) -> None:

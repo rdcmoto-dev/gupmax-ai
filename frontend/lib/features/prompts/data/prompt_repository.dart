@@ -25,6 +25,7 @@ String promptEstimateErrorMessage(int? status) => status == 404
 
 abstract interface class PromptRepositoryContract {
   Future<PromptRecord> generate(PromptGenerateInput input);
+  Future<List<MultiTargetPreview>> compare(PromptGenerateInput input);
   Future<AiCreditEstimate> estimate(PromptGenerateInput input);
   Future<PromptPageData> list({required int offset, int limit = 20});
   Future<PromptRecord> get(String id);
@@ -54,6 +55,27 @@ class PromptRepository implements PromptRepositoryContract {
       '[prompt_http] method=$method endpoint=$endpoint '
       'status=${status ?? 'none'} detail=${detail ?? 'none'}',
     );
+  }
+
+  @override
+  Future<List<MultiTargetPreview>> compare(PromptGenerateInput input) async {
+    try {
+      final response = await _client.dio.post<Map<String, dynamic>>(
+        '/prompts/compare-targets',
+        data: {
+          ...input.toJson(),
+          'optimize_with_ai': false,
+          'target_ais':
+              input.comparisonTargetAis.map((target) => target.value).toList(),
+        },
+      );
+      return (response.data!['items'] as List<dynamic>)
+          .map((item) =>
+              MultiTargetPreview.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (error) {
+      _mapError(error);
+    }
   }
 
   @override

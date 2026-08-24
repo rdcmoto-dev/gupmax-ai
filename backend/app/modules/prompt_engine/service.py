@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import re
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
@@ -25,6 +26,9 @@ from app.modules.prompt_engine.model import Prompt
 from app.modules.prompt_engine.quality import PromptQualityEvaluator
 from app.modules.prompt_engine.repository import PromptRepository
 from app.modules.prompt_engine.schemas import (
+    PromptCompareItem,
+    PromptCompareRequest,
+    PromptCompareResponse,
     PromptGenerateRequest,
     PromptGenerateResponse,
     PromptRefineRequest,
@@ -56,25 +60,7 @@ class PromptService:
     async def generate(
         self, user: User, data: PromptGenerateRequest, *, idempotency_key: str | None = None
     ) -> PromptGenerateResponse:
-        data = self._normalize_structured_fields(data)
-        explicit_fields = data.model_fields_set
-        if data.project_id is not None:
-            project = await ProjectService(self.repository.session).accessible(data.project_id, user)
-            if project.status == ProjectStatus.ARCHIVED:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Archived project is read-only")
-            if data.context is None and project.context:
-                data = data.model_copy(update={"context": project.context})
-        profile = await self.smart_profile.enabled(user.id) if self.smart_profile is not None else None
-        data = SmartProfileService.apply(data, profile)
-        explicit_facts = DeterministicFactExtractor().extract(data.input, data.category)
-        overrides = data.model_dump()
-        for key in ("language", "tone", "audience"):
-            if key in explicit_facts and key not in explicit_fields:
-                overrides[key] = explicit_facts[key].value
-        channel = explicit_facts.get("channel") or explicit_facts.get("platform")
-        if channel is not None and "additional_information" not in explicit_fields:
-            overrides["additional_information"] = f"Canal/plataforma: {channel.detail or channel.value}"
-        data = PromptGenerateRequest.model_validate(overrides)
+        data = await self._prepare(user, data)
         deterministic = self.builder.build(data)
         key = idempotency_key or str(uuid4())
         fingerprint = self._fingerprint(data)
@@ -183,6 +169,56 @@ class PromptService:
 
         response = PromptGenerateResponse.model_validate(prompt)
         return response.model_copy(update={"usage": TokenUsageResponse.model_validate(usage)})
+
+    async def compare(self, user: User, request: PromptCompareRequest) -> PromptCompareResponse:
+        base = PromptGenerateRequest.model_validate(request.model_dump(exclude={"target_ais"}))
+        prepared = await self._prepare(user, base)
+        items: list[PromptCompareItem] = []
+        for target in request.target_ais:
+            adapted = prepared.model_copy(update={"target_ai": target, "optimize_with_ai": False})
+            content = self.builder.build(adapted)
+            score = self.quality_evaluator.evaluate(
+                SimpleNamespace(
+                    id=uuid4(),
+                    generated_prompt=content,
+                    mode=adapted.mode,
+                    category=adapted.category,
+                )
+            )
+            items.append(
+                PromptCompareItem(
+                    target_ai=target,
+                    content=content,
+                    score=score.score,
+                    rating=score.rating,
+                    mode=adapted.mode,
+                    category=adapted.category,
+                    language=adapted.language,
+                    project_id=adapted.project_id,
+                )
+            )
+        return PromptCompareResponse(items=items)
+
+    async def _prepare(self, user: User, data: PromptGenerateRequest) -> PromptGenerateRequest:
+        data = self._normalize_structured_fields(data)
+        explicit_fields = data.model_fields_set
+        if data.project_id is not None:
+            project = await ProjectService(self.repository.session).accessible(data.project_id, user)
+            if project.status == ProjectStatus.ARCHIVED:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Archived project is read-only")
+            if data.context is None and project.context:
+                data = data.model_copy(update={"context": project.context})
+        profile = await self.smart_profile.enabled(user.id) if self.smart_profile is not None else None
+        data = SmartProfileService.apply(data, profile)
+        explicit_facts = DeterministicFactExtractor().extract(data.input, data.category)
+        overrides = data.model_dump()
+        for key in ("language", "tone", "audience"):
+            if key in explicit_facts and key not in explicit_fields:
+                overrides[key] = explicit_facts[key].value
+        channel = explicit_facts.get("channel") or explicit_facts.get("platform")
+        if channel is not None and "additional_information" not in explicit_fields:
+            overrides["additional_information"] = f"Canal/plataforma: {channel.detail or channel.value}"
+        return PromptGenerateRequest.model_validate(overrides)
 
     async def refine(
         self,

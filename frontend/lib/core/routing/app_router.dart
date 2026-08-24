@@ -15,6 +15,7 @@ import '../../features/interviews/presentation/interview_page.dart';
 import '../../features/payments_history/presentation/payment_detail_page.dart';
 import '../../features/payments_history/presentation/payment_history_page.dart';
 import '../../features/prompts/presentation/prompt_create_page.dart';
+import '../../features/prompts/presentation/prompt_compare_page.dart';
 import '../../features/prompts/presentation/prompt_detail_page.dart';
 import '../../features/prompts/presentation/prompt_list_page.dart';
 import '../../features/projects/presentation/project_detail_page.dart';
@@ -55,6 +56,10 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
         path: '/interviews/:id',
         builder: (_, state) =>
             InterviewPage(interviewId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/prompts/compare',
+        builder: (_, __) => const PromptComparePage(),
       ),
       GoRoute(
         path: '/prompts/:id',

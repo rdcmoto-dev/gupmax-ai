@@ -88,9 +88,14 @@ class _InterviewPageState extends ConsumerState<InterviewPage> {
         ? interviews.session?.structuredPrompt
         : await interviews.complete();
     if (promptInput == null || !mounted) return;
-    final result =
-        await ref.read(promptControllerProvider).generate(promptInput);
-    if (mounted && result != null) context.go('/prompts/${result.id}');
+    final prompts = ref.read(promptControllerProvider);
+    if (promptInput.comparisonTargetAis.length >= 2) {
+      final success = await prompts.compare(promptInput);
+      if (mounted && success) context.go('/prompts/compare');
+    } else {
+      final result = await prompts.generate(promptInput);
+      if (mounted && result != null) context.go('/prompts/${result.id}');
+    }
   }
 
   @override
@@ -165,7 +170,9 @@ class _InterviewPageState extends ConsumerState<InterviewPage> {
               else
                 _ReadyCard(
                   completed: session.status == InterviewStatus.completed,
-                  isSubmitting: state.isSubmitting || promptState.isSubmitting,
+                  isSubmitting: state.isSubmitting ||
+                      promptState.isSubmitting ||
+                      promptState.isComparing,
                   onGenerate: _generate,
                 ),
               if (state.error != null) ...[

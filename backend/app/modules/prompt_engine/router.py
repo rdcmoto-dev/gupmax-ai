@@ -10,6 +10,8 @@ from app.modules.credits.dependencies import Credits
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode
 from app.modules.prompt_engine.repository import PromptRepository
 from app.modules.prompt_engine.schemas import (
+    PromptCompareRequest,
+    PromptCompareResponse,
     PromptGenerateRequest,
     PromptGenerateResponse,
     PromptPage,
@@ -47,6 +49,19 @@ async def generate_prompt(
     return await PromptService(session, gateway, billing, credits).generate(
         current_user, data, idempotency_key=idempotency_key
     )
+
+
+@router.post(
+    "/compare-targets",
+    response_model=PromptCompareResponse,
+    summary="Gera previews determinísticos para múltiplos Targets AI",
+)
+async def compare_prompt_targets(
+    data: PromptCompareRequest,
+    session: DbSession,
+    current_user: CurrentUser,
+) -> PromptCompareResponse:
+    return await PromptService(session).compare(current_user, data)
 
 
 @router.get("", response_model=PromptPage, summary="Lista o histórico de prompts acessível")
