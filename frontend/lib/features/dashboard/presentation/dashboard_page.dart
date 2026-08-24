@@ -75,6 +75,12 @@ class DashboardPage extends ConsumerWidget {
                       label: const Text('Meus templates'),
                     ),
                     OutlinedButton.icon(
+                      key: const Key('my_projects_button'),
+                      onPressed: () => context.go('/projects'),
+                      icon: const Icon(Icons.folder_outlined),
+                      label: const Text('Meus projetos'),
+                    ),
+                    OutlinedButton.icon(
                       key: const Key('my_usage_button'),
                       onPressed: () => context.go('/usage'),
                       icon: const Icon(Icons.insights_outlined),

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
 import '../../templates/template_providers.dart';
+import '../../projects/project_providers.dart';
 import 'prompt_refinement_panel.dart';
 import 'prompt_scaffold.dart';
 import 'prompt_score_card.dart';
@@ -20,11 +21,19 @@ class PromptDetailPage extends ConsumerStatefulWidget {
 
 class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
   String? _scoreInstruction;
+  String? _projectName;
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(promptControllerProvider).load(widget.promptId);
+    Future.microtask(() async {
+      final controller = ref.read(promptControllerProvider);
+      await controller.load(widget.promptId);
+      final projectId = controller.selected?.projectId;
+      if (projectId != null) {
+        final project =
+            await ref.read(projectRepositoryProvider).get(projectId);
+        if (mounted) setState(() => _projectName = project.name);
+      }
     });
   }
 
@@ -261,6 +270,12 @@ class _PromptDetailPageState extends ConsumerState<PromptDetailPage> {
                           Chip(label: Text('Modelo: ${prompt.model}')),
                         if (prompt.totalTokens != null)
                           Chip(label: Text('${prompt.totalTokens} tokens')),
+                        if (_projectName != null)
+                          Chip(
+                            key: const Key('result_project'),
+                            avatar: const Icon(Icons.folder_outlined, size: 18),
+                            label: Text('Projeto: $_projectName'),
+                          ),
                       ]),
                       if (state.error != null)
                         Text(state.error!,

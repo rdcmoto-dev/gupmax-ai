@@ -11,6 +11,7 @@ from app.modules.prompt_engine.schemas import PromptGenerateRequest
 
 class FactSource(StrEnum):
     PROFILE = "profile"
+    PROJECT = "project"
     INITIAL_REQUEST = "initial_request"
     FORM = "form"
     ANSWER = "answer"
@@ -140,6 +141,7 @@ class DeterministicFactExtractor:
             "additional_information": data.additional_information,
             "provider": data.provider,
             "model": data.model,
+            "project_id": str(data.project_id) if data.project_id is not None else None,
             "optimize_with_ai": data.optimize_with_ai,
         }
         return {

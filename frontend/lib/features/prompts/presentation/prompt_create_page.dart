@@ -7,13 +7,15 @@ import '../../account/account_providers.dart';
 import '../../interviews/interview_providers.dart';
 import '../../templates/domain/prompt_template.dart';
 import '../../templates/template_providers.dart';
+import '../../projects/project_providers.dart';
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
 import 'prompt_scaffold.dart';
 
 class PromptCreatePage extends ConsumerStatefulWidget {
-  const PromptCreatePage({this.templateId, super.key});
+  const PromptCreatePage({this.templateId, this.projectId, super.key});
   final String? templateId;
+  final String? projectId;
 
   @override
   ConsumerState<PromptCreatePage> createState() => _PromptCreatePageState();
@@ -38,6 +40,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   PromptCategory _category = PromptCategory.general;
   bool _optimize = false;
   String? _templateName;
+  String? _projectName;
 
   static const _examples = [
     'Criar anúncio para um produto',
@@ -53,6 +56,11 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
     super.initState();
     Future<void>.microtask(() async {
       await ref.read(accountControllerProvider).loadSmartProfile();
+      if (widget.projectId != null) {
+        final project =
+            await ref.read(projectRepositoryProvider).get(widget.projectId!);
+        if (mounted) setState(() => _projectName = project.name);
+      }
       if (widget.templateId != null) {
         final template =
             await ref.read(templateControllerProvider).get(widget.templateId!);
@@ -62,21 +70,62 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   }
 
   void _applyTemplate(PromptTemplateRecord template) {
+    final legacy = _structuredSections(template.baseInput);
     setState(() {
       _templateName = template.name;
-      _input.text = template.baseInput;
-      _language.text = template.language;
-      _tone.text = template.tone ?? '';
-      _context.text = template.context ?? '';
-      _audience.text = template.audience ?? '';
-      _instructions.text = template.instructions.join('\n');
-      _constraints.text = template.constraints.join('\n');
-      _outputFormat.text = template.outputFormat ?? '';
-      _additionalInformation.text = template.additionalInformation ?? '';
+      _input.text = legacy['OBJECTIVE'] ?? template.baseInput;
+      _language.text = legacy['LANGUAGE'] ?? template.language;
+      _tone.text = legacy['TONE'] ?? template.tone ?? '';
+      _context.text = legacy['CONTEXT'] ?? template.context ?? '';
+      _audience.text = legacy['AUDIENCE'] ?? template.audience ?? '';
+      _role.text = legacy['ROLE'] ?? '';
+      _instructions.text = _legacyLines(legacy['INSTRUCTIONS']) ??
+          template.instructions.join('\n');
+      _constraints.text = _legacyLines(legacy['CONSTRAINTS']) ??
+          template.constraints.join('\n');
+      _outputFormat.text =
+          legacy['OUTPUT FORMAT'] ?? template.outputFormat ?? '';
+      _additionalInformation.text = legacy['ADDITIONAL INFORMATION'] ??
+          template.additionalInformation ??
+          '';
       _mode = template.mode;
       _category = template.category;
       _optimize = false;
     });
+  }
+
+  Map<String, String> _structuredSections(String content) {
+    final sections = <String, String>{};
+    String? current;
+    var values = <String>[];
+    void save() {
+      final value = values.join('\n').trim();
+      if (current != null && value.isNotEmpty) {
+        sections.putIfAbsent(current, () => value);
+      }
+      values = <String>[];
+    }
+
+    for (final line in content.split(RegExp(r'\r?\n'))) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('## ')) {
+        save();
+        current = trimmed.substring(3).trim();
+      } else if (current != null) {
+        values.add(line);
+      }
+    }
+    save();
+    return sections;
+  }
+
+  String? _legacyLines(String? value) {
+    if (value == null) return null;
+    return value
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim().replaceFirst(RegExp(r'^-\s*'), ''))
+        .where((line) => line.isNotEmpty)
+        .join('\n');
   }
 
   Future<void> _chooseTemplate() async {
@@ -145,6 +194,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         additionalInformation: _optional(_additionalInformation),
         provider: _provider.text.trim(),
         model: _optional(_model),
+        projectId: widget.projectId,
       );
 
   Future<void> _submit() async {
@@ -166,6 +216,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       additionalInformation: _optional(_additionalInformation),
       provider: _provider.text.trim(),
       model: _optional(_model),
+      projectId: widget.projectId,
     );
     if (_mode != PromptMode.basic) {
       final interview = await ref.read(interviewControllerProvider).start(
@@ -244,6 +295,20 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                 onTap: _chooseTemplate,
               ),
             ),
+            if (_projectName != null) ...[
+              const SizedBox(height: 12),
+              Card(
+                child: ListTile(
+                  key: const Key('selected_project'),
+                  leading: const Icon(Icons.folder_outlined),
+                  title: Text('Projeto: $_projectName'),
+                  trailing: TextButton(
+                    onPressed: () => context.go('/prompts/new'),
+                    child: const Text('Remover'),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             if (smartProfile.isEnabled && smartProfile.hasData) ...[
               Card(

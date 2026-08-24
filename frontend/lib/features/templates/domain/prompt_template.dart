@@ -21,6 +21,7 @@ class PromptTemplateRecord {
     this.instructions = const [],
     this.additionalInformation,
     this.isActive = true,
+    this.projectId,
   });
 
   factory PromptTemplateRecord.fromJson(Map<String, dynamic> json) =>
@@ -44,6 +45,7 @@ class PromptTemplateRecord {
             (json['instructions'] as List<dynamic>? ?? const []).cast<String>(),
         additionalInformation: json['additional_information'] as String?,
         isActive: json['is_active'] as bool? ?? true,
+        projectId: json['project_id'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
         updatedAt: DateTime.parse(json['updated_at'] as String),
       );
@@ -65,6 +67,7 @@ class PromptTemplateRecord {
   final List<String> instructions;
   final String? additionalInformation;
   final bool isActive;
+  final String? projectId;
   final DateTime createdAt;
   final DateTime updatedAt;
 }

@@ -15,6 +15,9 @@ class PromptTemplate(Base):
     user_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    project_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), index=True
+    )
     source_prompt_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("prompts.id", ondelete="SET NULL"), index=True
     )

@@ -110,6 +110,7 @@ class PromptGenerateInput {
     this.additionalInformation,
     this.provider = 'openai',
     this.model,
+    this.projectId,
   });
 
   final String input;
@@ -128,6 +129,7 @@ class PromptGenerateInput {
   final String? additionalInformation;
   final String provider;
   final String? model;
+  final String? projectId;
 
   factory PromptGenerateInput.fromJson(Map<String, dynamic> json) =>
       PromptGenerateInput(
@@ -149,6 +151,7 @@ class PromptGenerateInput {
         additionalInformation: json['additional_information'] as String?,
         provider: json['provider'] as String? ?? 'openai',
         model: json['model'] as String?,
+        projectId: json['project_id'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -168,6 +171,7 @@ class PromptGenerateInput {
         'additional_information': additionalInformation,
         'provider': provider,
         'model': model,
+        'project_id': projectId,
       };
 }
 
@@ -261,6 +265,7 @@ class PromptRecord {
     this.rootPromptId,
     this.versionNumber = 1,
     this.refinementInstruction,
+    this.projectId,
   });
 
   factory PromptRecord.fromJson(Map<String, dynamic> json) => PromptRecord(
@@ -283,6 +288,7 @@ class PromptRecord {
         rootPromptId: json['root_prompt_id'] as String?,
         versionNumber: json['version_number'] as int? ?? 1,
         refinementInstruction: json['refinement_instruction'] as String?,
+        projectId: json['project_id'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
         updatedAt: DateTime.parse(json['updated_at'] as String),
       );
@@ -306,6 +312,7 @@ class PromptRecord {
   final String? rootPromptId;
   final int versionNumber;
   final String? refinementInstruction;
+  final String? projectId;
   final DateTime createdAt;
   final DateTime updatedAt;
 }

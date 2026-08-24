@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_navigation_menu.dart';
 import '../../prompts/domain/prompt_models.dart';
+import '../../projects/project_providers.dart';
 import '../domain/prompt_template.dart';
 import '../template_providers.dart';
 
@@ -19,6 +20,29 @@ class _TemplateListPageState extends ConsumerState<TemplateListPage> {
   void initState() {
     super.initState();
     Future.microtask(ref.read(templateControllerProvider).load);
+  }
+
+  Future<void> _move(PromptTemplateRecord template) async {
+    final controller = ref.read(projectControllerProvider);
+    await controller.load();
+    if (!mounted) return;
+    final projects = controller.items;
+    final projectId = await showDialog<String>(
+        context: context,
+        builder: (context) => SimpleDialog(
+              title: const Text('Mover para projeto'),
+              children: projects
+                  .map((project) => SimpleDialogOption(
+                      onPressed: () => Navigator.pop(context, project.id),
+                      child: Text(project.name)))
+                  .toList(),
+            ));
+    if (projectId != null) {
+      await ref
+          .read(projectControllerProvider)
+          .assignTemplate(projectId, template.id);
+      await ref.read(templateControllerProvider).load();
+    }
   }
 
   Future<void> _edit(PromptTemplateRecord template) async {
@@ -172,6 +196,9 @@ class _TemplateListPageState extends ConsumerState<TemplateListPage> {
                                                     '${template.category.label} • ${template.mode.name.toUpperCase()}'),
                                                 Text(
                                                     'Atualizado em ${_date(template.updatedAt)}'),
+                                                if (template.projectId != null)
+                                                  const Text(
+                                                      'Projeto associado'),
                                                 const SizedBox(height: 12),
                                                 Wrap(spacing: 8, children: [
                                                   FilledButton(
@@ -191,6 +218,30 @@ class _TemplateListPageState extends ConsumerState<TemplateListPage> {
                                                           _delete(template),
                                                       child: const Text(
                                                           'Excluir')),
+                                                  TextButton(
+                                                      onPressed: () =>
+                                                          _move(template),
+                                                      child:
+                                                          const Text('Mover')),
+                                                  if (template.projectId !=
+                                                      null)
+                                                    TextButton(
+                                                      onPressed: () async {
+                                                        await ref
+                                                            .read(
+                                                                projectControllerProvider)
+                                                            .removeTemplate(
+                                                                template
+                                                                    .projectId!,
+                                                                template.id);
+                                                        await ref
+                                                            .read(
+                                                                templateControllerProvider)
+                                                            .load();
+                                                      },
+                                                      child: const Text(
+                                                          'Remover do projeto'),
+                                                    ),
                                                 ]),
                                               ]),
                                         ),

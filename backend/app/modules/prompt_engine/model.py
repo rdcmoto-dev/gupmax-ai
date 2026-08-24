@@ -19,6 +19,9 @@ class Prompt(Base):
     user_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    project_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), index=True
+    )
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     original_input: Mapped[str] = mapped_column(Text, nullable=False)
     generated_prompt: Mapped[str] = mapped_column(Text, nullable=False)

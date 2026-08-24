@@ -17,6 +17,8 @@ import '../../features/payments_history/presentation/payment_history_page.dart';
 import '../../features/prompts/presentation/prompt_create_page.dart';
 import '../../features/prompts/presentation/prompt_detail_page.dart';
 import '../../features/prompts/presentation/prompt_list_page.dart';
+import '../../features/projects/presentation/project_detail_page.dart';
+import '../../features/projects/presentation/project_list_page.dart';
 import '../../features/templates/presentation/template_list_page.dart';
 import '../../features/usage/presentation/usage_page.dart';
 
@@ -40,8 +42,14 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
         path: '/prompts/new',
         builder: (_, state) => PromptCreatePage(
           templateId: state.uri.queryParameters['template'],
+          projectId: state.uri.queryParameters['project'],
         ),
       ),
+      GoRoute(path: '/projects', builder: (_, __) => const ProjectListPage()),
+      GoRoute(
+          path: '/projects/:id',
+          builder: (_, state) =>
+              ProjectDetailPage(projectId: state.pathParameters['id']!)),
       GoRoute(path: '/templates', builder: (_, __) => const TemplateListPage()),
       GoRoute(
         path: '/interviews/:id',

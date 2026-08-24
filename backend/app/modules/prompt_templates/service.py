@@ -31,6 +31,7 @@ class PromptTemplateService:
         return await self.repository.create(
             user_id=user.id,
             source_prompt_id=prompt.id,
+            project_id=prompt.project_id,
             name=data.name,
             description=data.description,
             category=prompt.category,

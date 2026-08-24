@@ -75,6 +75,7 @@ class TemplateRead(TemplateFields):
 
     id: UUID
     user_id: UUID
+    project_id: UUID | None
     source_prompt_id: UUID | None
     name: str
     description: str | None

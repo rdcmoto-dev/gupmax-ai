@@ -8,6 +8,7 @@ from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptSt
 
 
 class PromptGenerateRequest(BaseModel):
+    project_id: UUID | None = None
     input: str = Field(min_length=3, max_length=10_000)
     category: PromptCategory = PromptCategory.GENERAL
     language: str = Field(default="pt-BR", min_length=2, max_length=20, pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z]{2,4})?$")
@@ -69,6 +70,7 @@ class PromptRead(BaseModel):
 
     id: UUID
     user_id: UUID
+    project_id: UUID | None
     title: str
     original_input: str
     generated_prompt: str

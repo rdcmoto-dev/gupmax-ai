@@ -17,6 +17,8 @@ from app.modules.credits.enums import CreditOperationType
 from app.modules.credits.model import CreditReservation
 from app.modules.credits.service import CreditService
 from app.modules.interviews.facts import DeterministicFactExtractor
+from app.modules.projects.model import ProjectStatus
+from app.modules.projects.service import ProjectService
 from app.modules.prompt_engine.builder import PromptBuilder
 from app.modules.prompt_engine.enums import PromptStatus
 from app.modules.prompt_engine.model import Prompt
@@ -54,7 +56,14 @@ class PromptService:
     async def generate(
         self, user: User, data: PromptGenerateRequest, *, idempotency_key: str | None = None
     ) -> PromptGenerateResponse:
+        data = self._normalize_structured_fields(data)
         explicit_fields = data.model_fields_set
+        if data.project_id is not None:
+            project = await ProjectService(self.repository.session).accessible(data.project_id, user)
+            if project.status == ProjectStatus.ARCHIVED:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Archived project is read-only")
+            if data.context is None and project.context:
+                data = data.model_copy(update={"context": project.context})
         profile = await self.smart_profile.enabled(user.id) if self.smart_profile is not None else None
         data = SmartProfileService.apply(data, profile)
         explicit_facts = DeterministicFactExtractor().extract(data.input, data.category)
@@ -214,6 +223,7 @@ class PromptService:
             "total_tokens": None,
             "parent_prompt_id": source.id,
             "root_prompt_id": root_id,
+            "project_id": source.project_id,
             "version_number": await self.repository.next_version(root_id),
             "refinement_instruction": data.instruction,
             "idempotency_key": key,
@@ -376,9 +386,54 @@ class PromptService:
         return output
 
     @staticmethod
+    def _normalize_structured_fields(data: PromptGenerateRequest) -> PromptGenerateRequest:
+        sections = PromptService._structured_sections(data.input)
+        if not sections:
+            return data
+        updates: dict[str, object] = {"input": sections.get("OBJECTIVE", data.input)}
+        scalar_sections = {
+            "context": "CONTEXT",
+            "audience": "AUDIENCE",
+            "role": "ROLE",
+            "output_format": "OUTPUT FORMAT",
+            "language": "LANGUAGE",
+            "tone": "TONE",
+            "additional_information": "ADDITIONAL INFORMATION",
+        }
+        values = data.model_dump()
+        for field, section in scalar_sections.items():
+            value = values[field]
+            if isinstance(value, str) and "## " in value:
+                embedded = PromptService._structured_sections(value)
+                updates[field] = embedded.get(section, value)
+        for field, section in (("instructions", "INSTRUCTIONS"), ("constraints", "CONSTRAINTS")):
+            items = values[field]
+            if any("## " in item for item in items):
+                embedded = PromptService._structured_sections("\n".join(items))
+                if section in embedded:
+                    updates[field] = PromptService._section_items(embedded[section])
+        return data.model_copy(update=updates)
+
+    @staticmethod
+    def _structured_sections(value: str) -> dict[str, str]:
+        matches = list(re.finditer(r"(?m)^## ([^\n]+)\s*$", value))
+        sections: dict[str, str] = {}
+        for index, match in enumerate(matches):
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(value)
+            content = value[match.end() : end].strip()
+            if content:
+                sections.setdefault(match.group(1).strip(), content)
+        return sections
+
+    @staticmethod
+    def _section_items(value: str) -> list[str]:
+        return [line.removeprefix("- ").strip() for line in value.splitlines() if line.strip()]
+
+    @staticmethod
     def _prompt_values(user: User, data: PromptGenerateRequest, generated: str) -> dict[str, object]:
         return {
             "user_id": user.id,
+            "project_id": data.project_id,
             "title": data.title or PromptService._title(data.input),
             "original_input": data.input,
             "generated_prompt": generated,

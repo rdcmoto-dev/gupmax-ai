@@ -19,6 +19,8 @@ from app.modules.interviews.schemas import (
     InterviewQuestion,
     InterviewRead,
 )
+from app.modules.projects.model import ProjectStatus
+from app.modules.projects.service import ProjectService
 from app.modules.prompt_engine.schemas import PromptGenerateRequest
 from app.modules.smart_profile.service import SmartProfileService
 from app.modules.users.model import User
@@ -33,6 +35,16 @@ class InterviewService:
     async def start(self, user: User, data: InterviewCreateRequest) -> InterviewRead:
         profile = await SmartProfileService(self.repository.session).enabled(user.id)
         facts = self.fact_extractor.from_profile(profile) if profile is not None else {}
+        if data.known_fields is not None and data.known_fields.project_id is not None:
+            project = await ProjectService(self.repository.session).accessible(data.known_fields.project_id, user)
+            if project.status == ProjectStatus.ARCHIVED:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Archived project is read-only")
+            if project.context:
+                facts["context"] = InterviewFact(
+                    value=project.context,
+                    source=FactSource.PROJECT,
+                    confidence=1.0,
+                )
         facts.update(self.fact_extractor.extract(data.initial_request, data.category))
         if data.known_fields is not None:
             form_facts = self.fact_extractor.from_form(data.known_fields)
@@ -156,6 +168,7 @@ class InterviewService:
             "additional_information",
             "provider",
             "model",
+            "project_id",
         }
         context_lines = [
             f"{questions[key].text} {self._format(value)}"
@@ -190,6 +203,7 @@ class InterviewService:
             provider=str(values.get("provider", "openai")),
             model=self._optional_string(values.get("model")),
             optimize_with_ai=values.get("optimize_with_ai") is True,
+            project_id=values.get("project_id"),
         )
 
     @staticmethod

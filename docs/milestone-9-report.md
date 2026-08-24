@@ -364,3 +364,29 @@ Não fazem parte desta etapa marketplace, templates públicos, compartilhamento,
 **Status: CONCLUÍDA. Smoke manual: APROVADO.**
 
 O smoke real confirmou o fluxo Resultado → Salvar como template → Meus templates → Usar, sem geração automática. Um template Basic/Marketing com tom profissional e canal Instagram preencheu o novo formulário; antes da geração determinística, o usuário alterou explicitamente esses valores para tom casual e canal TikTok. O Prompt resultante preservou casual/TikTok, enquanto o template original permaneceu profissional/Instagram ao ser reaberto. Assim, ficou validada em ambiente real a precedência valor atual explícito > template > Smart Profile > defaults, sem chamada OpenAI, consumo de créditos ou efeitos em Usage e ledger pelas operações de template.
+
+## Etapa 9.9 — GUPMAX Projects
+
+### Modelagem, API e ownership
+
+A migration reversível `0013_projects`, sucessora direta de `0012_prompt_templates`, cria projetos privados com nome, descrição, contexto, status ativo/arquivado e timestamps. `prompts.project_id` e `prompt_templates.project_id` são opcionais, indexados e usam `ON DELETE SET NULL`; registros históricos continuam válidos fora de projetos. Os endpoints autenticados `/api/v1/projects` fornecem CRUD, detalhe com prompts/templates e associações explícitas. O proprietário sempre deriva da sessão, e acesso cruzado a projeto ou associação retorna 404 uniforme.
+
+### Contexto, precedência e integrações
+
+Novas gerações iniciadas em projeto carregam `project_id`; o contexto do projeto preenche somente contexto ausente, antes do Smart Profile. A precedência final é valor atual/entrevista > template > contexto do projeto > Smart Profile > defaults. Basic usa o contexto diretamente; Pro e Expert preservam `project_id` pelos dados conhecidos da entrevista e aplicam o mesmo fallback ao gerar. Projetos arquivados permanecem legíveis, mas novas gerações neles exigem reativação.
+
+Associar um Prompt existente nunca reescreve seu conteúdo. Refinamentos herdam `project_id`, mantendo parent/root e a linhagem no projeto. Templates podem ser movidos ou removidos de projeto, e salvar uma versão como template herda a associação da versão selecionada. Templates, Smart Profile e GUPMAX Score continuam independentes: o score avalia somente cada Prompt final e nenhuma preferência ou template é alterado implicitamente.
+
+### Frontend, segurança e limitações
+
+Meus projetos oferece grid desktop e cards em coluna no mobile, estados loading/erro/vazio, criar, editar, arquivar/reativar, excluir e abrir. O detalhe mostra contexto, Prompts e Templates, permite criar Prompt no projeto, associar/remover registros existentes e usar um Template dentro do projeto. Criar Prompt exibe o projeto selecionado; Resultado mostra chip do projeto. Exclusão preserva prompts, versões e templates sem associação.
+
+CRUD e associações de projeto não executam conteúdo, não chamam OpenAI, não criam Usage/reservation/settlement e não alteram créditos ou ledger. Contexto completo e conteúdos não são registrados em logs. Não fazem parte desta etapa equipes, membros, convites, permissões, colaboração, comentários, tarefas, kanban, arquivos, integrações externas, chat, analytics ou compartilhamento público.
+
+### Status, smokes e validações finais
+
+**Status: CONCLUÍDA. Smokes manuais: APROVADOS.**
+
+Os smokes reais confirmaram CRUD e exibição de projetos, criação e associação de Prompt, chip do projeto no Resultado, contexto do projeto e precedência valor explícito/template > projeto > Smart Profile > defaults. A compatibilidade com templates legados foi corrigida sem alterar os registros originais: estruturas persistidas em `base_input`/`template_content` são normalizadas antes da geração, cada seção aparece uma única vez e o título volta a usar somente o objetivo. A exclusão do projeto Pizzaria Donatello removeu o projeto e suas associações, preservando os Prompts em Meus prompts; históricos criados antes da correção permaneceram intactos.
+
+A auditoria final aprovou arquitetura, ownership/IDOR, CRUD, associações, Basic/Pro/Expert, Interviews, refinamento, versionamento e ausência de efeitos em OpenAI, créditos, Usage e ledger nas operações de projeto. Ruff passou, os 210 testes backend e 158 testes Flutter passaram, `flutter analyze` não encontrou issues, `dart format` verificou 106 arquivos sem alterações, `/health` e `/api/v1/openapi.json` responderam 200, `git diff --check` passou e o Alembic permaneceu em `0013_projects` como único head.
