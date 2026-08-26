@@ -7,6 +7,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.modules.ai_gateway.schemas import TokenUsageResponse
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptStatus, TargetAI
 
+SMART_ANSWER_KEYS = frozenset({
+    "audience", "tone", "language", "channel", "cta", "offer_details",
+    "sales_stage", "objections", "platform", "content_formats",
+    "product_details", "commercial_conditions", "stack", "requirements",
+    "business_context", "desired_outcome", "stakeholders", "subject",
+    "learning_level", "learning_outcome", "text_type", "central_message",
+    "references", "visual_subject", "visual_style", "dimensions", "duration",
+    "video_style", "current_workflow", "available_tools", "context",
+})
+
 
 class PromptGenerateRequest(BaseModel):
     project_id: UUID | None = None
@@ -15,6 +25,7 @@ class PromptGenerateRequest(BaseModel):
     previous_result: str | None = Field(default=None, max_length=4_000)
     template_id: UUID | None = None
     variable_values: dict[str, str] = Field(default_factory=dict, max_length=20)
+    smart_answers: dict[str, str] = Field(default_factory=dict, max_length=5)
     input: str = Field(min_length=3, max_length=10_000)
     category: PromptCategory = PromptCategory.GENERAL
     language: str = Field(default="pt-BR", min_length=2, max_length=20, pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z]{2,4})?$")
@@ -71,6 +82,23 @@ class PromptGenerateRequest(BaseModel):
             if len(clean) > 4_000:
                 raise ValueError("template variable is too long")
             normalized[name.casefold()] = clean
+        return normalized
+
+    @field_validator("smart_answers")
+    @classmethod
+    def validate_smart_answers(cls, values: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for key, value in values.items():
+            if key not in SMART_ANSWER_KEYS:
+                raise ValueError(f"unsupported smart answer key: {key}")
+            if not isinstance(value, str):
+                raise ValueError("smart answer values must be strings")
+            clean = value.strip()
+            if not clean:
+                continue
+            if len(clean) > 1_000:
+                raise ValueError("smart answer is too long")
+            normalized[key] = clean
         return normalized
 
 

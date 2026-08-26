@@ -142,7 +142,6 @@ class IntentEngineService:
         aliases = {
             "programming_language": "stack",
             "framework": "stack",
-            "product": "product_details",
             "content_type": "text_type",
         }
         known_keys = known | {aliases[key] for key in known if key in aliases}
@@ -150,10 +149,11 @@ class IntentEngineService:
         result: list[IntentQuestion] = []
         seen: set[str] = set()
         for question in candidates:
-            if question.key in known_keys or question.key in seen:
+            semantic_key = "product_details" if question.key == "offer_details" else question.key
+            if semantic_key in known_keys or semantic_key in seen:
                 continue
-            seen.add(question.key)
-            result.append(IntentQuestion(key=question.key, label=question.text))
+            seen.add(semantic_key)
+            result.append(IntentQuestion(key=semantic_key, label=question.text))
             if len(result) == self.MAX_QUESTIONS:
                 break
         return result

@@ -174,30 +174,32 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
           templateId: _selectedTemplateId,
         );
     if (!mounted || analysis == null) return;
-    final previousControllers = _intentAnswerControllers.values.toList();
-    _intentAnswerControllers
-      ..clear()
-      ..addEntries(analysis.suggestedQuestions
-          .map((question) => MapEntry(question.key, TextEditingController())));
+    final validKeys =
+        analysis.suggestedQuestions.map((item) => item.key).toSet();
+    final orphaned = _intentAnswerControllers.entries
+        .where((entry) => !validKeys.contains(entry.key))
+        .map((entry) => entry.value)
+        .toList();
+    _intentAnswerControllers.removeWhere((key, _) => !validKeys.contains(key));
+    for (final question in analysis.suggestedQuestions) {
+      _intentAnswerControllers.putIfAbsent(
+          question.key, TextEditingController.new);
+    }
     setState(() {
       if (!_categoryManuallySelected) _category = analysis.suggestedCategory;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      for (final controller in previousControllers) {
+      for (final controller in orphaned) {
         controller.dispose();
       }
     });
   }
 
-  String? _intentAdditionalInformation() {
-    final values = <String>[
-      if (_optional(_additionalInformation) case final value?) value,
-      for (final entry in _intentAnswerControllers.entries)
-        if (entry.value.text.trim().isNotEmpty)
-          '${entry.key.replaceAll('_', ' ')}: ${entry.value.text.trim()}',
-    ];
-    return values.isEmpty ? null : values.join('\n');
-  }
+  Map<String, String> _smartAnswers() => {
+        for (final entry in _intentAnswerControllers.entries)
+          if (entry.value.text.trim().isNotEmpty)
+            entry.key: entry.value.text.trim(),
+      };
 
   void _applyTemplate(PromptTemplateRecord template) {
     final legacy = _structuredSections(template.baseInput);
@@ -353,7 +355,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         instructions: _lines(_instructions),
         constraints: _lines(_constraints),
         outputFormat: _optional(_outputFormat),
-        additionalInformation: _intentAdditionalInformation(),
+        additionalInformation: _optional(_additionalInformation),
+        smartAnswers: _smartAnswers(),
         provider: _provider.text.trim(),
         model: _optional(_model),
         projectId: _selectedProjectId,
@@ -389,7 +392,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       instructions: _lines(_instructions),
       constraints: _lines(_constraints),
       outputFormat: _optional(_outputFormat),
-      additionalInformation: _intentAdditionalInformation(),
+      additionalInformation: _optional(_additionalInformation),
+      smartAnswers: _smartAnswers(),
       provider: _provider.text.trim(),
       model: _optional(_model),
       projectId: _selectedProjectId,
@@ -638,7 +642,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                                   key: Key('intent_question_${question.key}'),
                                   controller:
                                       _intentAnswerControllers[question.key],
-                                  maxLength: 300,
+                                  maxLength: 1000,
                                   decoration: InputDecoration(
                                       labelText: question.label),
                                 )),

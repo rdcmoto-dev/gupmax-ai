@@ -181,7 +181,9 @@ class PromptService:
         return response.model_copy(update={"usage": TokenUsageResponse.model_validate(usage)})
 
     async def compare(self, user: User, request: PromptCompareRequest) -> PromptCompareResponse:
-        base = PromptGenerateRequest.model_validate(request.model_dump(exclude={"target_ais"}))
+        base = PromptGenerateRequest.model_validate(
+            request.model_dump(exclude={"target_ais"}, exclude_unset=True)
+        )
         prepared = await self._prepare(user, base)
         items: list[PromptCompareItem] = []
         for target in request.target_ais:
@@ -210,6 +212,8 @@ class PromptService:
         return PromptCompareResponse(items=items)
 
     async def _prepare(self, user: User, data: PromptGenerateRequest) -> PromptGenerateRequest:
+        request_explicit_fields = set(data.model_fields_set)
+        request_values = data.model_dump()
         if data.chain_step_id is not None:
             if data.chain_id is None:
                 raise HTTPException(status_code=422, detail="chain_id is required")
@@ -288,7 +292,7 @@ class PromptService:
                     template_values["context"] = semantic_variables["contexto"]
                 data = PromptGenerateRequest.model_validate({**data.model_dump(), **template_values})
         data = self._normalize_structured_fields(data)
-        explicit_fields = data.model_fields_set
+        explicit_fields = request_explicit_fields
         if data.project_id is not None:
             project = await ProjectService(self.repository.session).accessible(data.project_id, user)
             if project.status == ProjectStatus.ARCHIVED:
@@ -305,6 +309,11 @@ class PromptService:
         channel = explicit_facts.get("channel") or explicit_facts.get("platform")
         if channel is not None and "additional_information" not in explicit_fields:
             overrides["additional_information"] = f"Canal/plataforma: {channel.detail or channel.value}"
+        for key in ("audience", "tone", "context"):
+            smart_value = data.smart_answers.get(key)
+            has_explicit_value = key in explicit_fields and bool(request_values.get(key))
+            if smart_value and not has_explicit_value:
+                overrides[key] = smart_value
         return PromptGenerateRequest.model_validate(overrides)
 
     async def refine(

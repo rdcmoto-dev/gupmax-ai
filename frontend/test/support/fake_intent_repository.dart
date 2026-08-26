@@ -8,10 +8,12 @@ class FakeIntentRepository implements IntentRepositoryContract {
     intent: 'sales',
     suggestedCategory: PromptCategory.marketing,
     detectedEntities: {'product': 'tênis feminino', 'platform': 'Instagram'},
-    missingInformation: ['audience', 'offer_details'],
+    missingInformation: ['product_details', 'audience', 'tone'],
     suggestedQuestions: [
+      IntentQuestion(
+          key: 'product_details', label: 'Quais são os diferenciais?'),
       IntentQuestion(key: 'audience', label: 'Qual é o público-alvo?'),
-      IntentQuestion(key: 'offer_details', label: 'Quais são os diferenciais?'),
+      IntentQuestion(key: 'tone', label: 'Qual tom deve ser usado?'),
     ],
     confidence: 0.9,
   );

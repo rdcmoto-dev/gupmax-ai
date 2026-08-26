@@ -486,3 +486,19 @@ Analisar intenção não chama OpenAI, não consome créditos, não cria Usage e
 Os cinco testes no aplicativo real aprovaram: Vendas com produto tênis feminino, Instagram e anúncio; Programação com Python, FastAPI e API; Vídeo com duração de 15 segundos, Instagram e tipo vídeo; precedência da categoria Marketing escolhida manualmente sobre a sugestão Vídeo; e geração BASIC sem preencher perguntas opcionais, preservando o objetivo original. Informações já detectadas não foram perguntadas novamente e a análise permaneceu sem IA.
 
 A auditoria final aprovou Ruff, 345 testes backend, `dart format` em 122 arquivos sem alterações, Flutter Analyze sem issues e 173 testes Flutter. `0015_prompt_chains` permaneceu como único Alembic head; Health, OpenAPI e `git diff --check` foram aprovados. **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## Etapa 9.15 — Smart Questions / Enriquecimento do Prompt
+
+As respostas opcionais das perguntas inteligentes agora percorrem um contrato retrocompatível e tipado, `smart_answers`, indexado pelas chaves semânticas estáveis compartilhadas com Intent Engine e Interviews. O frontend conserva respostas de perguntas semanticamente iguais durante uma nova análise, remove apenas respostas órfãs e envia somente valores não vazios. Alterações de modo, categoria e Target não apagam respostas compatíveis.
+
+O backend valida no máximo cinco respostas, chaves permitidas e até 1.000 caracteres por valor. O `PromptBuilder` incorpora deterministicamente as respostas como dados fornecidos pelo usuário, com seções próprias para público, tom e contexto e uma seção estruturada para os demais campos. Campos explícitos do formulário prevalecem sobre Smart Answers; valores atuais continuam prevalecendo sobre sugestões, Smart Profile, inferências e defaults, sem duplicação. Conteúdo hostil, HTML, Markdown e strings semelhantes a código permanecem texto literal, sem `eval` ou execução.
+
+BASIC continua gerando sem respostas ou com respostas parciais. PRO reutiliza os fatos e o gerador de perguntas de Interviews, evitando perguntar novamente campos já respondidos; EXPERT preserva suas regras e estrutura. Templates, Prompt Variables, Projects, Smart Profile, Target AI, Multi-Target, Prompt Chains e `resultado_anterior` mantêm os contratos existentes. As respostas são transitórias e não exigem migration.
+
+No caminho `optimize_with_ai=false`, Smart Answers não chamam OpenAI, não consomem créditos, não criam Usage e não alteram wallet ou ledger.
+
+**SMOKE MANUAL REAL DA ETAPA 9.15: APROVADO**
+
+O primeiro smoke aprovou múltiplas respostas simultâneas para o anúncio de tênis: detalhes do produto, público de mulheres de 20 a 45 anos e tom elegante e persuasivo apareceram semanticamente no prompt final, sem serem sobrescritos pelo Smart Profile. O segundo smoke aprovou BASIC sem Smart Answers: a geração não foi bloqueada, público e tom voltaram aos fallbacks e nenhum campo vazio apareceu.
+
+O terceiro smoke aprovou resposta parcial somente de público, com precedência sobre o fallback e tom profissional preservado. O quarto smoke confirmou a precedência da categoria escolhida manualmente: Marketing permaneceu selecionado depois de uma nova análise do Intent Engine. **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

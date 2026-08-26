@@ -151,6 +151,9 @@ class DeterministicFactExtractor:
             "variable_values": data.variable_values,
             "optimize_with_ai": data.optimize_with_ai,
         }
+        for key, value in data.smart_answers.items():
+            if not fields.get(key):
+                fields[key] = value
         return {
             key: InterviewFact(value=value, source=FactSource.FORM, confidence=1.0)
             for key, value in fields.items()

@@ -21,7 +21,7 @@ from app.modules.interviews.schemas import (
 )
 from app.modules.projects.model import ProjectStatus
 from app.modules.projects.service import ProjectService
-from app.modules.prompt_engine.schemas import PromptGenerateRequest
+from app.modules.prompt_engine.schemas import SMART_ANSWER_KEYS, PromptGenerateRequest
 from app.modules.smart_profile.service import SmartProfileService
 from app.modules.users.model import User
 
@@ -218,6 +218,11 @@ class InterviewService:
             comparison_target_ais=values.get("comparison_target_ais", []),
             template_id=values.get("template_id"),
             variable_values=values.get("variable_values", {}),
+            smart_answers={
+                key: str(fact.value)
+                for key, fact in facts.items()
+                if key in SMART_ANSWER_KEYS and fact.source.value == "form"
+            },
         )
 
     @staticmethod

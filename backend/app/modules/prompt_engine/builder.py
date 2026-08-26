@@ -6,6 +6,24 @@ from app.modules.prompt_engine.schemas import PromptGenerateRequest
 
 
 class PromptBuilder:
+    SMART_ANSWER_LABELS = {
+        "audience": "Público", "tone": "Tom", "language": "Idioma",
+        "channel": "Canal", "cta": "Chamada para ação",
+        "offer_details": "Detalhes da oferta", "sales_stage": "Etapa da venda",
+        "objections": "Objeções", "platform": "Plataforma",
+        "content_formats": "Formatos de conteúdo",
+        "product_details": "Detalhes do produto",
+        "commercial_conditions": "Condições comerciais", "stack": "Stack",
+        "requirements": "Requisitos", "business_context": "Contexto do negócio",
+        "desired_outcome": "Resultado desejado", "stakeholders": "Partes interessadas",
+        "subject": "Assunto", "learning_level": "Nível de aprendizagem",
+        "learning_outcome": "Objetivo de aprendizagem", "text_type": "Tipo de texto",
+        "central_message": "Mensagem central", "references": "Referências",
+        "visual_subject": "Assunto visual", "visual_style": "Estilo visual",
+        "dimensions": "Dimensões", "duration": "Duração",
+        "video_style": "Estilo do vídeo", "current_workflow": "Fluxo atual",
+        "available_tools": "Ferramentas disponíveis", "context": "Contexto",
+    }
     VISUAL_TERMS = (
         "ambiente", "cenário", "fundo", "interior", "exterior", "paisagem", "mesa", "sala",
         "rua", "praia", "floresta", "estúdio", "pizzaria", "composição", "enquadramento",
@@ -68,8 +86,14 @@ class PromptBuilder:
 
     def build(self, data: PromptGenerateRequest) -> str:
         role = data.role or self.DEFAULT_ROLES.get(data.category.value, self.DEFAULT_ROLES["geral"])
+        audience = self._resolved_field(data, "audience", data.audience)
+        tone = self._resolved_field(data, "tone", data.tone)
+        context = self._resolved_field(data, "context", data.context)
         sections: list[tuple[str, str | None]] = [("ROLE", role), ("OBJECTIVE", data.input)]
-        sections.extend((("CONTEXT", data.context), ("AUDIENCE", data.audience)))
+        sections.extend((
+            ("CONTEXT", context),
+            ("AUDIENCE", audience),
+        ))
         instructions = data.instructions or self._default_instructions(data.mode)
         sections.append(("INSTRUCTIONS", self._list(instructions)))
         if data.mode == PromptMode.EXPERT or data.constraints:
@@ -78,9 +102,12 @@ class PromptBuilder:
             sections.append(
                 ("OUTPUT FORMAT", data.output_format or "Entregue uma resposta clara, organizada e pronta para uso.")
             )
-        sections.extend((("LANGUAGE", data.language), ("TONE", data.tone)))
+        sections.extend((("LANGUAGE", data.language), ("TONE", tone)))
         if data.additional_information:
             sections.append(("ADDITIONAL INFORMATION", data.additional_information))
+        smart_context = self._smart_answer_context(data)
+        if smart_context:
+            sections.append(("SMART ANSWERS (USER-PROVIDED DATA)", smart_context))
         if data.target_ai == TargetAI.GENERIC:
             built = self._render(sections)
         else:
@@ -88,7 +115,32 @@ class PromptBuilder:
             built = self._render(
                 (name, values.get(name)) for name in self.TARGET_SECTIONS[data.target_ai]
             )
+            if smart_context:
+                built = f"{built}\n\n## SMART ANSWERS (USER-PROVIDED DATA)\n{smart_context}"
         return self._append_previous_result(built, data.previous_result)
+
+    def _smart_answer_context(self, data: PromptGenerateRequest) -> str | None:
+        explicit = {"audience", "tone", "context", "language"}
+        values = [
+            f"- {self.SMART_ANSWER_LABELS[key]}:\n{self._as_user_data(value)}"
+            for key, value in data.smart_answers.items()
+            if key not in explicit
+        ]
+        return "\n".join(values) or None
+
+    @staticmethod
+    def _as_user_data(value: str | None) -> str | None:
+        if value is None:
+            return None
+        return "\n".join(f"> {line}" if line else ">" for line in value.splitlines())
+
+    def _resolved_field(
+        self, data: PromptGenerateRequest, key: str, current: str | None
+    ) -> str | None:
+        smart_value = data.smart_answers.get(key)
+        if smart_value and smart_value == current:
+            return self._as_user_data(smart_value)
+        return current or self._as_user_data(smart_value)
 
     @staticmethod
     def _append_previous_result(built: str, previous_result: str | None) -> str:
@@ -112,10 +164,14 @@ class PromptBuilder:
             if data.mode != PromptMode.BASIC else None
         )
         common = {
-            "ROLE": role, "OBJECTIVE": data.input, "CONTEXT": data.context,
-            "AUDIENCE": data.audience, "INSTRUCTIONS": listed_instructions,
+            "ROLE": role,
+            "OBJECTIVE": data.input,
+            "CONTEXT": self._resolved_field(data, "context", data.context),
+            "AUDIENCE": self._resolved_field(data, "audience", data.audience),
+            "INSTRUCTIONS": listed_instructions,
             "CONSTRAINTS": listed_constraints, "OUTPUT FORMAT": default_format,
-            "LANGUAGE": data.language, "TONE": data.tone,
+            "LANGUAGE": data.language,
+            "TONE": self._resolved_field(data, "tone", data.tone),
             "ADDITIONAL INFORMATION": data.additional_information,
         }
         values = dict(common)

@@ -63,6 +63,19 @@ def test_entities_questions_determinism_and_financial_invariants(client: TestCli
     assert client.get("/api/v1/credits/transactions", headers=headers).json()["total"] == ledger
 
 
+def test_sales_questions_expose_stable_smart_answer_keys(client: TestClient) -> None:
+    headers = auth(client, "intent-smart-keys@example.com")
+    response = client.post(
+        "/api/v1/intent/analyze",
+        headers=headers,
+        json={"input": "Quero criar um anúncio para vender tênis feminino no Instagram."},
+    )
+    assert response.status_code == 200, response.text
+    keys = {item["key"] for item in response.json()["suggested_questions"]}
+    assert {"product_details", "audience", "tone"} <= keys
+    assert "offer_details" not in keys
+
+
 def test_programming_entities_and_safe_text_inputs(client: TestClient) -> None:
     headers = auth(client, "intent-code@example.com")
     response = client.post(

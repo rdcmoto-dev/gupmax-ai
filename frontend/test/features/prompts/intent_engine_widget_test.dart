@@ -82,4 +82,96 @@ void main() {
     expect(intents.calls, 2);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'fluxo real envia product_details audience e tone simultaneamente',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final intents = FakeIntentRepository();
+    final prompts = FakePromptRepository()..generateCompleter = Completer();
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        intentRepositoryProvider.overrideWithValue(intents),
+        promptRepositoryProvider.overrideWithValue(prompts),
+        accountRepositoryProvider.overrideWithValue(FakeAccountRepository()),
+        projectRepositoryProvider.overrideWithValue(FakeProjectRepository()),
+        interviewRepositoryProvider
+            .overrideWithValue(FakeInterviewRepository()),
+        templateRepositoryProvider.overrideWithValue(FakeTemplateRepository()),
+      ],
+      child: const MaterialApp(home: PromptCreatePage()),
+    ));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('prompt_input')),
+        'Quero criar um anúncio para vender tênis feminino no Instagram.');
+    await tester.ensureVisible(find.byKey(const Key('analyze_intent')));
+    await tester.tap(find.byKey(const Key('analyze_intent')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('intent_question_product_details')),
+        'Confortável, leve e bom custo-benefício.');
+    await tester.enterText(find.byKey(const Key('intent_question_audience')),
+        'Mulheres de 20 a 45 anos.');
+    await tester.enterText(find.byKey(const Key('intent_question_tone')),
+        'Elegante e persuasivo.');
+
+    final submit = find.byKey(const Key('prompt_submit'));
+    await tester.ensureVisible(submit);
+    tester.widget<FilledButton>(submit).onPressed!();
+    await tester.pump();
+    expect(prompts.generatedInput!.smartAnswers, {
+      'product_details': 'Confortável, leve e bom custo-benefício.',
+      'audience': 'Mulheres de 20 a 45 anos.',
+      'tone': 'Elegante e persuasivo.',
+    });
+    expect(prompts.generatedInput!.additionalInformation, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reanálise preserva respostas compatíveis e remove órfãs',
+      (tester) async {
+    final intents = FakeIntentRepository();
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        intentRepositoryProvider.overrideWithValue(intents),
+        promptRepositoryProvider.overrideWithValue(FakePromptRepository()),
+        accountRepositoryProvider.overrideWithValue(FakeAccountRepository()),
+        projectRepositoryProvider.overrideWithValue(FakeProjectRepository()),
+        interviewRepositoryProvider
+            .overrideWithValue(FakeInterviewRepository()),
+        templateRepositoryProvider.overrideWithValue(FakeTemplateRepository()),
+      ],
+      child: const MaterialApp(home: PromptCreatePage()),
+    ));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('prompt_input')), 'Criar anúncio');
+    await tester.ensureVisible(find.byKey(const Key('analyze_intent')));
+    await tester.tap(find.byKey(const Key('analyze_intent')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('intent_question_audience')),
+        'Público preservado');
+    await tester.enterText(
+        find.byKey(const Key('intent_question_product_details')),
+        'Resposta órfã');
+    intents.result = const IntentAnalysis(
+      summary: 'Nova análise',
+      intent: 'sales',
+      suggestedCategory: PromptCategory.sales,
+      detectedEntities: {},
+      missingInformation: ['audience'],
+      suggestedQuestions: [IntentQuestion(key: 'audience', label: 'Público?')],
+      confidence: 0.9,
+    );
+    await tester.ensureVisible(find.byKey(const Key('analyze_intent')));
+    await tester.tap(find.byKey(const Key('analyze_intent')));
+    await tester.pumpAndSettle();
+    expect(find.text('Público preservado'), findsOneWidget);
+    expect(
+        find.byKey(const Key('intent_question_product_details')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
