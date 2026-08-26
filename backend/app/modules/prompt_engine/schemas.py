@@ -10,6 +10,9 @@ from app.modules.prompt_engine.enums import PromptCategory, PromptMode, PromptSt
 
 class PromptGenerateRequest(BaseModel):
     project_id: UUID | None = None
+    chain_id: UUID | None = None
+    chain_step_id: UUID | None = None
+    previous_result: str | None = Field(default=None, max_length=4_000)
     template_id: UUID | None = None
     variable_values: dict[str, str] = Field(default_factory=dict, max_length=20)
     input: str = Field(min_length=3, max_length=10_000)
@@ -31,7 +34,10 @@ class PromptGenerateRequest(BaseModel):
     provider: str = Field(default="openai", min_length=1, max_length=50)
     model: str | None = Field(default=None, min_length=1, max_length=200)
 
-    @field_validator("input", "title", "context", "audience", "role", "tone", "output_format", "additional_information")
+    @field_validator(
+        "input", "title", "context", "audience", "role", "tone", "output_format",
+        "additional_information", "previous_result",
+    )
     @classmethod
     def reject_blank(cls, value: str | None) -> str | None:
         if value is not None and not value.strip():

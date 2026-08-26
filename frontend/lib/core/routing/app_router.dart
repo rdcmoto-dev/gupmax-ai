@@ -20,6 +20,8 @@ import '../../features/prompts/presentation/prompt_detail_page.dart';
 import '../../features/prompts/presentation/prompt_list_page.dart';
 import '../../features/projects/presentation/project_detail_page.dart';
 import '../../features/projects/presentation/project_list_page.dart';
+import '../../features/prompt_chains/presentation/prompt_chain_detail_page.dart';
+import '../../features/prompt_chains/presentation/prompt_chain_list_page.dart';
 import '../../features/templates/presentation/template_list_page.dart';
 import '../../features/usage/presentation/usage_page.dart';
 
@@ -44,8 +46,15 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
         builder: (_, state) => PromptCreatePage(
           templateId: state.uri.queryParameters['template'],
           projectId: state.uri.queryParameters['project'],
+          chainId: state.uri.queryParameters['chain'],
+          chainStepId: state.uri.queryParameters['step'],
         ),
       ),
+      GoRoute(path: '/chains', builder: (_, __) => const PromptChainListPage()),
+      GoRoute(
+          path: '/chains/:id',
+          builder: (_, state) =>
+              PromptChainDetailPage(chainId: state.pathParameters['id']!)),
       GoRoute(path: '/projects', builder: (_, __) => const ProjectListPage()),
       GoRoute(
           path: '/projects/:id',

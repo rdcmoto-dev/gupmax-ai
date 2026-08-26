@@ -133,6 +133,9 @@ class PromptGenerateInput {
     this.comparisonTargetAis = const [],
     this.templateId,
     this.variableValues = const {},
+    this.chainId,
+    this.chainStepId,
+    this.previousResult,
   });
 
   final String input;
@@ -156,6 +159,9 @@ class PromptGenerateInput {
   final List<TargetAI> comparisonTargetAis;
   final String? templateId;
   final Map<String, String> variableValues;
+  final String? chainId;
+  final String? chainStepId;
+  final String? previousResult;
 
   factory PromptGenerateInput.fromJson(Map<String, dynamic> json) =>
       PromptGenerateInput(
@@ -187,6 +193,9 @@ class PromptGenerateInput {
         variableValues:
             (json['variable_values'] as Map<String, dynamic>? ?? const {})
                 .map((key, value) => MapEntry(key, value as String)),
+        chainId: json['chain_id'] as String?,
+        chainStepId: json['chain_step_id'] as String?,
+        previousResult: json['previous_result'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -212,6 +221,9 @@ class PromptGenerateInput {
             comparisonTargetAis.map((target) => target.value).toList(),
         'template_id': templateId,
         'variable_values': variableValues,
+        'chain_id': chainId,
+        'chain_step_id': chainStepId,
+        'previous_result': previousResult,
       };
 
   PromptGenerateInput forTarget(TargetAI target) => PromptGenerateInput(
@@ -234,6 +246,9 @@ class PromptGenerateInput {
         targetAi: target,
         templateId: templateId,
         variableValues: variableValues,
+        chainId: chainId,
+        chainStepId: chainStepId,
+        previousResult: previousResult,
       );
 }
 

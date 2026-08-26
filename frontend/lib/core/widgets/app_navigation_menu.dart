@@ -14,6 +14,7 @@ class AppNavigationMenu extends StatelessWidget {
       label: 'Meus templates',
       icon: Icons.bookmarks_outlined
     ),
+    (path: '/chains', label: 'Meus fluxos', icon: Icons.account_tree_outlined),
     (path: '/usage', label: 'Meu uso', icon: Icons.insights_outlined),
     (
       path: '/credits',

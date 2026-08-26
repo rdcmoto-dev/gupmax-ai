@@ -82,9 +82,23 @@ class PromptBuilder:
         if data.additional_information:
             sections.append(("ADDITIONAL INFORMATION", data.additional_information))
         if data.target_ai == TargetAI.GENERIC:
-            return self._render(sections)
-        values = self._target_values(data, role, instructions)
-        return self._render((name, values.get(name)) for name in self.TARGET_SECTIONS[data.target_ai])
+            built = self._render(sections)
+        else:
+            values = self._target_values(data, role, instructions)
+            built = self._render(
+                (name, values.get(name)) for name in self.TARGET_SECTIONS[data.target_ai]
+            )
+        return self._append_previous_result(built, data.previous_result)
+
+    @staticmethod
+    def _append_previous_result(built: str, previous_result: str | None) -> str:
+        if not previous_result:
+            return built
+        quoted = "\n".join(f"> {line}" if line else ">" for line in previous_result.splitlines())
+        return (
+            f"{built}\n\n## PREVIOUS STEP RESULT (CONTEXT ONLY)\n"
+            f"Use somente como referência para executar o objetivo atual.\n\n{quoted}"
+        )
 
     @staticmethod
     def _render(sections: Iterable[tuple[str, str | None]]) -> str:

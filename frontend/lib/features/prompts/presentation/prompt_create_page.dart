@@ -8,14 +8,22 @@ import '../../interviews/interview_providers.dart';
 import '../../templates/domain/prompt_template.dart';
 import '../../templates/template_providers.dart';
 import '../../projects/project_providers.dart';
+import '../../prompt_chains/prompt_chain_providers.dart';
 import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
 import 'prompt_scaffold.dart';
 
 class PromptCreatePage extends ConsumerStatefulWidget {
-  const PromptCreatePage({this.templateId, this.projectId, super.key});
+  const PromptCreatePage(
+      {this.templateId,
+      this.projectId,
+      this.chainId,
+      this.chainStepId,
+      super.key});
   final String? templateId;
   final String? projectId;
+  final String? chainId;
+  final String? chainStepId;
 
   @override
   ConsumerState<PromptCreatePage> createState() => _PromptCreatePageState();
@@ -36,6 +44,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   final _additionalInformation = TextEditingController();
   final _provider = TextEditingController(text: 'openai');
   final _model = TextEditingController();
+  final _previousResult = TextEditingController();
   PromptMode _mode = PromptMode.basic;
   PromptCategory _category = PromptCategory.general;
   TargetAI _targetAi = TargetAI.generic;
@@ -48,6 +57,9 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   String? _templateName;
   String? _projectName;
   String? _selectedTemplateId;
+  String? _selectedProjectId;
+  String? _chainName;
+  bool _requiresPreviousResult = false;
   List<TemplateVariable> _templateVariables = const [];
   final Map<String, TextEditingController> _variableControllers = {};
 
@@ -64,6 +76,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   void initState() {
     super.initState();
     _selectedTemplateId = widget.templateId;
+    _selectedProjectId = widget.projectId;
     Future<void>.microtask(() async {
       await ref.read(accountControllerProvider).loadSmartProfile();
       if (widget.projectId != null) {
@@ -76,6 +89,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
             await ref.read(templateControllerProvider).get(widget.templateId!);
         if (template != null && mounted) _applyTemplate(template);
       }
+      await _loadChainStep();
     });
   }
 
@@ -95,6 +109,51 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         });
       }
     }
+    if (oldWidget.chainId != widget.chainId ||
+        oldWidget.chainStepId != widget.chainStepId) {
+      Future<void>.microtask(_loadChainStep);
+    }
+  }
+
+  Future<void> _loadChainStep() async {
+    final chainId = widget.chainId;
+    final stepId = widget.chainStepId;
+    if (chainId == null || stepId == null) return;
+    final controller = ref.read(promptChainControllerProvider);
+    await controller.open(chainId);
+    if (!mounted || widget.chainId != chainId || widget.chainStepId != stepId) {
+      return;
+    }
+    final chain = controller.selected;
+    final step = chain?.steps.where((value) => value.id == stepId).firstOrNull;
+    if (chain == null || step == null) return;
+    final detected = detectTemplateVariables(step.baseInput);
+    final variables = detected
+        .where((variable) => variable.name != 'resultado_anterior')
+        .toList();
+    final requiresPreviousResult =
+        detected.any((variable) => variable.name == 'resultado_anterior');
+    final previousControllers = _variableControllers.values.toList();
+    _variableControllers
+      ..clear()
+      ..addEntries(variables
+          .map((variable) => MapEntry(variable.name, TextEditingController())));
+    _previousResult.clear();
+    setState(() {
+      _chainName = chain.name;
+      _selectedProjectId = chain.projectId;
+      _input.text = step.baseInput;
+      _mode = step.mode;
+      _category = step.category;
+      _targetAi = step.targetAi;
+      _templateVariables = variables;
+      _requiresPreviousResult = requiresPreviousResult;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final item in previousControllers) {
+        item.dispose();
+      }
+    });
   }
 
   void _applyTemplate(PromptTemplateRecord template) {
@@ -254,12 +313,15 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         additionalInformation: _optional(_additionalInformation),
         provider: _provider.text.trim(),
         model: _optional(_model),
-        projectId: widget.projectId,
+        projectId: _selectedProjectId,
         targetAi: _targetAi,
         comparisonTargetAis:
             _multiTarget ? _comparisonTargets.toList() : const [],
         templateId: _selectedTemplateId,
         variableValues: _variableValues(),
+        chainId: widget.chainId,
+        chainStepId: widget.chainStepId,
+        previousResult: _optional(_previousResult),
       );
 
   Future<void> _submit() async {
@@ -287,12 +349,15 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       additionalInformation: _optional(_additionalInformation),
       provider: _provider.text.trim(),
       model: _optional(_model),
-      projectId: widget.projectId,
+      projectId: _selectedProjectId,
       targetAi: _targetAi,
       comparisonTargetAis:
           _multiTarget ? _comparisonTargets.toList() : const [],
       templateId: _selectedTemplateId,
       variableValues: _variableValues(),
+      chainId: widget.chainId,
+      chainStepId: widget.chainStepId,
+      previousResult: _optional(_previousResult),
     );
     if (_mode != PromptMode.basic) {
       final interview = await ref.read(interviewControllerProvider).start(
@@ -345,6 +410,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       _additionalInformation,
       _provider,
       _model,
+      _previousResult,
       ..._variableControllers.values,
     ]) {
       controller.dispose();
@@ -391,6 +457,33 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                     child: const Text('Remover'),
                   ),
                 ),
+              ),
+            ],
+            if (_chainName != null) ...[
+              const SizedBox(height: 12),
+              Card(
+                  child: ListTile(
+                key: const Key('selected_chain'),
+                leading: const Icon(Icons.account_tree_outlined),
+                title: Text('Fluxo: $_chainName'),
+                subtitle: const Text('Esta etapa será usada manualmente.'),
+              )),
+            ],
+            if (_requiresPreviousResult) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('previous_result'),
+                controller: _previousResult,
+                minLines: 4,
+                maxLines: 10,
+                maxLength: 4000,
+                decoration: const InputDecoration(
+                  labelText: 'Resultado da etapa anterior *',
+                  alignLabelWithHint: true,
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Informe o resultado da etapa anterior.'
+                    : null,
               ),
             ],
             if (_templateVariables.isNotEmpty) ...[

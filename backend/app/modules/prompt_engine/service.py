@@ -20,6 +20,8 @@ from app.modules.credits.service import CreditService
 from app.modules.interviews.facts import DeterministicFactExtractor
 from app.modules.projects.model import ProjectStatus
 from app.modules.projects.service import ProjectService
+from app.modules.prompt_chains.model import PromptChainStatus
+from app.modules.prompt_chains.service import PromptChainService
 from app.modules.prompt_engine.builder import PromptBuilder
 from app.modules.prompt_engine.enums import PromptStatus, TargetAI
 from app.modules.prompt_engine.model import Prompt
@@ -35,7 +37,13 @@ from app.modules.prompt_engine.schemas import (
     PromptUpdateRequest,
 )
 from app.modules.prompt_templates.repository import PromptTemplateRepository
-from app.modules.prompt_templates.variables import detect_template_variables, validate_and_resolve
+from app.modules.prompt_templates.variables import (
+    detect_template_variables,
+    detect_variables,
+    resolve_text,
+    validate_and_resolve,
+    variable_label,
+)
 from app.modules.smart_profile.service import SmartProfileService
 from app.modules.users.model import User
 from app.modules.users.roles import Role
@@ -202,6 +210,53 @@ class PromptService:
         return PromptCompareResponse(items=items)
 
     async def _prepare(self, user: User, data: PromptGenerateRequest) -> PromptGenerateRequest:
+        if data.chain_step_id is not None:
+            if data.chain_id is None:
+                raise HTTPException(status_code=422, detail="chain_id is required")
+            chains = PromptChainService(self.repository.session)
+            chain = await chains.accessible(data.chain_id, user)
+            step = await chains.accessible_step(data.chain_id, data.chain_step_id, user)
+            if chain.status == PromptChainStatus.ARCHIVED:
+                raise HTTPException(status_code=409, detail="Archived prompt chain is read-only")
+            names = detect_variables(step.base_input)
+            values = dict(data.variable_values)
+            if "resultado_anterior" in names:
+                if not data.previous_result:
+                    raise HTTPException(status_code=422, detail="Informe o resultado da etapa anterior.")
+                values["resultado_anterior"] = data.previous_result
+            unknown = set(values) - set(names)
+            if unknown:
+                raise HTTPException(status_code=422, detail="Unknown prompt chain variable")
+            for name in names:
+                if not values.get(name):
+                    raise HTTPException(status_code=422, detail=f"Preencha {variable_label(name)}.")
+            input_values = dict(values)
+            input_values["resultado_anterior"] = ""
+            chain_input = resolve_text(step.base_input, input_values) or ""
+            chain_input = re.sub(r"[ \t]+", " ", chain_input)
+            chain_input = re.sub(r"[ \t]+\n", "\n", chain_input)
+            chain_input = re.sub(r"\n{3,}", "\n\n", chain_input).strip()
+            chain_input = re.sub(r"[:;,]\s*$", "", chain_input).strip()
+            if len(chain_input) < 3:
+                raise HTTPException(
+                    status_code=422,
+                    detail="A etapa deve conter uma instrução própria além do resultado anterior.",
+                )
+            data = PromptGenerateRequest.model_validate(
+                {
+                    **data.model_dump(),
+                    "input": chain_input,
+                    "project_id": chain.project_id,
+                    "template_id": None,
+                    "category": step.category,
+                    "mode": step.mode,
+                    "target_ai": step.target_ai,
+                    "variable_values": {},
+                    "previous_result": (
+                        data.previous_result if "resultado_anterior" in names else None
+                    ),
+                }
+            )
         if data.template_id is not None:
             template = await PromptTemplateRepository(self.repository.session).get(data.template_id)
             if template is None or template.user_id != user.id:

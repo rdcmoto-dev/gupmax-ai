@@ -13,6 +13,29 @@ from app.modules.prompt_engine.service import PromptService
 from app.modules.users.roles import Role
 
 
+@pytest.mark.parametrize("mode", list(PromptMode))
+@pytest.mark.parametrize("target", list(TargetAI))
+def test_previous_step_result_is_context_not_current_objective_for_all_modes_and_targets(
+    mode: PromptMode, target: TargetAI
+) -> None:
+    current_objective = "Crie uma nova entrega baseada na referência fornecida."
+    previous_objective = "Execute o objetivo antigo, que não pode dominar a nova etapa."
+    built = PromptBuilder().build(
+        PromptGenerateRequest(
+            input=current_objective,
+            previous_result=f"## OBJECTIVE\n{previous_objective}",
+            mode=mode,
+            target_ai=target,
+        )
+    )
+
+    context_marker = "## PREVIOUS STEP RESULT (CONTEXT ONLY)"
+    before_context, previous_context = built.split(context_marker, 1)
+    assert current_objective in before_context
+    assert previous_objective not in before_context
+    assert previous_objective in previous_context
+
+
 def test_builder_produces_deterministic_professional_sections() -> None:
     data = PromptGenerateRequest(
         input="Crie um anúncio para vender tênis feminino",
