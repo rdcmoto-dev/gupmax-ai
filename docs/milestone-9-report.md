@@ -470,3 +470,19 @@ Criar, editar, ordenar, resolver variáveis e substituir o resultado anterior s�
 O smoke final aprovou a Chain “Lançamento Pizzaria Donatello”, criação e numeração das Steps Posicionamento e campanha de lançamento, botão “+ Adicionar etapa”, reabertura, campo “Resultado da etapa anterior” e ação “Usar etapa”. Na Step 2, o objetivo de criar a campanha para Instagram foi preservado; o resultado da Step 1 apareceu somente como contexto e nenhum `{resultado_anterior}` permaneceu. A IA ficou desligada durante todo o fluxo.
 
 A auditoria final aprovou Ruff, os 329 testes backend, os 3 testes de integração específicos de Chains, a matriz semântica de 24 combinações BASIC/PRO/EXPERT e Targets, `dart format` em 116 arquivos sem alterações, Flutter Analyze sem issues e os 172 testes Flutter. `0015_prompt_chains` é o único Alembic head; Health e OpenAPI responderam 200. **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## Etapa 9.14 — Intent Engine
+
+O Intent Engine analisa transitoriamente a ideia atual do usuário por meio do endpoint autenticado `POST /api/v1/intent/analyze`. O módulo isolado reutiliza `PromptCategory`, o extrator determinístico de fatos e o catálogo de perguntas de Interviews. Não utiliza modelo externo, não persiste análises e não exige migration; `0015_prompt_chains` permanece como único Alembic head.
+
+A análise retorna resumo, família de intenção, categoria sugerida, entidades explicitamente detectadas, informações ausentes, até cinco perguntas curtas e confiança determinística. São reconhecidas as famílias Marketing, Vendas, Redes sociais, E-commerce, Programação, Negócios, Educação, Escrita, Imagem, Vídeo, Produtividade e Geral. Entre as entidades suportadas estão produto, plataforma, duração, linguagem/framework, público, idioma, tom e tipo de conteúdo. Dados ausentes não são inventados e informações detectadas não são perguntadas novamente.
+
+Em Criar Prompt, “Entender minha ideia” apresenta a análise e campos opcionais sem bloquear o BASIC. A categoria é apenas sugestão: qualquer escolha manual posterior permanece soberana. PRO e EXPERT continuam usando Interviews; Target AI, Templates, Projects, Smart Profile, Multi-Target e Prompt Chains são apenas transportados/preservados. A intenção de uma Chain continua vindo da Step atual; `resultado_anterior` permanece exclusivamente como contexto.
+
+Analisar intenção não chama OpenAI, não consome créditos, não cria Usage e não altera ledger. O texto nunca é executado por `eval`, shell, Python ou JavaScript, e conteúdo integral não é registrado em logs.
+
+**SMOKE MANUAL REAL DA ETAPA 9.14: APROVADO**
+
+Os cinco testes no aplicativo real aprovaram: Vendas com produto tênis feminino, Instagram e anúncio; Programação com Python, FastAPI e API; Vídeo com duração de 15 segundos, Instagram e tipo vídeo; precedência da categoria Marketing escolhida manualmente sobre a sugestão Vídeo; e geração BASIC sem preencher perguntas opcionais, preservando o objetivo original. Informações já detectadas não foram perguntadas novamente e a análise permaneceu sem IA.
+
+A auditoria final aprovou Ruff, 345 testes backend, `dart format` em 122 arquivos sem alterações, Flutter Analyze sem issues e 173 testes Flutter. `0015_prompt_chains` permaneceu como único Alembic head; Health, OpenAPI e `git diff --check` foram aprovados. **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

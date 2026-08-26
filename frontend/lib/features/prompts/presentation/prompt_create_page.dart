@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../account/account_providers.dart';
 import '../../interviews/interview_providers.dart';
+import '../../intent_engine/intent_providers.dart';
 import '../../templates/domain/prompt_template.dart';
 import '../../templates/template_providers.dart';
 import '../../projects/project_providers.dart';
@@ -60,8 +61,10 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   String? _selectedProjectId;
   String? _chainName;
   bool _requiresPreviousResult = false;
+  bool _categoryManuallySelected = false;
   List<TemplateVariable> _templateVariables = const [];
   final Map<String, TextEditingController> _variableControllers = {};
+  final Map<String, TextEditingController> _intentAnswerControllers = {};
 
   static const _examples = [
     'Criar anúncio para um produto',
@@ -154,6 +157,46 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         item.dispose();
       }
     });
+  }
+
+  Future<void> _analyzeIntent() async {
+    final input = _input.text.trim();
+    if (input.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Descreva sua ideia antes de analisar.')));
+      return;
+    }
+    final analysis = await ref.read(intentControllerProvider).analyze(
+          input: input,
+          mode: _mode,
+          targetAi: _targetAi,
+          projectId: _selectedProjectId,
+          templateId: _selectedTemplateId,
+        );
+    if (!mounted || analysis == null) return;
+    final previousControllers = _intentAnswerControllers.values.toList();
+    _intentAnswerControllers
+      ..clear()
+      ..addEntries(analysis.suggestedQuestions
+          .map((question) => MapEntry(question.key, TextEditingController())));
+    setState(() {
+      if (!_categoryManuallySelected) _category = analysis.suggestedCategory;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final controller in previousControllers) {
+        controller.dispose();
+      }
+    });
+  }
+
+  String? _intentAdditionalInformation() {
+    final values = <String>[
+      if (_optional(_additionalInformation) case final value?) value,
+      for (final entry in _intentAnswerControllers.entries)
+        if (entry.value.text.trim().isNotEmpty)
+          '${entry.key.replaceAll('_', ' ')}: ${entry.value.text.trim()}',
+    ];
+    return values.isEmpty ? null : values.join('\n');
   }
 
   void _applyTemplate(PromptTemplateRecord template) {
@@ -310,7 +353,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
         instructions: _lines(_instructions),
         constraints: _lines(_constraints),
         outputFormat: _optional(_outputFormat),
-        additionalInformation: _optional(_additionalInformation),
+        additionalInformation: _intentAdditionalInformation(),
         provider: _provider.text.trim(),
         model: _optional(_model),
         projectId: _selectedProjectId,
@@ -346,7 +389,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       instructions: _lines(_instructions),
       constraints: _lines(_constraints),
       outputFormat: _optional(_outputFormat),
-      additionalInformation: _optional(_additionalInformation),
+      additionalInformation: _intentAdditionalInformation(),
       provider: _provider.text.trim(),
       model: _optional(_model),
       projectId: _selectedProjectId,
@@ -412,6 +455,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       _model,
       _previousResult,
       ..._variableControllers.values,
+      ..._intentAnswerControllers.values,
     ]) {
       controller.dispose();
     }
@@ -423,6 +467,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
     final state = ref.watch(promptControllerProvider);
     final interviewState = ref.watch(interviewControllerProvider);
     final smartProfile = ref.watch(accountControllerProvider).smartProfile;
+    final intentState = ref.watch(intentControllerProvider);
     final isSubmitting =
         state.isSubmitting || state.isComparing || interviewState.isSubmitting;
     return PromptScaffold(
@@ -536,6 +581,73 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
               const SizedBox(height: 16),
             ],
             _HeroCard(input: _input, validate: _validateRequired),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                key: const Key('analyze_intent'),
+                onPressed: intentState.loading ? null : _analyzeIntent,
+                icon: intentState.loading
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.psychology_outlined),
+                label: const Text('Entender minha ideia'),
+              ),
+            ),
+            if (intentState.error != null) ...[
+              const SizedBox(height: 8),
+              Text(intentState.error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ],
+            if (intentState.analysis case final analysis?) ...[
+              const SizedBox(height: 12),
+              Card(
+                key: const Key('intent_analysis'),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Entendi que você quer: ${analysis.summary}',
+                          key: const Key('intent_summary'),
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Text(
+                          'Categoria sugerida: ${analysis.suggestedCategory.label}',
+                          key: const Key('intent_category')),
+                      if (analysis.detectedEntities.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: analysis.detectedEntities.entries
+                              .map((entry) => Chip(
+                                  key: Key('intent_entity_${entry.key}'),
+                                  label: Text('${entry.key}: ${entry.value}')))
+                              .toList(),
+                        ),
+                      ],
+                      if (analysis.suggestedQuestions.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                            'Para melhorar seu prompt, você pode informar:'),
+                        const SizedBox(height: 8),
+                        ...analysis.suggestedQuestions
+                            .map((question) => TextField(
+                                  key: Key('intent_question_${question.key}'),
+                                  controller:
+                                      _intentAnswerControllers[question.key],
+                                  maxLength: 300,
+                                  decoration: InputDecoration(
+                                      labelText: question.label),
+                                )),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             _SectionCard(
               number: '1',
@@ -655,8 +767,10 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                           avatar: Icon(_categoryIcon(category), size: 18),
                           label: Text(category.label),
                           selected: _category == category,
-                          onSelected: (_) =>
-                              setState(() => _category = category),
+                          onSelected: (_) => setState(() {
+                            _category = category;
+                            _categoryManuallySelected = true;
+                          }),
                         ))
                     .toList(),
               ),
