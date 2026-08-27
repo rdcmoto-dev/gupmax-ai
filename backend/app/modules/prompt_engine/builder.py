@@ -1,29 +1,12 @@
 import re
 from collections.abc import Iterable
 
+from app.modules.context_engine import ContextEngine
 from app.modules.prompt_engine.enums import PromptMode, TargetAI
 from app.modules.prompt_engine.schemas import PromptGenerateRequest
 
 
 class PromptBuilder:
-    SMART_ANSWER_LABELS = {
-        "audience": "Público", "tone": "Tom", "language": "Idioma",
-        "channel": "Canal", "cta": "Chamada para ação",
-        "offer_details": "Detalhes da oferta", "sales_stage": "Etapa da venda",
-        "objections": "Objeções", "platform": "Plataforma",
-        "content_formats": "Formatos de conteúdo",
-        "product_details": "Detalhes do produto",
-        "commercial_conditions": "Condições comerciais", "stack": "Stack",
-        "requirements": "Requisitos", "business_context": "Contexto do negócio",
-        "desired_outcome": "Resultado desejado", "stakeholders": "Partes interessadas",
-        "subject": "Assunto", "learning_level": "Nível de aprendizagem",
-        "learning_outcome": "Objetivo de aprendizagem", "text_type": "Tipo de texto",
-        "central_message": "Mensagem central", "references": "Referências",
-        "visual_subject": "Assunto visual", "visual_style": "Estilo visual",
-        "dimensions": "Dimensões", "duration": "Duração",
-        "video_style": "Estilo do vídeo", "current_workflow": "Fluxo atual",
-        "available_tools": "Ferramentas disponíveis", "context": "Contexto",
-    }
     VISUAL_TERMS = (
         "ambiente", "cenário", "fundo", "interior", "exterior", "paisagem", "mesa", "sala",
         "rua", "praia", "floresta", "estúdio", "pizzaria", "composição", "enquadramento",
@@ -105,9 +88,9 @@ class PromptBuilder:
         sections.extend((("LANGUAGE", data.language), ("TONE", tone)))
         if data.additional_information:
             sections.append(("ADDITIONAL INFORMATION", data.additional_information))
-        smart_context = self._smart_answer_context(data)
-        if smart_context:
-            sections.append(("SMART ANSWERS (USER-PROVIDED DATA)", smart_context))
+        resolved_context = ContextEngine().render(data)
+        if resolved_context:
+            sections.append(("STRUCTURED CONTEXT (USER-PROVIDED DATA)", resolved_context))
         if data.target_ai == TargetAI.GENERIC:
             built = self._render(sections)
         else:
@@ -115,18 +98,12 @@ class PromptBuilder:
             built = self._render(
                 (name, values.get(name)) for name in self.TARGET_SECTIONS[data.target_ai]
             )
-            if smart_context:
-                built = f"{built}\n\n## SMART ANSWERS (USER-PROVIDED DATA)\n{smart_context}"
+            if resolved_context:
+                built = (
+                    f"{built}\n\n## STRUCTURED CONTEXT (USER-PROVIDED DATA)\n"
+                    f"{resolved_context}"
+                )
         return self._append_previous_result(built, data.previous_result)
-
-    def _smart_answer_context(self, data: PromptGenerateRequest) -> str | None:
-        explicit = {"audience", "tone", "context", "language"}
-        values = [
-            f"- {self.SMART_ANSWER_LABELS[key]}:\n{self._as_user_data(value)}"
-            for key, value in data.smart_answers.items()
-            if key not in explicit
-        ]
-        return "\n".join(values) or None
 
     @staticmethod
     def _as_user_data(value: str | None) -> str | None:

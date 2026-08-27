@@ -502,3 +502,21 @@ No caminho `optimize_with_ai=false`, Smart Answers não chamam OpenAI, não cons
 O primeiro smoke aprovou múltiplas respostas simultâneas para o anúncio de tênis: detalhes do produto, público de mulheres de 20 a 45 anos e tom elegante e persuasivo apareceram semanticamente no prompt final, sem serem sobrescritos pelo Smart Profile. O segundo smoke aprovou BASIC sem Smart Answers: a geração não foi bloqueada, público e tom voltaram aos fallbacks e nenhum campo vazio apareceu.
 
 O terceiro smoke aprovou resposta parcial somente de público, com precedência sobre o fallback e tom profissional preservado. O quarto smoke confirmou a precedência da categoria escolhida manualmente: Marketing permaneceu selecionado depois de uma nova análise do Intent Engine. **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## Etapa 9.16 — Context Engine
+
+O Context Engine é um serviço interno, transitório e determinístico executado pelo `PromptBuilder`. Ele organiza a ideia original, entidades detectáveis e Smart Answers em um contexto semântico único antes da adaptação por Target. Não foi criado endpoint público, persistência ou migration. A mesma resolução alimenta todas as versões Multi-Target; somente a camada de adaptação já existente varia a estrutura de cada destino.
+
+A precedência efetiva permanece: campo explícito atual > Smart Answer > fato inferido da ideia > Project/Template/Prompt Variables e contexto autorizado já resolvido > Smart Profile/default. Regras específicas de Template, Project e Prompt Chain continuam sendo aplicadas pelo serviço de preparação antes da construção. O objetivo da Step atual permanece soberano e `resultado_anterior` continua em `PREVIOUS STEP RESULT (CONTEXT ONLY)`.
+
+A normalização é conservadora: plataformas conhecidas preservam nomes canônicos, durações equivalentes como `15s`, `15 segundos` e `quinze segundos` convergem para a mesma representação, e nomes conhecidos de stack preservam capitalização. Valores desconhecidos permanecem intactos. A deduplicação compara valores normalizados entre fontes, e nenhuma informação ausente — preço, localização, público ou qualquer outro fato — é criada.
+
+Smart Answers mantêm allowlist, máximo de cinco respostas, limite de 1.000 caracteres, normalização de vazios e delimitação como dados citados. Cabeçalhos, Markdown, HTML e código não alteram a estrutura e não são executados. BASIC permanece imediato e opcional; PRO/EXPERT e Interviews reutilizam o contexto resolvido sem duplicar perguntas conhecidas. Templates, Templates Dinâmicos, Prompt Variables, Projects, Smart Profile, Targets, Multi-Target e Prompt Chains permanecem compatíveis.
+
+O caminho determinístico não chama OpenAI, não consome créditos, não cria Usage e não altera wallet ou Ledger.
+
+**SMOKE MANUAL REAL DA ETAPA 9.16: APROVADO**
+
+O smoke real aprovou o contexto enriquecido com Smart Answers, a normalização de plataforma e duração e a ausência de informações inventadas. A comparação ChatGPT, Claude e Gemini recebeu o mesmo contexto factual, preservando apenas as diferenças de adaptação por Target. Em Prompt Chains, o objetivo da Step atual permaneceu soberano e `resultado_anterior` apareceu exclusivamente como contexto.
+
+Durante todo o smoke, “Otimizar com IA” permaneceu desligado e o resultado confirmou “IA não utilizada”. **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
