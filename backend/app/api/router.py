@@ -4,6 +4,7 @@ from app.modules.ai_gateway.router import router as ai_gateway_router
 from app.modules.auth.router import router as auth_router
 from app.modules.billing.router import router as billing_router
 from app.modules.credits.router import router as credits_router
+from app.modules.expert_planner.router import router as expert_planner_router
 from app.modules.intent_engine.router import router as intent_engine_router
 from app.modules.interviews.router import router as interviews_router
 from app.modules.payments.router import router as payments_router
@@ -27,4 +28,5 @@ api_router.include_router(credits_router, prefix="/credits", tags=["credits"])
 api_router.include_router(payments_router, prefix="/payments", tags=["payments"])
 api_router.include_router(interviews_router, prefix="/interviews", tags=["interviews"])
 api_router.include_router(intent_engine_router, prefix="/intent", tags=["intent-engine"])
+api_router.include_router(expert_planner_router, prefix="/expert-planner", tags=["expert-planner"])
 api_router.include_router(smart_profile_router, prefix="/profile", tags=["profile"])

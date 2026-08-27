@@ -616,6 +616,10 @@ void main() {
           .widget<InkWell>(
               find.descendant(of: modeCard, matching: find.byType(InkWell)))
           .onTap!();
+      await tester.pump();
+      if (mapping.key == PromptMode.expert) {
+        expect(find.byKey(const Key('plan_project')), findsOneWidget);
+      }
       await tester.enterText(
           find.byKey(const Key('prompt_input')), 'Crie algo profissional');
       await submitPrompt(tester);

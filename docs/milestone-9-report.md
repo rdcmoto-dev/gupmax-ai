@@ -520,3 +520,21 @@ O caminho determinístico não chama OpenAI, não consome créditos, não cria U
 O smoke real aprovou o contexto enriquecido com Smart Answers, a normalização de plataforma e duração e a ausência de informações inventadas. A comparação ChatGPT, Claude e Gemini recebeu o mesmo contexto factual, preservando apenas as diferenças de adaptação por Target. Em Prompt Chains, o objetivo da Step atual permaneceu soberano e `resultado_anterior` apareceu exclusivamente como contexto.
 
 Durante todo o smoke, “Otimizar com IA” permaneceu desligado e o resultado confirmou “IA não utilizada”. **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## Etapa 9.17 — Expert Planner
+
+O Expert Planner transforma uma ideia ampla em um plano estruturado e revisável de duas a dez etapas. A análise de complexidade e a seleção das famílias software, website, marketing, lançamento, e-commerce, pesquisa, negócio, conteúdo, educação, vídeo e projeto geral são determinísticas. Pedidos simples podem receber `planning_recommended=false`, sem impedir que o usuário planeje voluntariamente; projetos com múltiplos componentes recebem uma recomendação positiva. Nenhum detalhe ausente, como orçamento, prazo, cidade, equipe ou tecnologia, é inventado.
+
+O endpoint autenticado `POST /api/v1/expert-planner/plan` reutiliza o Context Engine e aceita o contexto autorizado da ideia, Project e Smart Answers. Ele retorna somente um preview transitório com resumo, nome curto sugerido, tipo e Steps ordenados. Cada Step possui objetivo próprio, base, categoria, modo, Target AI sugerido e dependência explícita. Prompt Variables reutilizam a sintaxe e o parser existentes. `{resultado_anterior}` aparece apenas nas etapas realmente sequenciais e continua sendo contexto da etapa atual, nunca seu objetivo.
+
+Na experiência EXPERT, a ação “Planejar projeto” abre uma revisão responsiva. O usuário pode editar nome, título, base e Target AI, adicionar ou remover etapas e alterar a ordem antes de confirmar. BASIC e PRO permanecem inalterados. Cancelar descarta o preview. Somente “Criar fluxo” chama `POST /api/v1/expert-planner/chains`, que valida ownership de Project e Template, o limite existente de 20 Steps e persiste a Prompt Chain e suas Steps ordenadas em uma única transação, reutilizando integralmente a arquitetura da Etapa 9.13.
+
+Não foi criada migration ou tabela de drafts. O Planner não executa Steps, Chains, código ou conteúdo do usuário; não usa `eval`, shell, Python ou JavaScript e não registra ideia, Smart Answers, contexto resolvido ou textos completos em logs. Planejamento e conversão não chamam OpenAI, não consomem créditos, não criam Usage e não alteram o Ledger. Templates, Projects, Smart Profile, Interviews, Target AI, Multi-Target, Score, refinamento e versionamento mantêm seus contratos anteriores.
+
+**SMOKE MANUAL REAL DA ETAPA 9.17: APROVADO**
+
+O smoke real aprovou o planejamento do aplicativo de delivery, a revisão integral do draft e a conversão explícita em Prompt Chain. O nome editado “Delivery Restaurantes”, o título “Definir escopo do aplicativo”, a movimentação de “Definir testes” para a posição 7, a remoção de “Preparar publicação” e a inclusão de “Documentar o projeto” como etapa 9 foram preservados na Chain persistida. As nove etapas mantiveram ordem, modo EXPERT, Targets e dependências revisadas.
+
+Ao usar “Projetar arquitetura”, o formulário reconstruiu Fluxo, categoria Programação, Target Assistente de programação e o campo obrigatório de resultado anterior. A entrevista EXPERT incorporou Python, FastAPI, PostgreSQL, plataforma mobile, requisitos e critérios de sucesso. O objetivo atual permaneceu projetar a arquitetura; o resultado da primeira etapa apareceu exclusivamente em `PREVIOUS STEP RESULT (CONTEXT ONLY)`, acompanhado da orientação para uso somente como referência. Nenhum conteúdo anterior substituiu o objetivo e o resultado indicou “IA não utilizada”.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

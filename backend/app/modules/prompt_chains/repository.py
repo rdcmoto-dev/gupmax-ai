@@ -17,6 +17,20 @@ class PromptChainRepository:
         await self.session.refresh(chain)
         return chain
 
+    async def create_with_steps(
+        self, *, chain_values: dict[str, object], steps: list[dict[str, object]]
+    ) -> PromptChain:
+        chain = PromptChain(**chain_values)
+        self.session.add(chain)
+        await self.session.flush()
+        self.session.add_all(
+            PromptChainStep(chain_id=chain.id, position=index, **values)
+            for index, values in enumerate(steps, 1)
+        )
+        await self.session.commit()
+        await self.session.refresh(chain)
+        return chain
+
     async def get(self, chain_id: UUID) -> PromptChain | None:
         return await self.session.get(PromptChain, chain_id)
 

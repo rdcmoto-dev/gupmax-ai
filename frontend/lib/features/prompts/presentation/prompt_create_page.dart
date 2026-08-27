@@ -428,6 +428,11 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
     }
   }
 
+  void _planProject() {
+    if (!_formKey.currentState!.validate()) return;
+    context.push('/expert-planner', extra: _currentInput(optimize: false));
+  }
+
   String? _validateRequired(String? value, int min, int max) {
     final text = value?.trim() ?? '';
     if (text.length < min) return 'Use pelo menos $min caracteres.';
@@ -925,6 +930,15 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
             const SizedBox(height: 20),
+            if (_mode == PromptMode.expert) ...[
+              OutlinedButton.icon(
+                key: const Key('plan_project'),
+                onPressed: isSubmitting ? null : _planProject,
+                icon: const Icon(Icons.account_tree_outlined),
+                label: const Text('Planejar projeto'),
+              ),
+              const SizedBox(height: 12),
+            ],
             FilledButton.icon(
               key: const Key('prompt_submit'),
               onPressed: isSubmitting ? null : _submit,

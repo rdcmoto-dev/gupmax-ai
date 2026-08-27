@@ -11,9 +11,11 @@ import '../../features/account/presentation/account_page.dart';
 import '../../features/commerce/presentation/commerce_page.dart';
 import '../../features/commerce/presentation/payment_return_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
+import '../../features/expert_planner/presentation/expert_planner_page.dart';
 import '../../features/interviews/presentation/interview_page.dart';
 import '../../features/payments_history/presentation/payment_detail_page.dart';
 import '../../features/payments_history/presentation/payment_history_page.dart';
+import '../../features/prompts/domain/prompt_models.dart';
 import '../../features/prompts/presentation/prompt_create_page.dart';
 import '../../features/prompts/presentation/prompt_compare_page.dart';
 import '../../features/prompts/presentation/prompt_detail_page.dart';
@@ -51,6 +53,14 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
         ),
       ),
       GoRoute(path: '/chains', builder: (_, __) => const PromptChainListPage()),
+      GoRoute(
+        path: '/expert-planner',
+        builder: (_, state) => ExpertPlannerPage(
+          input: state.extra is PromptGenerateInput
+              ? state.extra! as PromptGenerateInput
+              : null,
+        ),
+      ),
       GoRoute(
           path: '/chains/:id',
           builder: (_, state) =>
