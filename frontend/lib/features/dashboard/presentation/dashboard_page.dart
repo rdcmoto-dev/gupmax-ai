@@ -5,6 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_navigation_menu.dart';
 import '../../auth/auth_providers.dart';
+import '../../projects/project_overview.dart';
+
+const _dashboardProjectsQuery = ProjectOverviewQuery(limit: 4);
+final recentProjectsProvider =
+    projectOverviewsProvider(_dashboardProjectsQuery);
+
+typedef RecentProjectItem = ProjectOverview;
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -12,6 +19,7 @@ class DashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
+    final recentProjects = ref.watch(recentProjectsProvider);
     final user = auth.user;
     if (user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -129,6 +137,14 @@ class DashboardPage extends ConsumerWidget {
                     );
                   }),
                   const SizedBox(height: 28),
+                  _RecentProjectsSection(
+                    value: recentProjects,
+                    onOpen: (item) => context.go(item.route),
+                    onCreate: () => context.go('/prompts/new?mode=expert'),
+                    onSeeAll: () => context.go('/projects'),
+                    onRetry: () => ref.invalidate(recentProjectsProvider),
+                  ),
+                  const SizedBox(height: 28),
                   Text(
                     'Sua biblioteca e conta',
                     style: Theme.of(context)
@@ -212,6 +228,183 @@ class DashboardPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _RecentProjectsSection extends StatelessWidget {
+  const _RecentProjectsSection({
+    required this.value,
+    required this.onOpen,
+    required this.onCreate,
+    required this.onSeeAll,
+    required this.onRetry,
+  });
+
+  final AsyncValue<List<RecentProjectItem>> value;
+  final ValueChanged<RecentProjectItem> onOpen;
+  final VoidCallback onCreate;
+  final VoidCallback onSeeAll;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              Text(
+                'Projetos recentes',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(color: Colors.white),
+              ),
+              TextButton(
+                key: const Key('see_all_projects'),
+                onPressed: onSeeAll,
+                style:
+                    TextButton.styleFrom(foregroundColor: AppColors.lightGold),
+                child: const Text('Ver todos os projetos'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          value.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(),
+              ),
+            ),
+            error: (_, __) => _RecentProjectsMessage(
+              message: 'Não foi possível carregar seus projetos agora.',
+              action: 'Tentar novamente',
+              onPressed: onRetry,
+            ),
+            data: (items) => items.isEmpty
+                ? _RecentProjectsMessage(
+                    message: 'Você ainda não criou nenhum projeto.',
+                    action: 'Criar meu primeiro projeto',
+                    onPressed: onCreate,
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth < 640
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 12) / 2;
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          for (final item in items)
+                            _RecentProjectCard(
+                              key: Key(
+                                  'recent_project_${item.project?.id ?? item.chain!.id}'),
+                              item: item,
+                              width: width,
+                              onPressed: () => onOpen(item),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        ],
+      );
+}
+
+class _RecentProjectsMessage extends StatelessWidget {
+  const _RecentProjectsMessage({
+    required this.message,
+    required this.action,
+    required this.onPressed,
+  });
+  final String message;
+  final String action;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        color: Colors.white.withValues(alpha: 0.96),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              Text(message),
+              FilledButton.icon(
+                key: const Key('create_first_project'),
+                onPressed: onPressed,
+                icon: const Icon(Icons.add),
+                label: Text(action),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _RecentProjectCard extends StatelessWidget {
+  const _RecentProjectCard({
+    required this.item,
+    required this.width,
+    required this.onPressed,
+    super.key,
+  });
+  final RecentProjectItem item;
+  final double width;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: width,
+        child: Card(
+          color: Colors.white.withValues(alpha: 0.96),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.folder_outlined, color: AppColors.oceanBlue),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      if (item.categoryLabel case final category?)
+                        Text(category),
+                      if (item.progressLabel case final progress?)
+                        Text(progress),
+                      Text(item.statusLabel,
+                          style: TextStyle(
+                            color: item.statusLabel == 'Concluído'
+                                ? Colors.green.shade700
+                                : AppColors.oceanBlue,
+                            fontWeight: FontWeight.w700,
+                          )),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  key: Key('open_recent_${item.project?.id ?? item.chain!.id}'),
+                  onPressed: onPressed,
+                  child: Text(item.canContinue ? 'Continuar' : 'Abrir'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 final _dashboardOutlineStyle = OutlinedButton.styleFrom(

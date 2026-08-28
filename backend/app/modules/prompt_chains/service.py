@@ -60,7 +60,13 @@ class PromptChainService:
             None,
         )
         return ChainDetail(
-            **summary.model_dump(),
+            **summary.model_dump(
+                exclude={
+                    "completed_step_count",
+                    "current_step_id",
+                    "execution_completed",
+                }
+            ),
             steps=steps,
             completed_step_count=completed,
             current_step_id=current.id if current else None,

@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -9,6 +10,7 @@ from app.modules.prompt_chains.model import (
     PromptChainStep,
     PromptChainStepStatus,
 )
+from app.modules.prompt_engine.enums import PromptCategory
 
 
 class PromptChainRepository:
@@ -63,6 +65,66 @@ class PromptChainRepository:
         return list((await self.session.scalars(
             select(PromptChainStep).where(PromptChainStep.chain_id == chain_id).order_by(PromptChainStep.position)
         )).all())
+
+    async def execution_summaries(
+        self, chain_ids: list[UUID]
+    ) -> dict[
+        UUID,
+        tuple[int, int, UUID | None, datetime | None, PromptCategory | None],
+    ]:
+        if not chain_ids:
+            return {}
+        rows = (await self.session.execute(
+            select(
+                PromptChainStep.chain_id,
+                func.count(PromptChainStep.id),
+                func.count(PromptChainStep.id).filter(
+                    PromptChainStep.execution_status == PromptChainStepStatus.COMPLETED
+                ),
+                func.min(PromptChainStep.position).filter(
+                    PromptChainStep.execution_status != PromptChainStepStatus.COMPLETED
+                ),
+                func.max(PromptChainStep.updated_at),
+            )
+            .where(PromptChainStep.chain_id.in_(chain_ids))
+            .group_by(PromptChainStep.chain_id)
+        )).all()
+        current_positions = {
+            (chain_id, position)
+            for chain_id, _, _, position, _ in rows
+            if position is not None
+        }
+        current_ids: dict[tuple[UUID, int], UUID] = {}
+        categories: dict[UUID, PromptCategory] = {}
+        if rows:
+            step_rows = (await self.session.execute(
+                select(
+                    PromptChainStep.chain_id,
+                    PromptChainStep.position,
+                    PromptChainStep.id,
+                    PromptChainStep.category,
+                ).where(PromptChainStep.chain_id.in_(chain_ids))
+            )).all()
+            current_ids = {
+                (chain_id, position): step_id
+                for chain_id, position, step_id, _ in step_rows
+                if (chain_id, position) in current_positions
+            }
+            categories = {
+                chain_id: PromptCategory(category)
+                for chain_id, position, _, category in step_rows
+                if position == 1
+            }
+        return {
+            chain_id: (
+                step_count,
+                completed_count,
+                current_ids.get((chain_id, current_position)),
+                updated_at,
+                categories.get(chain_id),
+            )
+            for chain_id, step_count, completed_count, current_position, updated_at in rows
+        }
 
     async def step(self, step_id: UUID) -> PromptChainStep | None:
         return await self.session.get(PromptChainStep, step_id)

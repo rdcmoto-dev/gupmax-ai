@@ -87,6 +87,9 @@ class PromptChainRecord {
     this.completedStepCount = 0,
     this.currentStepId,
     this.executionCompleted = false,
+    this.createdAt,
+    this.updatedAt,
+    this.category,
   });
 
   factory PromptChainRecord.fromJson(Map<String, dynamic> json) =>
@@ -104,6 +107,11 @@ class PromptChainRecord {
         completedStepCount: json['completed_step_count'] as int? ?? 0,
         currentStepId: json['current_step_id'] as String?,
         executionCompleted: json['execution_completed'] as bool? ?? false,
+        createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
+        updatedAt: DateTime.tryParse(json['updated_at'] as String? ?? ''),
+        category: json['category'] == null
+            ? null
+            : PromptCategory.fromValue(json['category'] as String),
       );
 
   final String id;
@@ -116,4 +124,7 @@ class PromptChainRecord {
   final int completedStepCount;
   final String? currentStepId;
   final bool executionCompleted;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final PromptCategory? category;
 }

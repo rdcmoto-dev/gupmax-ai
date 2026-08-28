@@ -45,6 +45,31 @@ class ProjectRepository:
         )
         return prompts or 0, templates or 0
 
+    async def counts_many(
+        self, project_ids: list[UUID]
+    ) -> dict[UUID, tuple[int, int]]:
+        if not project_ids:
+            return {}
+        prompt_rows = (await self.session.execute(
+            select(Prompt.project_id, func.count(Prompt.id))
+            .where(Prompt.project_id.in_(project_ids))
+            .group_by(Prompt.project_id)
+        )).all()
+        template_rows = (await self.session.execute(
+            select(PromptTemplate.project_id, func.count(PromptTemplate.id))
+            .where(PromptTemplate.project_id.in_(project_ids))
+            .group_by(PromptTemplate.project_id)
+        )).all()
+        prompts = {project_id: count for project_id, count in prompt_rows}
+        templates = {project_id: count for project_id, count in template_rows}
+        return {
+            project_id: (
+                prompts.get(project_id, 0),
+                templates.get(project_id, 0),
+            )
+            for project_id in project_ids
+        }
+
     async def contents(self, project_id: UUID) -> tuple[list[Prompt], list[PromptTemplate]]:
         prompts = list((await self.session.scalars(
             select(Prompt).where(Prompt.project_id == project_id).order_by(Prompt.updated_at.desc())

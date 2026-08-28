@@ -3,7 +3,8 @@ import '../../../core/network/api_client.dart';
 import '../domain/prompt_chain.dart';
 
 abstract interface class PromptChainRepositoryContract {
-  Future<List<PromptChainRecord>> list({bool includeArchived = true});
+  Future<List<PromptChainRecord>> list(
+      {bool includeArchived = true, int limit = 20});
   Future<PromptChainRecord> get(String id);
   Future<PromptChainRecord> create(Map<String, dynamic> values);
   Future<PromptChainRecord> update(String id, Map<String, dynamic> values);
@@ -23,10 +24,14 @@ class PromptChainRepository implements PromptChainRepositoryContract {
   final ApiClient client;
 
   @override
-  Future<List<PromptChainRecord>> list({bool includeArchived = true}) async {
+  Future<List<PromptChainRecord>> list(
+      {bool includeArchived = true, int limit = 20}) async {
     try {
-      final response = await client.dio.get<Map<String, dynamic>>('/chains',
-          queryParameters: {'include_archived': includeArchived});
+      final response = await client.dio
+          .get<Map<String, dynamic>>('/chains', queryParameters: {
+        'include_archived': includeArchived,
+        'limit': limit,
+      });
       return (response.data!['items'] as List<dynamic>)
           .map((item) =>
               PromptChainRecord.fromJson(item as Map<String, dynamic>))

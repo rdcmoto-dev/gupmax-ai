@@ -28,9 +28,31 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 async def list_chains(session: DbSession, user: CurrentUser, offset: int = Query(0, ge=0),
                       limit: int = Query(20, ge=1, le=100), include_archived: bool = False) -> ChainPage:
     repository = PromptChainRepository(session)
-    service = PromptChainService(session)
     items, total = await repository.list(user.id, offset, limit, include_archived)
-    return ChainPage(items=[await service.read(item) for item in items], total=total, offset=offset, limit=limit)
+    summaries = await repository.execution_summaries([item.id for item in items])
+    reads = []
+    for item in items:
+        step_count, completed_count, current_step_id, step_updated_at, category = summaries.get(
+            item.id, (0, 0, None, None, None)
+        )
+        reads.append(
+            ChainRead.model_validate(item).model_copy(
+                update={
+                    "step_count": step_count,
+                    "completed_step_count": completed_count,
+                    "current_step_id": current_step_id,
+                    "execution_completed": bool(step_count)
+                    and completed_count == step_count,
+                    "updated_at": max(
+                        value
+                        for value in (item.updated_at, step_updated_at)
+                        if value is not None
+                    ),
+                    "category": category,
+                }
+            )
+        )
+    return ChainPage(items=reads, total=total, offset=offset, limit=limit)
 
 
 @router.post("", response_model=ChainRead, status_code=status.HTTP_201_CREATED)

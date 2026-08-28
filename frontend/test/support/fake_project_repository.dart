@@ -10,9 +10,10 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   int assignTemplateCalls = 0;
 
   @override
-  Future<ProjectPageData> list({bool includeArchived = true}) async {
+  Future<ProjectPageData> list(
+      {bool includeArchived = true, int limit = 20}) async {
     if (listCompleter != null) return listCompleter!.future;
-    return ProjectPageData(items, items.length);
+    return ProjectPageData(items.take(limit).toList(), items.length);
   }
 
   @override
@@ -68,6 +69,7 @@ ProjectRecord projectSample({
   String id = 'project-1',
   String name = 'Pizzaria Donatello',
   ProjectStatus status = ProjectStatus.active,
+  DateTime? updatedAt,
 }) =>
     ProjectRecord(
       id: id,
@@ -78,5 +80,5 @@ ProjectRecord projectSample({
       promptCount: 0,
       templateCount: 0,
       createdAt: DateTime.utc(2026, 8, 20),
-      updatedAt: DateTime.utc(2026, 8, 20),
+      updatedAt: updatedAt ?? DateTime.utc(2026, 8, 20),
     );

@@ -10,8 +10,9 @@ class FakePromptChainRepository implements PromptChainRepositoryContract {
   int reorderCalls = 0;
 
   @override
-  Future<List<PromptChainRecord>> list({bool includeArchived = true}) async =>
-      items;
+  Future<List<PromptChainRecord>> list(
+          {bool includeArchived = true, int limit = 20}) async =>
+      items.take(limit).toList();
   @override
   Future<PromptChainRecord> get(String id) async =>
       items.firstWhere((value) => value.id == id);
@@ -132,6 +133,8 @@ class FakePromptChainRepository implements PromptChainRepositoryContract {
       completedStepCount: completed,
       currentStepId: current?.id,
       executionCompleted: steps.isNotEmpty && completed == steps.length,
+      createdAt: chain.createdAt,
+      updatedAt: chain.updatedAt,
     );
     items = [
       for (final item in items)

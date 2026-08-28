@@ -7,6 +7,7 @@ import 'package:gupmax_ai/features/projects/domain/project.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_detail_page.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_list_page.dart';
 import 'package:gupmax_ai/features/projects/project_providers.dart';
+import 'package:gupmax_ai/features/prompt_chains/prompt_chain_providers.dart';
 import 'package:gupmax_ai/features/account/account_providers.dart';
 import 'package:gupmax_ai/features/interviews/interview_providers.dart';
 import 'package:gupmax_ai/features/prompts/presentation/prompt_create_page.dart';
@@ -16,6 +17,7 @@ import '../../support/fake_account_repository.dart';
 import '../../support/fake_interview_repository.dart';
 import '../../support/fake_prompt_repository.dart';
 import '../../support/fake_project_repository.dart';
+import '../../support/fake_prompt_chain_repository.dart';
 
 void main() {
   testWidgets('lista mostra loading e estado vazio', (tester) async {
@@ -111,7 +113,11 @@ void main() {
 Future<void> _pumpList(
     WidgetTester tester, FakeProjectRepository repository) async {
   await tester.pumpWidget(ProviderScope(
-    overrides: [projectRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      projectRepositoryProvider.overrideWithValue(repository),
+      promptChainRepositoryProvider
+          .overrideWithValue(FakePromptChainRepository()),
+    ],
     child: const MaterialApp(home: ProjectListPage()),
   ));
 }

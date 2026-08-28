@@ -554,3 +554,19 @@ O smoke manual real aprovou o início da execução, avanço sequencial, persist
 Na revisão final do smoke foi identificada ausência de saída clara na tela concluída. A correção introduziu um cabeçalho único nas páginas internas, com “Voltar” seguro — histórico válido quando disponível e Dashboard como fallback —, título e acesso ao Início. A conclusão da Chain passou a oferecer explicitamente “Ver meus fluxos” e “Ir para o início”. O padrão também foi aplicado a criação e resultado de prompts, histórico, Expert Planner, Templates, Projects, créditos, conta, pagamentos e demais páginas internas, com cobertura desktop e mobile.
 
 **Status da correção de navegação: APROVADA NO SMOKE MANUAL REAL.**
+
+## Etapa 9.19 — Projetos Recentes reais no Dashboard
+
+O Dashboard passou a compor a seção “Projetos recentes” exclusivamente com Projects e Prompt Chains pertencentes ao usuário autenticado. Os contratos paginados existentes são reutilizados, sem criar projeto, draft ou estado paralelo. A lista une projetos manuais, fluxos independentes criados pelo Expert Planner e Chains associadas a Projects, elimina duplicidade entre Project e sua Chain, ordena pela atividade mais recente e apresenta no máximo quatro cards.
+
+Cada card mostra somente dados disponíveis: nome, categoria da Chain quando houver, progresso, status e a ação contextual “Abrir” ou “Continuar”. Chains pendentes, em andamento e concluídas levam aos detalhes do fluxo; Projects sem Chain levam aos detalhes do projeto. O estado vazio orienta “Criar meu primeiro projeto”, e “Ver todos os projetos” permanece uma ação discreta. O layout conserva o tema atual e se adapta a desktop e mobile.
+
+A resposta resumida existente de Prompt Chains agora inclui progresso calculado em lote, categoria e a data efetiva da atividade mais recente das Steps. A consulta preserva paginação e ownership e evita consultas N+1. Nenhuma migration foi necessária. O recurso é determinístico: não chama provedores de IA, não consome créditos, não cria Usage e não altera Ledger.
+
+Durante o primeiro smoke manual, o Dashboard exibiu corretamente Chains reais, mas “Ver todos os projetos” ainda abria a listagem histórica restrita a registros de Projects. A correção unificou as duas telas sobre a mesma composição compartilhada: “Meus projetos” agora inclui Projects, Prompt Chains e fluxos do Expert Planner, associa Project + Chain sem duplicidade e preserva progresso, status, categoria, ordenação e navegação. O estado vazio somente aparece quando ambas as fontes estão vazias. O CRUD de Project permanece disponível nos itens que possuem Project persistido, sem alterar a arquitetura do banco.
+
+SMOKE MANUAL REAL DA ETAPA 9.19: APROVADO
+
+O smoke manual real confirmou Projects e Prompt Chains reais no Dashboard e na visão unificada de “Meus projetos”, incluindo Delivery Restaurantes e Lançamento Pizzaria Donatello com categoria, progresso e status corretos. Não houve duplicidade entre Project e Chain associados. As ações “Abrir”, “Continuar” e a navegação entre Dashboard, Projects e Prompt Chains foram aprovadas.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

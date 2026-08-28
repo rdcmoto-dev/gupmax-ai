@@ -115,6 +115,42 @@ def test_guided_execution_ownership_and_order(client: TestClient) -> None:
     ).status_code == 409
 
 
+def test_chain_list_exposes_owned_execution_summaries_without_financial_effect(
+    client: TestClient,
+) -> None:
+    owner = auth(client, "chain-dashboard-owner@example.com")
+    stranger = auth(client, "chain-dashboard-stranger@example.com")
+    chain = create_chain(client, owner)
+    first = add_step(client, owner, chain["id"], title="Primeira")
+    add_step(client, owner, chain["id"], title="Segunda")
+    wallet_before = client.get("/api/v1/credits/wallet", headers=owner).json()
+    usage_before = client.get("/api/v1/billing/usage", headers=owner).json()["total"]
+    ledger_before = client.get(
+        "/api/v1/credits/transactions", headers=owner
+    ).json()["total"]
+
+    client.post(f"/api/v1/chains/{chain['id']}/execution/start", headers=owner)
+    client.put(
+        f"/api/v1/chains/{chain['id']}/steps/{first['id']}/complete",
+        headers=owner,
+        json={"result": "Etapa concluída"},
+    )
+    listed = client.get("/api/v1/chains", headers=owner).json()
+    assert listed["total"] == 1
+    assert listed["items"][0]["step_count"] == 2
+    assert listed["items"][0]["completed_step_count"] == 1
+    assert listed["items"][0]["current_step_id"] is not None
+    assert listed["items"][0]["execution_completed"] is False
+    assert listed["items"][0]["category"] == "marketing"
+    assert client.get("/api/v1/chains", headers=stranger).json()["items"] == []
+    assert client.get("/api/v1/credits/wallet", headers=owner).json() == wallet_before
+    assert client.get("/api/v1/billing/usage", headers=owner).json()["total"] == usage_before
+    assert (
+        client.get("/api/v1/credits/transactions", headers=owner).json()["total"]
+        == ledger_before
+    )
+
+
 def test_chain_crud_steps_reorder_archive_and_delete(client: TestClient) -> None:
     headers = auth(client, "chain-crud@example.com")
     chain = create_chain(client, headers)

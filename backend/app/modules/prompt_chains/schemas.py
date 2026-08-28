@@ -108,15 +108,16 @@ class ChainRead(BaseModel):
     description: str | None
     status: PromptChainStatus
     step_count: int = 0
+    completed_step_count: int = 0
+    current_step_id: UUID | None = None
+    execution_completed: bool = False
+    category: PromptCategory | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class ChainDetail(ChainRead):
     steps: list[StepRead]
-    completed_step_count: int = 0
-    current_step_id: UUID | None = None
-    execution_completed: bool = False
 
 
 class ChainPage(BaseModel):

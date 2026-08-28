@@ -5,7 +5,7 @@ import '../../../core/network/api_client.dart';
 import '../domain/project.dart';
 
 abstract interface class ProjectRepositoryContract {
-  Future<ProjectPageData> list({bool includeArchived = true});
+  Future<ProjectPageData> list({bool includeArchived = true, int limit = 20});
   Future<ProjectRecord> get(String id);
   Future<ProjectRecord> create(Map<String, dynamic> values);
   Future<ProjectRecord> update(String id, Map<String, dynamic> values);
@@ -21,10 +21,14 @@ class ProjectRepository implements ProjectRepositoryContract {
   final ApiClient client;
 
   @override
-  Future<ProjectPageData> list({bool includeArchived = true}) async {
+  Future<ProjectPageData> list(
+      {bool includeArchived = true, int limit = 20}) async {
     try {
-      final response = await client.dio.get<Map<String, dynamic>>('/projects',
-          queryParameters: {'include_archived': includeArchived});
+      final response = await client.dio
+          .get<Map<String, dynamic>>('/projects', queryParameters: {
+        'include_archived': includeArchived,
+        'limit': limit,
+      });
       return ProjectPageData.fromJson(response.data!);
     } catch (error) {
       _map(error);

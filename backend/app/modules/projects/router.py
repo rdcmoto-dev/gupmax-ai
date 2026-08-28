@@ -18,9 +18,19 @@ async def list_projects(
     session: DbSession, current_user: CurrentUser, offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100), include_archived: bool = False,
 ) -> ProjectPage:
-    service = ProjectService(session)
-    items, total = await ProjectRepository(session).list(current_user.id, offset, limit, include_archived)
-    return ProjectPage(items=[await service.read(item) for item in items], total=total, offset=offset, limit=limit)
+    repository = ProjectRepository(session)
+    items, total = await repository.list(current_user.id, offset, limit, include_archived)
+    counts = await repository.counts_many([item.id for item in items])
+    reads = [
+        ProjectRead.model_validate(item).model_copy(
+            update={
+                "prompt_count": counts[item.id][0],
+                "template_count": counts[item.id][1],
+            }
+        )
+        for item in items
+    ]
+    return ProjectPage(items=reads, total=total, offset=offset, limit=limit)
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
