@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../domain/payment_history_models.dart';
 import '../payments_history_providers.dart';
 import 'payment_history_page.dart';
@@ -28,14 +27,9 @@ class _PaymentDetailPageState extends ConsumerState<PaymentDetailPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(paymentHistoryControllerProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Detalhe do pagamento'),
-        leading: IconButton(
-          tooltip: 'Voltar para pagamentos',
-          onPressed: () => context.go('/payments'),
-          icon: const Icon(Icons.arrow_back),
-        ),
-        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
+      appBar: const AppPageAppBar(
+        title: 'Detalhe do pagamento',
+        fallbackLocation: '/payments',
       ),
       body: Center(
         child: state.isLoadingDetail

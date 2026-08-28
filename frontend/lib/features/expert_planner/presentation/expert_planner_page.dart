@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../../prompts/domain/prompt_models.dart';
 import '../domain/expert_plan.dart';
 import '../expert_planner_providers.dart';
@@ -143,7 +144,7 @@ class _ExpertPlannerPageState extends ConsumerState<ExpertPlannerPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(expertPlannerControllerProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Plano de execução')),
+      appBar: const AppPageAppBar(title: 'Plano de execução'),
       body: widget.input == null
           ? const Center(child: Text('Volte à criação e informe uma ideia.'))
           : state.loading

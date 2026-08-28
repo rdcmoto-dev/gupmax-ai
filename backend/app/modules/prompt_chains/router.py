@@ -11,6 +11,7 @@ from app.modules.prompt_chains.schemas import (
     ChainRead,
     ChainUpdate,
     ReorderSteps,
+    StepCompletion,
     StepCreate,
     StepRead,
     StepUpdate,
@@ -58,6 +59,22 @@ async def delete_chain(chain_id: UUID, session: DbSession, user: CurrentUser) ->
 @router.post("/{chain_id}/steps", response_model=StepRead, status_code=status.HTTP_201_CREATED)
 async def add_step(chain_id: UUID, data: StepCreate, session: DbSession, user: CurrentUser) -> StepRead:
     return StepRead.model_validate(await PromptChainService(session).add_step(chain_id, user, data))
+
+
+@router.post("/{chain_id}/execution/start", response_model=ChainDetail)
+async def start_execution(chain_id: UUID, session: DbSession, user: CurrentUser) -> ChainDetail:
+    return await PromptChainService(session).start_execution(chain_id, user)
+
+
+@router.put("/{chain_id}/steps/{step_id}/complete", response_model=ChainDetail)
+async def complete_step(
+    chain_id: UUID,
+    step_id: UUID,
+    data: StepCompletion,
+    session: DbSession,
+    user: CurrentUser,
+) -> ChainDetail:
+    return await PromptChainService(session).complete_step(chain_id, step_id, user, data)
 
 
 @router.put("/{chain_id}/steps/reorder", status_code=status.HTTP_204_NO_CONTENT)

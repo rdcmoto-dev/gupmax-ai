@@ -60,6 +60,36 @@ void main() {
     tester.widget<FilledButton>(button).onPressed!();
   }
 
+  testWidgets('dashboard orienta por objetivos e abre planejamento Expert',
+      (tester) async {
+    await pumpApp(tester, FakePromptRepository());
+    expect(find.text('O que você quer fazer hoje?'), findsOneWidget);
+    expect(find.byKey(const Key('create_prompt_button')), findsOneWidget);
+    expect(find.byKey(const Key('plan_project_button')), findsOneWidget);
+    expect(find.byKey(const Key('compare_ai_button')), findsOneWidget);
+    expect(find.byKey(const Key('my_chains_button')), findsOneWidget);
+    expect(find.byKey(const Key('my_templates_button')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('plan_project_button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('expert_action_choice')), findsOneWidget);
+    expect(find.text('Planejar projeto em etapas'), findsOneWidget);
+    expect(find.text('Criar um prompt detalhado'), findsOneWidget);
+  });
+
+  testWidgets('atalho de comparação abre Multi-Target ativado', (tester) async {
+    await pumpApp(tester, FakePromptRepository());
+    await tester.tap(find.byKey(const Key('compare_ai_button')));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<SwitchListTile>(
+                find.byKey(const Key('multi_target_toggle')))
+            .value,
+        isTrue);
+    expect(find.text('2 de 4 IAs selecionadas'), findsOneWidget);
+  });
+
   testWidgets(
       'seleciona e envia Target AI com default generico e layout mobile',
       (tester) async {

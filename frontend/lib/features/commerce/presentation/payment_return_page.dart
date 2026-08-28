@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../commerce_providers.dart';
 import 'commerce_controller.dart';
 
@@ -26,10 +26,7 @@ class _PaymentReturnPageState extends ConsumerState<PaymentReturnPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(commerceControllerProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Status do pagamento'),
-        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
-      ),
+      appBar: const AppPageAppBar(title: 'Status do pagamento'),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../domain/project.dart';
 import '../project_providers.dart';
 
@@ -105,9 +105,7 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(projectControllerProvider);
     return Scaffold(
-      appBar: AppBar(
-          title: const Text('Meus projetos'),
-          actions: const [AppNavigationMenu(), SizedBox(width: 8)]),
+      appBar: const AppPageAppBar(title: 'Meus projetos'),
       floatingActionButton: FloatingActionButton.extended(
           key: const Key('create_project'),
           onPressed: _form,

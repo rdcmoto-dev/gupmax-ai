@@ -50,6 +50,11 @@ class PromptChainController extends ChangeNotifier {
         await repository.reorder(id, steps.map((step) => step.id).toList());
         selected = await repository.get(id);
       });
+  Future<void> startExecution(String id) async =>
+      _run(() async => selected = await repository.startExecution(id));
+  Future<void> completeStep(String id, String stepId, String result) async =>
+      _run(() async =>
+          selected = await repository.completeStep(id, stepId, result));
 
   Future<void> _run(Future<void> Function() operation) async {
     loading = true;

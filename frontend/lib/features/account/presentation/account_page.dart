@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/domain/auth_models.dart';
 import '../../auth/presentation/auth_controller.dart';
@@ -58,15 +57,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
     if (user != null) _fillProfile(user);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Minha conta'),
-        leading: IconButton(
-          tooltip: 'Voltar ao dashboard',
-          onPressed: () => context.go('/dashboard'),
-          icon: const Icon(Icons.arrow_back),
-        ),
-        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
-      ),
+      appBar: const AppPageAppBar(title: 'Minha conta'),
       body: account.isLoading && user == null
           ? const Center(child: CircularProgressIndicator())
           : account.error != null && user == null

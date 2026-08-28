@@ -37,6 +37,84 @@ def add_step(client: TestClient, headers: dict[str, str], chain_id: str, **value
     return response.json()
 
 
+def test_guided_execution_advances_persists_and_preserves_billing(client: TestClient) -> None:
+    headers = auth(client, "guided-chain@example.com")
+    chain = create_chain(client, headers)
+    first = add_step(client, headers, chain["id"], title="Escopo")
+    second = add_step(
+        client,
+        headers,
+        chain["id"],
+        title="Arquitetura",
+        base_input="Projete a arquitetura usando {resultado_anterior} como contexto.",
+    )
+    wallet_before = client.get("/api/v1/credits/wallet", headers=headers).json()
+    usage_before = client.get("/api/v1/billing/usage", headers=headers).json()["total"]
+    ledger_before = client.get("/api/v1/credits/transactions", headers=headers).json()["total"]
+
+    started = client.post(
+        f"/api/v1/chains/{chain['id']}/execution/start", headers=headers
+    )
+    assert started.status_code == 200
+    assert started.json()["current_step_id"] == first["id"]
+    assert started.json()["steps"][0]["execution_status"] == "in_progress"
+
+    result = "# Escopo\n<script>alert('dados')</script>\n`print('referência')`"
+    advanced = client.put(
+        f"/api/v1/chains/{chain['id']}/steps/{first['id']}/complete",
+        headers=headers,
+        json={"result": result},
+    )
+    assert advanced.status_code == 200
+    assert advanced.json()["completed_step_count"] == 1
+    assert advanced.json()["current_step_id"] == second["id"]
+    assert advanced.json()["steps"][0]["result"] == result
+    assert advanced.json()["steps"][1]["execution_status"] == "in_progress"
+
+    reopened = client.get(f"/api/v1/chains/{chain['id']}", headers=headers).json()
+    assert reopened["current_step_id"] == second["id"]
+    assert reopened["steps"][0]["result"] == result
+    finished = client.put(
+        f"/api/v1/chains/{chain['id']}/steps/{second['id']}/complete",
+        headers=headers,
+        json={"result": "Arquitetura concluída."},
+    ).json()
+    assert finished["completed_step_count"] == 2
+    assert finished["current_step_id"] is None
+    assert finished["execution_completed"] is True
+    assert client.get("/api/v1/credits/wallet", headers=headers).json() == wallet_before
+    assert client.get("/api/v1/billing/usage", headers=headers).json()["total"] == usage_before
+    assert (
+        client.get("/api/v1/credits/transactions", headers=headers).json()["total"]
+        == ledger_before
+    )
+
+
+def test_guided_execution_ownership_and_order(client: TestClient) -> None:
+    owner = auth(client, "guided-owner@example.com")
+    stranger = auth(client, "guided-stranger@example.com")
+    chain = create_chain(client, owner)
+    first = add_step(client, owner, chain["id"])
+    second = add_step(client, owner, chain["id"], title="Segunda")
+
+    assert client.post(
+        f"/api/v1/chains/{chain['id']}/execution/start", headers=stranger
+    ).status_code == 404
+    assert client.put(
+        f"/api/v1/chains/{chain['id']}/steps/{first['id']}/complete",
+        headers=stranger,
+        json={"result": "tentativa"},
+    ).status_code == 404
+    assert client.post(
+        f"/api/v1/chains/{chain['id']}/execution/start", headers=owner
+    ).status_code == 200
+    assert client.put(
+        f"/api/v1/chains/{chain['id']}/steps/{second['id']}/complete",
+        headers=owner,
+        json={"result": "fora de ordem"},
+    ).status_code == 409
+
+
 def test_chain_crud_steps_reorder_archive_and_delete(client: TestClient) -> None:
     headers = auth(client, "chain-crud@example.com")
     chain = create_chain(client, headers)

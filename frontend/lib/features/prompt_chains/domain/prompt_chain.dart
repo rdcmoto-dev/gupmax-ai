@@ -3,6 +3,14 @@ import '../../templates/domain/prompt_template.dart';
 
 enum PromptChainStatus { active, archived }
 
+enum PromptChainStepStatus { pending, inProgress, completed }
+
+PromptChainStepStatus _stepStatus(String? value) => switch (value) {
+      'in_progress' => PromptChainStepStatus.inProgress,
+      'completed' => PromptChainStepStatus.completed,
+      _ => PromptChainStepStatus.pending,
+    };
+
 class PromptChainStep {
   const PromptChainStep({
     required this.id,
@@ -16,6 +24,10 @@ class PromptChainStep {
     this.templateId,
     this.variables = const [],
     this.requiresPreviousResult = false,
+    this.executionStatus = PromptChainStepStatus.pending,
+    this.result,
+    this.startedAt,
+    this.completedAt,
   });
 
   factory PromptChainStep.fromJson(Map<String, dynamic> json) {
@@ -39,6 +51,10 @@ class PromptChainStep {
           .toList(),
       requiresPreviousResult:
           detected.any((variable) => variable.name == 'resultado_anterior'),
+      executionStatus: _stepStatus(json['execution_status'] as String?),
+      result: json['result'] as String?,
+      startedAt: DateTime.tryParse(json['started_at'] as String? ?? ''),
+      completedAt: DateTime.tryParse(json['completed_at'] as String? ?? ''),
     );
   }
 
@@ -53,6 +69,10 @@ class PromptChainStep {
   final String? templateId;
   final List<TemplateVariable> variables;
   final bool requiresPreviousResult;
+  final PromptChainStepStatus executionStatus;
+  final String? result;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
 }
 
 class PromptChainRecord {
@@ -64,6 +84,9 @@ class PromptChainRecord {
     this.description,
     this.projectId,
     this.steps = const [],
+    this.completedStepCount = 0,
+    this.currentStepId,
+    this.executionCompleted = false,
   });
 
   factory PromptChainRecord.fromJson(Map<String, dynamic> json) =>
@@ -78,6 +101,9 @@ class PromptChainRecord {
             .map((value) =>
                 PromptChainStep.fromJson(value as Map<String, dynamic>))
             .toList(),
+        completedStepCount: json['completed_step_count'] as int? ?? 0,
+        currentStepId: json['current_step_id'] as String?,
+        executionCompleted: json['execution_completed'] as bool? ?? false,
       );
 
   final String id;
@@ -87,4 +113,7 @@ class PromptChainRecord {
   final PromptChainStatus status;
   final int stepCount;
   final List<PromptChainStep> steps;
+  final int completedStepCount;
+  final String? currentStepId;
+  final bool executionCompleted;
 }

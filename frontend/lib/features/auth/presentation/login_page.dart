@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../auth_providers.dart';
 import 'auth_scaffold.dart';
 import 'auth_validators.dart';
@@ -85,14 +86,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
             ],
             const SizedBox(height: 24),
-            FilledButton(
+            FilledButton.icon(
               key: const Key('login_submit'),
               onPressed: auth.isSubmitting ? null : _submit,
-              child: auth.isSubmitting
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.electricBlue,
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: AppColors.gold, width: 1.5),
+                elevation: 5,
+                shadowColor: AppColors.cyanGlow,
+                minimumSize: const Size.fromHeight(54),
+              ),
+              icon: auth.isSubmitting
                   ? const SizedBox.square(
                       dimension: 20,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Entrar'),
+                  : const Icon(Icons.login_rounded),
+              label: Text(auth.isSubmitting ? 'Entrando...' : 'Entrar'),
             ),
             const SizedBox(height: 12),
             TextButton(

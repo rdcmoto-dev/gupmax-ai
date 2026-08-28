@@ -13,6 +13,9 @@ abstract interface class PromptChainRepositoryContract {
       String chainId, String stepId, Map<String, dynamic> values);
   Future<void> deleteStep(String chainId, String stepId);
   Future<void> reorder(String chainId, List<String> stepIds);
+  Future<PromptChainRecord> startExecution(String chainId);
+  Future<PromptChainRecord> completeStep(
+      String chainId, String stepId, String result);
 }
 
 class PromptChainRepository implements PromptChainRepositoryContract {
@@ -76,4 +79,18 @@ class PromptChainRepository implements PromptChainRepositoryContract {
   @override
   Future<void> reorder(String chainId, List<String> stepIds) async => client.dio
       .put('/chains/$chainId/steps/reorder', data: {'step_ids': stepIds});
+
+  @override
+  Future<PromptChainRecord> startExecution(String chainId) async =>
+      PromptChainRecord.fromJson((await client.dio
+              .post<Map<String, dynamic>>('/chains/$chainId/execution/start'))
+          .data!);
+
+  @override
+  Future<PromptChainRecord> completeStep(
+          String chainId, String stepId, String result) async =>
+      PromptChainRecord.fromJson((await client.dio.put<Map<String, dynamic>>(
+              '/chains/$chainId/steps/$stepId/complete',
+              data: {'result': result}))
+          .data!);
 }

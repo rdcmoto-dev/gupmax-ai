@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
-from app.modules.prompt_chains.model import PromptChainStatus
+from app.modules.prompt_chains.model import PromptChainStatus, PromptChainStepStatus
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode, TargetAI
 from app.modules.prompt_templates.schemas import TemplateVariable
 from app.modules.prompt_templates.variables import detect_variables, variable_label
@@ -61,6 +61,15 @@ class ReorderSteps(BaseModel):
     step_ids: list[UUID] = Field(min_length=1, max_length=20)
 
 
+class StepCompletion(BaseModel):
+    result: str = Field(min_length=1, max_length=10_000)
+
+    @field_validator("result")
+    @classmethod
+    def normalize_result(cls, value: str) -> str:
+        return value.strip()
+
+
 class StepRead(StepFields):
     model_config = ConfigDict(from_attributes=True)
 
@@ -69,6 +78,10 @@ class StepRead(StepFields):
     position: int
     created_at: datetime
     updated_at: datetime
+    execution_status: PromptChainStepStatus
+    result: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
 
     @computed_field
     @property
@@ -101,6 +114,9 @@ class ChainRead(BaseModel):
 
 class ChainDetail(ChainRead):
     steps: list[StepRead]
+    completed_step_count: int = 0
+    current_step_id: UUID | None = None
+    execution_completed: bool = False
 
 
 class ChainPage(BaseModel):

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../commerce_providers.dart';
 import '../domain/commerce_models.dart';
 import 'commerce_controller.dart';
@@ -24,10 +24,7 @@ class _CommercePageState extends ConsumerState<CommercePage> {
   Widget build(BuildContext context) {
     final state = ref.watch(commerceControllerProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Créditos e planos'),
-        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
-      ),
+      appBar: const AppPageAppBar(title: 'Créditos e planos'),
       body: SafeArea(
         child: state.isLoading
             ? const Center(child: CircularProgressIndicator())

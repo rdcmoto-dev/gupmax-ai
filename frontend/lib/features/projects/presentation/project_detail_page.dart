@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../../prompts/prompt_providers.dart';
 import '../../templates/template_providers.dart';
 import '../project_providers.dart';
@@ -72,9 +72,7 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
     final project =
         state.selected?.id == widget.projectId ? state.selected : null;
     return Scaffold(
-      appBar: AppBar(
-          title: const Text('Projeto'),
-          actions: const [AppNavigationMenu(), SizedBox(width: 8)]),
+      appBar: const AppPageAppBar(title: 'Projeto'),
       body: project == null
           ? Center(
               child: state.error == null

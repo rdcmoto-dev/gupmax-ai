@@ -50,6 +50,10 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
           projectId: state.uri.queryParameters['project'],
           chainId: state.uri.queryParameters['chain'],
           chainStepId: state.uri.queryParameters['step'],
+          initialMode: state.uri.queryParameters['mode'] == 'expert'
+              ? PromptMode.expert
+              : PromptMode.basic,
+          initialMultiTarget: state.uri.queryParameters['compare'] == 'true',
         ),
       ),
       GoRoute(path: '/chains', builder: (_, __) => const PromptChainListPage()),

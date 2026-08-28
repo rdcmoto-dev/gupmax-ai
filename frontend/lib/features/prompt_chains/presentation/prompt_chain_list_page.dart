@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../../projects/project_providers.dart';
 import '../domain/prompt_chain.dart';
 import '../prompt_chain_providers.dart';
@@ -128,13 +128,12 @@ class _PromptChainListPageState extends ConsumerState<PromptChainListPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(promptChainControllerProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Meus fluxos'), actions: [
+      appBar: AppPageAppBar(title: 'Meus fluxos', actions: [
         IconButton(
             key: const Key('new_chain'),
             onPressed: _create,
             tooltip: 'Novo fluxo',
             icon: const Icon(Icons.add)),
-        const AppNavigationMenu(),
       ]),
       body: Padding(
         padding: const EdgeInsets.all(24),

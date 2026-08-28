@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../../prompts/domain/prompt_models.dart';
 import '../../projects/project_providers.dart';
 import '../domain/prompt_template.dart';
@@ -261,15 +261,13 @@ class _TemplateListPageState extends ConsumerState<TemplateListPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(templateControllerProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Meus templates'), actions: [
+      appBar: AppPageAppBar(title: 'Meus templates', actions: [
         IconButton(
           key: const Key('create_template_button'),
           tooltip: 'Novo template',
           onPressed: _create,
           icon: const Icon(Icons.add),
         ),
-        const AppNavigationMenu(),
-        const SizedBox(width: 8),
       ]),
       body: Padding(
         padding: const EdgeInsets.all(24),

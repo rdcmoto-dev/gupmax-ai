@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 
 class PromptScaffold extends StatelessWidget {
   const PromptScaffold({required this.title, required this.child, super.key});
@@ -10,10 +10,7 @@ class PromptScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
-      ),
+      appBar: AppPageAppBar(title: title),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

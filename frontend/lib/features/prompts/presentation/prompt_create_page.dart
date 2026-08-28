@@ -20,11 +20,15 @@ class PromptCreatePage extends ConsumerStatefulWidget {
       this.projectId,
       this.chainId,
       this.chainStepId,
+      this.initialMode = PromptMode.basic,
+      this.initialMultiTarget = false,
       super.key});
   final String? templateId;
   final String? projectId;
   final String? chainId;
   final String? chainStepId;
+  final PromptMode initialMode;
+  final bool initialMultiTarget;
 
   @override
   ConsumerState<PromptCreatePage> createState() => _PromptCreatePageState();
@@ -46,11 +50,11 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   final _provider = TextEditingController(text: 'openai');
   final _model = TextEditingController();
   final _previousResult = TextEditingController();
-  PromptMode _mode = PromptMode.basic;
+  late PromptMode _mode;
   PromptCategory _category = PromptCategory.general;
   TargetAI _targetAi = TargetAI.generic;
   bool _optimize = false;
-  bool _multiTarget = false;
+  late bool _multiTarget;
   final Set<TargetAI> _comparisonTargets = {
     TargetAI.chatgpt,
     TargetAI.claude,
@@ -78,6 +82,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
   @override
   void initState() {
     super.initState();
+    _mode = widget.initialMode;
+    _multiTarget = widget.initialMultiTarget;
     _selectedTemplateId = widget.templateId;
     _selectedProjectId = widget.projectId;
     Future<void>.microtask(() async {
@@ -141,7 +147,13 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
       ..clear()
       ..addEntries(variables
           .map((variable) => MapEntry(variable.name, TextEditingController())));
-    _previousResult.clear();
+    final previousStep = step.position > 1
+        ? chain.steps
+            .where((value) => value.position == step.position - 1)
+            .firstOrNull
+        : null;
+    _previousResult.text =
+        requiresPreviousResult ? (previousStep?.result?.trim() ?? '') : '';
     setState(() {
       _chainName = chain.name;
       _selectedProjectId = chain.projectId;
@@ -660,9 +672,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
             const SizedBox(height: 20),
             _SectionCard(
               number: '1',
-              title: 'Escolha como o GUPMAX vai construir',
-              subtitle:
-                  'O valor enviado ao servidor continua sendo basic, pro ou expert.',
+              title: 'Como você quer criar?',
+              subtitle: 'Escolha entre uma resposta rápida ou mais orientação.',
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final cards = PromptMode.values
@@ -764,9 +775,8 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
             const SizedBox(height: 20),
             _SectionCard(
               number: '3',
-              title: 'Qual é o tipo da sua criação?',
-              subtitle:
-                  'Escolha uma das categorias aceitas pelo Prompt Engine.',
+              title: 'O que você está criando?',
+              subtitle: 'A categoria ajuda a organizar e adaptar o resultado.',
               child: Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -790,7 +800,7 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
               child: ExpansionTile(
                 key: const Key('complementary_information'),
                 leading: const CircleAvatar(child: Text('4')),
-                title: const Text('Conte mais para o GUPMAX'),
+                title: const Text('Detalhes adicionais'),
                 subtitle: const Text(
                     'Opcional: contexto, público, tom, formato e outras orientações.'),
                 childrenPadding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -931,11 +941,28 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
             ],
             const SizedBox(height: 20),
             if (_mode == PromptMode.expert) ...[
-              OutlinedButton.icon(
-                key: const Key('plan_project'),
-                onPressed: isSubmitting ? null : _planProject,
-                icon: const Icon(Icons.account_tree_outlined),
-                label: const Text('Planejar projeto'),
+              Card(
+                key: const Key('expert_action_choice'),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Uma tarefa ou um projeto?',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 6),
+                      const Text(
+                          'Crie um prompt detalhado para uma tarefa única ou organize um projeto em várias etapas.'),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        key: const Key('plan_project'),
+                        onPressed: isSubmitting ? null : _planProject,
+                        icon: const Icon(Icons.account_tree_outlined),
+                        label: const Text('Planejar projeto em etapas'),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
             ],
@@ -957,7 +984,9 @@ class _PromptCreatePageState extends ConsumerState<PromptCreatePage> {
                       ? _multiTarget
                           ? 'Comparar prompts'
                           : 'Construir meu prompt'
-                      : 'Iniciar entrevista'),
+                      : _mode == PromptMode.expert
+                          ? 'Criar um prompt detalhado'
+                          : 'Iniciar entrevista'),
             ),
           ],
         ),

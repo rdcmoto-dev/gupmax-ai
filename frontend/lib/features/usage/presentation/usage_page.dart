@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/widgets/app_navigation_menu.dart';
+import '../../../core/widgets/app_page_app_bar.dart';
 import '../domain/usage_models.dart';
 import '../usage_providers.dart';
 import 'usage_controller.dart';
@@ -24,10 +24,7 @@ class _UsagePageState extends ConsumerState<UsagePage> {
   Widget build(BuildContext context) {
     final state = ref.watch(usageControllerProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Meu uso'),
-        actions: const [AppNavigationMenu(), SizedBox(width: 8)],
-      ),
+      appBar: const AppPageAppBar(title: 'Meu uso'),
       body: SafeArea(
         child: state.isLoading || (state.summary == null && state.error == null)
             ? const Center(child: CircularProgressIndicator())

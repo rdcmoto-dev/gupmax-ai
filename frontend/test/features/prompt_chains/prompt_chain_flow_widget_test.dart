@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:gupmax_ai/features/account/account_providers.dart';
 import 'package:gupmax_ai/features/interviews/interview_providers.dart';
 import 'package:gupmax_ai/features/prompt_chains/domain/prompt_chain.dart';
@@ -111,6 +112,18 @@ void main() {
       ..items = [
         chainSample(steps: [
           PromptChainStep(
+            id: 'step-1',
+            chainId: 'chain-1',
+            position: 1,
+            title: 'Posicionamento',
+            baseInput: 'Crie o posicionamento',
+            mode: PromptMode.basic,
+            category: PromptCategory.marketing,
+            targetAi: TargetAI.chatgpt,
+            executionStatus: PromptChainStepStatus.completed,
+            result: 'Resultado salvo da etapa anterior',
+          ),
+          PromptChainStep(
             id: 'step-2',
             chainId: 'chain-1',
             position: 2,
@@ -149,6 +162,7 @@ void main() {
                   chainStepId: 'step-2'))));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('previous_result')), findsOneWidget);
+      expect(find.text('Resultado salvo da etapa anterior'), findsOneWidget);
       expect(
           find.byKey(const Key('template_variable_empresa')), findsOneWidget);
     }
@@ -175,5 +189,121 @@ void main() {
     expect(prompts.generatedInput?.previousResult, 'Marca familiar premium');
     expect(prompts.generatedInput?.variableValues, {'empresa': 'Donatello'});
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('inicia conclui avança e retoma execução guiada', (tester) async {
+    final chains = FakePromptChainRepository()
+      ..items = [
+        chainSample(steps: [
+          stepSample(id: 'step-1', position: 1),
+          stepSample(
+              id: 'step-2',
+              position: 2,
+              baseInput: 'Use {resultado_anterior}',
+              previous: true),
+        ])
+      ];
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        promptChainRepositoryProvider.overrideWithValue(chains),
+        templateRepositoryProvider.overrideWithValue(FakeTemplateRepository()),
+      ],
+      child: const MaterialApp(home: PromptChainDetailPage(chainId: 'chain-1')),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('0 de 2 etapas concluídas'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('start_chain_execution')));
+    await tester.pumpAndSettle();
+    expect(find.text('Etapa atual'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('complete_step_step-1')));
+    await tester.tap(find.byKey(const Key('complete_step_step-1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('step_result')),
+        'Resultado persistido da etapa 1');
+    await tester.tap(find.byKey(const Key('confirm_step_completion')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 de 2 etapas concluídas'), findsOneWidget);
+    expect(chains.items.single.currentStepId, 'step-2');
+    expect(chains.items.single.steps.first.result,
+        'Resultado persistido da etapa 1');
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        promptChainRepositoryProvider.overrideWithValue(chains),
+        templateRepositoryProvider.overrideWithValue(FakeTemplateRepository()),
+      ],
+      child: const MaterialApp(home: PromptChainDetailPage(chainId: 'chain-1')),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('1 de 2 etapas concluídas'), findsOneWidget);
+    expect(find.byKey(const Key('complete_step_step-2')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('fluxo concluído oferece Início e Meus fluxos', (tester) async {
+    final completedSteps = [
+      for (var index = 1; index <= 2; index++)
+        PromptChainStep(
+          id: 'step-$index',
+          chainId: 'chain-1',
+          position: index,
+          title: 'Etapa $index',
+          baseInput: 'Execute a etapa $index',
+          mode: PromptMode.expert,
+          category: PromptCategory.general,
+          targetAi: TargetAI.generic,
+          executionStatus: PromptChainStepStatus.completed,
+          result: 'Resultado $index',
+        ),
+    ];
+    final chains = FakePromptChainRepository()
+      ..items = [
+        PromptChainRecord(
+          id: 'chain-1',
+          name: 'Fluxo concluído',
+          status: PromptChainStatus.active,
+          stepCount: completedSteps.length,
+          steps: completedSteps,
+          completedStepCount: completedSteps.length,
+          executionCompleted: true,
+        )
+      ];
+    final router = GoRouter(initialLocation: '/chains/chain-1', routes: [
+      GoRoute(
+          path: '/dashboard',
+          builder: (_, __) => const Scaffold(body: Text('DASHBOARD DESTINO'))),
+      GoRoute(
+          path: '/chains',
+          builder: (_, __) => const Scaffold(body: Text('FLUXOS DESTINO'))),
+      GoRoute(
+          path: '/chains/:id',
+          builder: (_, state) =>
+              PromptChainDetailPage(chainId: state.pathParameters['id']!)),
+    ]);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        promptChainRepositoryProvider.overrideWithValue(chains),
+        templateRepositoryProvider.overrideWithValue(FakeTemplateRepository()),
+      ],
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('2 de 2 etapas concluídas'), findsOneWidget);
+    expect(find.text('Fluxo concluído'), findsWidgets);
+
+    await tester.tap(find.byKey(const Key('completed_home_button')));
+    await tester.pumpAndSettle();
+    expect(find.text('DASHBOARD DESTINO'), findsOneWidget);
+
+    router.go('/chains/chain-1');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('completed_chains_button')));
+    await tester.pumpAndSettle();
+    expect(find.text('FLUXOS DESTINO'), findsOneWidget);
   });
 }

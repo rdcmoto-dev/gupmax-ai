@@ -3,7 +3,12 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.prompt_chains.model import PromptChain, PromptChainStatus, PromptChainStep
+from app.modules.prompt_chains.model import (
+    PromptChain,
+    PromptChainStatus,
+    PromptChainStep,
+    PromptChainStepStatus,
+)
 
 
 class PromptChainRepository:
@@ -75,6 +80,32 @@ class PromptChainRepository:
         await self.session.commit()
         await self.session.refresh(step)
         return step
+
+    async def start_execution(
+        self, current: PromptChainStep
+    ) -> PromptChainStep:
+        current.execution_status = PromptChainStepStatus.IN_PROGRESS
+        current.started_at = func.now()
+        await self.session.commit()
+        await self.session.refresh(current)
+        return current
+
+    async def complete_and_advance(
+        self,
+        current: PromptChainStep,
+        result: str,
+        next_step: PromptChainStep | None,
+    ) -> None:
+        current.execution_status = PromptChainStepStatus.COMPLETED
+        current.result = result
+        current.completed_at = func.now()
+        if current.started_at is None:
+            current.started_at = func.now()
+        if next_step is not None:
+            next_step.execution_status = PromptChainStepStatus.IN_PROGRESS
+            if next_step.started_at is None:
+                next_step.started_at = func.now()
+        await self.session.commit()
 
     async def delete_step(self, step: PromptChainStep) -> None:
         chain_id, position = step.chain_id, step.position

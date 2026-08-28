@@ -75,7 +75,92 @@ class FakePromptChainRepository implements PromptChainRepositoryContract {
   Future<void> reorder(String chainId, List<String> stepIds) async {
     reorderCalls++;
   }
+
+  @override
+  Future<PromptChainRecord> startExecution(String chainId) async {
+    final chain = await get(chainId);
+    final current = chain.steps.indexWhere(
+        (step) => step.executionStatus != PromptChainStepStatus.completed);
+    if (current < 0) return chain;
+    return _replaceChain(chain, [
+      for (var i = 0; i < chain.steps.length; i++)
+        _copyStep(
+          chain.steps[i],
+          status: i == current
+              ? PromptChainStepStatus.inProgress
+              : chain.steps[i].executionStatus,
+        ),
+    ]);
+  }
+
+  @override
+  Future<PromptChainRecord> completeStep(
+      String chainId, String stepId, String result) async {
+    final chain = await get(chainId);
+    final index = chain.steps.indexWhere((step) => step.id == stepId);
+    final steps = [
+      for (var i = 0; i < chain.steps.length; i++)
+        _copyStep(
+          chain.steps[i],
+          status: i == index
+              ? PromptChainStepStatus.completed
+              : i == index + 1
+                  ? PromptChainStepStatus.inProgress
+                  : chain.steps[i].executionStatus,
+          result: i == index ? result : chain.steps[i].result,
+        ),
+    ];
+    return _replaceChain(chain, steps);
+  }
+
+  PromptChainRecord _replaceChain(
+      PromptChainRecord chain, List<PromptChainStep> steps) {
+    final completed = steps
+        .where((s) => s.executionStatus == PromptChainStepStatus.completed)
+        .length;
+    final current = steps
+        .where((s) => s.executionStatus != PromptChainStepStatus.completed)
+        .firstOrNull;
+    final updated = PromptChainRecord(
+      id: chain.id,
+      name: chain.name,
+      status: chain.status,
+      stepCount: steps.length,
+      description: chain.description,
+      projectId: chain.projectId,
+      steps: steps,
+      completedStepCount: completed,
+      currentStepId: current?.id,
+      executionCompleted: steps.isNotEmpty && completed == steps.length,
+    );
+    items = [
+      for (final item in items)
+        if (item.id == chain.id) updated else item
+    ];
+    return updated;
+  }
 }
+
+PromptChainStep _copyStep(
+  PromptChainStep step, {
+  required PromptChainStepStatus status,
+  String? result,
+}) =>
+    PromptChainStep(
+      id: step.id,
+      chainId: step.chainId,
+      position: step.position,
+      title: step.title,
+      baseInput: step.baseInput,
+      mode: step.mode,
+      category: step.category,
+      targetAi: step.targetAi,
+      templateId: step.templateId,
+      variables: step.variables,
+      requiresPreviousResult: step.requiresPreviousResult,
+      executionStatus: status,
+      result: result,
+    );
 
 PromptChainStep stepSample({
   String id = 'step-1',

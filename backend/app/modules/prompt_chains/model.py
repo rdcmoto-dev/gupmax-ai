@@ -14,6 +14,12 @@ class PromptChainStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class PromptChainStepStatus(StrEnum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
+
 class PromptChain(Base):
     __tablename__ = "prompt_chains"
 
@@ -52,6 +58,12 @@ class PromptChainStep(Base):
     mode: Mapped[PromptMode] = mapped_column(String(20), nullable=False)
     category: Mapped[PromptCategory] = mapped_column(String(40), nullable=False)
     target_ai: Mapped[TargetAI] = mapped_column(String(40), nullable=False)
+    execution_status: Mapped[PromptChainStepStatus] = mapped_column(
+        String(20), default=PromptChainStepStatus.PENDING, nullable=False, index=True
+    )
+    result: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

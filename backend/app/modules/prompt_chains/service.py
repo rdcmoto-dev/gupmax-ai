@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.projects.service import ProjectService
-from app.modules.prompt_chains.model import PromptChain, PromptChainStep
+from app.modules.prompt_chains.model import PromptChain, PromptChainStep, PromptChainStepStatus
 from app.modules.prompt_chains.repository import PromptChainRepository
 from app.modules.prompt_chains.schemas import (
     ChainCreate,
@@ -12,6 +12,7 @@ from app.modules.prompt_chains.schemas import (
     ChainRead,
     ChainUpdate,
     ReorderSteps,
+    StepCompletion,
     StepCreate,
     StepUpdate,
 )
@@ -52,7 +53,56 @@ class PromptChainService:
     async def detail(self, chain_id: UUID, user: User) -> ChainDetail:
         chain = await self.accessible(chain_id, user)
         summary = await self.read(chain)
-        return ChainDetail(**summary.model_dump(), steps=await self.repository.steps(chain.id))
+        steps = await self.repository.steps(chain.id)
+        completed = sum(step.execution_status == PromptChainStepStatus.COMPLETED for step in steps)
+        current = next(
+            (step for step in steps if step.execution_status != PromptChainStepStatus.COMPLETED),
+            None,
+        )
+        return ChainDetail(
+            **summary.model_dump(),
+            steps=steps,
+            completed_step_count=completed,
+            current_step_id=current.id if current else None,
+            execution_completed=bool(steps) and completed == len(steps),
+        )
+
+    async def start_execution(self, chain_id: UUID, user: User) -> ChainDetail:
+        chain = await self.accessible(chain_id, user)
+        steps = await self.repository.steps(chain.id)
+        current = next(
+            (step for step in steps if step.execution_status != PromptChainStepStatus.COMPLETED),
+            None,
+        )
+        if current is None:
+            if not steps:
+                raise HTTPException(status_code=422, detail="Chain has no steps")
+            return await self.detail(chain_id, user)
+        if current.execution_status == PromptChainStepStatus.PENDING:
+            await self.repository.start_execution(current)
+        return await self.detail(chain_id, user)
+
+    async def complete_step(
+        self, chain_id: UUID, step_id: UUID, user: User, data: StepCompletion
+    ) -> ChainDetail:
+        chain = await self.accessible(chain_id, user)
+        step = await self.accessible_step(chain_id, step_id, user)
+        steps = await self.repository.steps(chain.id)
+        current_index = next(
+            (
+                index
+                for index, item in enumerate(steps)
+                if item.execution_status != PromptChainStepStatus.COMPLETED
+            ),
+            None,
+        )
+        if current_index is None or steps[current_index].id != step.id:
+            raise HTTPException(status_code=409, detail="Only the current step can be completed")
+        if step.execution_status != PromptChainStepStatus.IN_PROGRESS:
+            raise HTTPException(status_code=409, detail="Start the chain before completing a step")
+        next_step = steps[current_index + 1] if current_index + 1 < len(steps) else None
+        await self.repository.complete_and_advance(step, data.result, next_step)
+        return await self.detail(chain_id, user)
 
     async def update(self, chain_id: UUID, user: User, data: ChainUpdate) -> PromptChain:
         values = data.model_dump(exclude_unset=True)

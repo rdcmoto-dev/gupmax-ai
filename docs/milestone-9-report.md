@@ -538,3 +538,19 @@ O smoke real aprovou o planejamento do aplicativo de delivery, a revisão integr
 Ao usar “Projetar arquitetura”, o formulário reconstruiu Fluxo, categoria Programação, Target Assistente de programação e o campo obrigatório de resultado anterior. A entrevista EXPERT incorporou Python, FastAPI, PostgreSQL, plataforma mobile, requisitos e critérios de sucesso. O objetivo atual permaneceu projetar a arquitetura; o resultado da primeira etapa apareceu exclusivamente em `PREVIOUS STEP RESULT (CONTEXT ONLY)`, acompanhado da orientação para uso somente como referência. Nenhum conteúdo anterior substituiu o objetivo e o resultado indicou “IA não utilizada”.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## Etapa 9.18 — Execução guiada de projetos / Prompt Chains
+
+A execução guiada transforma uma Prompt Chain em um fluxo persistente e retomável. Cada Step possui estado pendente, em andamento ou concluída, resultado opcional e datas de início e conclusão. A Chain informa a quantidade concluída, a etapa atual e o encerramento integral. “Iniciar execução” é idempotente: inicia ou retoma a primeira etapa ainda não concluída. “Concluir e avançar” registra o resultado e ativa a próxima Step na mesma transação.
+
+O frontend apresenta progresso em linguagem simples, destaca a etapa atual e preserva adicionar, editar, excluir, reordenar e “Usar etapa”. Ao abrir uma Step dependente, o resultado persistido da etapa imediatamente anterior preenche o campo existente “Resultado da etapa anterior”. Esse valor continua sendo enviado exclusivamente como contexto; o objetivo da Step atual permanece soberano.
+
+A migration `0016_guided_chain_execution`, sucessora direta de `0015_prompt_chains`, adiciona somente o estado necessário às Steps. Todos os endpoints reutilizam o ownership da Chain e retornam 404 uniforme para acessos externos. Resultados são tratados como dados literais: Markdown, HTML e texto semelhante a código não são executados. Iniciar, concluir, avançar e retomar não chamam OpenAI, não consomem créditos, não criam Usage e não alteram Ledger.
+
+SMOKE MANUAL REAL DA ETAPA 9.18: APROVADO
+
+O smoke manual real aprovou o início da execução, avanço sequencial, persistência após F5, retomada no ponto correto e alimentação da Step seguinte por `resultado_anterior`. Em todas as etapas, o objetivo atual permaneceu soberano e o resultado anterior foi utilizado somente como contexto. As nove Steps foram concluídas e o estado final exibiu “9 de 9 etapas concluídas” e “Fluxo concluído”.
+
+Na revisão final do smoke foi identificada ausência de saída clara na tela concluída. A correção introduziu um cabeçalho único nas páginas internas, com “Voltar” seguro — histórico válido quando disponível e Dashboard como fallback —, título e acesso ao Início. A conclusão da Chain passou a oferecer explicitamente “Ver meus fluxos” e “Ir para o início”. O padrão também foi aplicado a criação e resultado de prompts, histórico, Expert Planner, Templates, Projects, créditos, conta, pagamentos e demais páginas internas, com cobertura desktop e mobile.
+
+**Status da correção de navegação: APROVADA NO SMOKE MANUAL REAL.**
