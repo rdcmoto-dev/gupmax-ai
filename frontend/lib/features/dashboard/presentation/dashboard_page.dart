@@ -262,12 +262,13 @@ class _RecentProjectsSection extends StatelessWidget {
                     .titleLarge
                     ?.copyWith(color: Colors.white),
               ),
-              TextButton(
+              TextButton.icon(
                 key: const Key('see_all_projects'),
                 onPressed: onSeeAll,
                 style:
                     TextButton.styleFrom(foregroundColor: AppColors.lightGold),
-                child: const Text('Ver todos os projetos'),
+                icon: const Icon(Icons.grid_view_rounded, size: 18),
+                label: const Text('Ver todos os projetos'),
               ),
             ],
           ),
@@ -328,7 +329,7 @@ class _RecentProjectsMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        color: Colors.white.withValues(alpha: 0.96),
+        color: AppColors.raisedSurface,
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Wrap(
@@ -365,12 +366,12 @@ class _RecentProjectCard extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
         width: width,
         child: Card(
-          color: Colors.white.withValues(alpha: 0.96),
+          color: AppColors.raisedSurface,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                const Icon(Icons.folder_outlined, color: AppColors.oceanBlue),
+                const Icon(Icons.folder_outlined, color: AppColors.cyanGlow),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -395,10 +396,13 @@ class _RecentProjectCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                TextButton(
+                TextButton.icon(
                   key: Key('open_recent_${item.project?.id ?? item.chain!.id}'),
                   onPressed: onPressed,
-                  child: Text(item.canContinue ? 'Continuar' : 'Abrir'),
+                  icon: Icon(item.canContinue
+                      ? Icons.play_arrow_rounded
+                      : Icons.folder_open_outlined),
+                  label: Text(item.canContinue ? 'Continuar' : 'Abrir'),
                 ),
               ],
             ),

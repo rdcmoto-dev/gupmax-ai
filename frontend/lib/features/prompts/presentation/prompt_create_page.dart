@@ -1216,12 +1216,12 @@ class _ModeCard extends StatelessWidget {
   Color get _accentColor => switch (mode) {
         PromptMode.basic => AppColors.brightBlue,
         PromptMode.pro => AppColors.gold,
-        PromptMode.expert => AppColors.deepBlue,
+        PromptMode.expert => AppColors.cyanGlow,
       };
 
   Color get _selectedColor => switch (mode) {
-        PromptMode.basic => AppColors.paleBlue,
-        PromptMode.pro => AppColors.paleGold,
-        PromptMode.expert => const Color(0xFFDDECF8),
+        PromptMode.basic => AppColors.deepGreen,
+        PromptMode.pro => const Color(0xFF4A3B12),
+        PromptMode.expert => AppColors.oceanBlue,
       };
 }

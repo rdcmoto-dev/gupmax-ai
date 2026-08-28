@@ -37,7 +37,7 @@ class AuthScaffold extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.96),
+                    color: AppColors.surface.withValues(alpha: 0.97),
                     borderRadius: BorderRadius.circular(26),
                     border: Border.all(color: AppColors.gold, width: 1.5),
                     boxShadow: const [
@@ -90,7 +90,7 @@ class AuthScaffold extends StatelessWidget {
                           data: Theme.of(context).copyWith(
                             inputDecorationTheme: InputDecorationTheme(
                               filled: true,
-                              fillColor: const Color(0xFFF4FAFD),
+                              fillColor: AppColors.raisedSurface,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 18,
                                 vertical: 17,

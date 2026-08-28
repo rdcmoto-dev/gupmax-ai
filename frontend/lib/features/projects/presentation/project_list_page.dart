@@ -182,32 +182,48 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                                         spacing: 6,
                                         runSpacing: 4,
                                         children: [
-                                          FilledButton(
+                                          FilledButton.icon(
                                             key:
                                                 Key('open_project_${item.key}'),
                                             onPressed: () =>
                                                 context.go(item.route),
-                                            child: Text(item.canContinue
+                                            icon: Icon(item.canContinue
+                                                ? Icons.play_arrow_rounded
+                                                : Icons.folder_open_outlined),
+                                            label: Text(item.canContinue
                                                 ? 'Continuar'
                                                 : 'Abrir'),
                                           ),
                                           if (item.project
                                               case final project?) ...[
-                                            TextButton(
+                                            TextButton.icon(
                                               onPressed: () => _form(project),
-                                              child: const Text('Editar'),
+                                              icon: const Icon(
+                                                  Icons.edit_outlined,
+                                                  size: 18),
+                                              label: const Text('Editar'),
                                             ),
-                                            TextButton(
+                                            TextButton.icon(
                                               onPressed: () =>
                                                   _toggleArchive(project),
-                                              child: Text(project.status ==
+                                              icon: Icon(
+                                                project.status ==
+                                                        ProjectStatus.active
+                                                    ? Icons.archive_outlined
+                                                    : Icons.unarchive_outlined,
+                                                size: 18,
+                                              ),
+                                              label: Text(project.status ==
                                                       ProjectStatus.active
                                                   ? 'Arquivar'
                                                   : 'Reativar'),
                                             ),
-                                            TextButton(
+                                            TextButton.icon(
                                               onPressed: () => _delete(project),
-                                              child: const Text('Excluir'),
+                                              icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  size: 18),
+                                              label: const Text('Excluir'),
                                             ),
                                           ],
                                         ],
