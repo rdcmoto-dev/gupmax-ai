@@ -1201,11 +1201,23 @@ class _ModeCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                        child: Text(title,
-                            style: Theme.of(context).textTheme.titleMedium)),
+                        child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color:
+                                selected ? Colors.white : AppColors.textPrimary,
+                          ),
+                    )),
                   ]),
                   const SizedBox(height: 8),
-                  Text(description),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: selected
+                          ? Colors.white.withValues(alpha: 0.9)
+                          : AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),

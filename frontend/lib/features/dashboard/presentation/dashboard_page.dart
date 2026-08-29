@@ -52,15 +52,14 @@ class DashboardPage extends ConsumerWidget {
       ),
       body: DecoratedBox(
         decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topCenter,
-            radius: 1.25,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
-              AppColors.oceanBlue,
-              AppColors.midnightBlue,
-              Color(0xFF020C1D),
+              AppColors.surface,
+              AppColors.background,
+              AppColors.paleLavender,
             ],
-            stops: [0, 0.58, 1],
           ),
         ),
         child: Center(
@@ -147,10 +146,7 @@ class DashboardPage extends ConsumerWidget {
                   const SizedBox(height: 28),
                   Text(
                     'Sua biblioteca e conta',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(color: Colors.white),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -257,16 +253,11 @@ class _RecentProjectsSection extends StatelessWidget {
             children: [
               Text(
                 'Projetos recentes',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(color: Colors.white),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               TextButton.icon(
                 key: const Key('see_all_projects'),
                 onPressed: onSeeAll,
-                style:
-                    TextButton.styleFrom(foregroundColor: AppColors.lightGold),
                 icon: const Icon(Icons.grid_view_rounded, size: 18),
                 label: const Text('Ver todos os projetos'),
               ),
@@ -412,9 +403,9 @@ class _RecentProjectCard extends StatelessWidget {
 }
 
 final _dashboardOutlineStyle = OutlinedButton.styleFrom(
-  foregroundColor: Colors.white,
-  backgroundColor: Colors.white.withValues(alpha: 0.08),
-  side: const BorderSide(color: AppColors.cyanGlow),
+  foregroundColor: AppColors.oceanBlue,
+  backgroundColor: AppColors.raisedSurface,
+  side: const BorderSide(color: AppColors.gold),
 );
 
 class _UserDetail extends StatelessWidget {

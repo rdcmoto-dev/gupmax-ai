@@ -10,14 +10,16 @@ abstract final class AppColors {
   static const oceanBlue = Color(0xFF063F69);
   static const electricBlue = Color(0xFF0B91C9);
   static const cyanGlow = Color(0xFF53D9F2);
-  static const background = Color(0xFF03162F);
-  static const surface = Color(0xFF0A2C4D);
-  static const raisedSurface = Color(0xFF103C62);
+  static const violet = Color(0xFF6936E8);
+  static const paleLavender = Color(0xFFB9A6DF);
+  static const background = Color(0xFF68548F);
+  static const surface = Color(0xFFCFC2EA);
+  static const raisedSurface = Color(0xFFBDADE0);
   static const paleMint = Color(0xFFE4F7ED);
   static const paleGold = Color(0xFFFFF7DC);
-  static const textPrimary = Color(0xFFF4FAFF);
-  static const textSecondary = Color(0xFFB9D4E8);
-  static const border = Color(0xFF35739A);
+  static const textPrimary = Color(0xFF10213E);
+  static const textSecondary = Color(0xFF596985);
+  static const border = Color(0xFF8F79BB);
 
   // Aliases preservam componentes anteriores dentro da identidade azul,
   // verde-claro e dourada.
@@ -27,23 +29,23 @@ abstract final class AppColors {
 }
 
 abstract final class AppTheme {
-  static const _colors = ColorScheme.dark(
-    primary: AppColors.brightGreen,
-    onPrimary: AppColors.midnightBlue,
-    primaryContainer: AppColors.deepGreen,
-    onPrimaryContainer: Colors.white,
-    secondary: AppColors.brightGreen,
-    onSecondary: AppColors.midnightBlue,
-    secondaryContainer: AppColors.oceanBlue,
-    onSecondaryContainer: Colors.white,
+  static const _colors = ColorScheme.light(
+    primary: AppColors.violet,
+    onPrimary: Colors.white,
+    primaryContainer: AppColors.paleLavender,
+    onPrimaryContainer: AppColors.midnightBlue,
+    secondary: AppColors.electricBlue,
+    onSecondary: Colors.white,
+    secondaryContainer: AppColors.raisedSurface,
+    onSecondaryContainer: AppColors.midnightBlue,
     tertiary: AppColors.gold,
     onTertiary: AppColors.midnightBlue,
-    tertiaryContainer: AppColors.oceanBlue,
-    onTertiaryContainer: Colors.white,
+    tertiaryContainer: AppColors.paleGold,
+    onTertiaryContainer: AppColors.midnightBlue,
     surface: AppColors.surface,
     onSurface: AppColors.textPrimary,
     onSurfaceVariant: AppColors.textSecondary,
-    outline: AppColors.deepBlue,
+    outline: AppColors.oceanBlue,
     outlineVariant: AppColors.border,
   );
 
@@ -51,6 +53,7 @@ abstract final class AppTheme {
     useMaterial3: true,
     colorScheme: _colors,
     scaffoldBackgroundColor: AppColors.background,
+    canvasColor: AppColors.background,
     textTheme: Typography.material2021().black.apply(
       bodyColor: AppColors.textPrimary,
       displayColor: AppColors.textPrimary,
@@ -85,11 +88,11 @@ abstract final class AppTheme {
     cardTheme: const CardThemeData(
       color: AppColors.surface,
       surfaceTintColor: Colors.transparent,
-      elevation: 5,
-      shadowColor: Color(0x77000000),
+      elevation: 2,
+      shadowColor: Color(0x2410213E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(20)),
-        side: BorderSide(color: AppColors.gold, width: 1.2),
+        side: BorderSide(color: AppColors.border, width: 1.1),
       ),
     ),
     inputDecorationTheme: const InputDecorationTheme(
@@ -98,15 +101,15 @@ abstract final class AppTheme {
         borderSide: BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: AppColors.deepGreen, width: 2),
+        borderSide: BorderSide(color: AppColors.violet, width: 2),
       ),
       filled: true,
       fillColor: AppColors.raisedSurface,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.brightGreen,
-        foregroundColor: AppColors.midnightBlue,
+        backgroundColor: AppColors.violet,
+        foregroundColor: Colors.white,
         disabledBackgroundColor: AppColors.border,
         elevation: 5,
         side: const BorderSide(color: AppColors.lightGold, width: 1.4),
@@ -116,8 +119,8 @@ abstract final class AppTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.white,
-        backgroundColor: AppColors.electricBlue,
+        foregroundColor: AppColors.oceanBlue,
+        backgroundColor: AppColors.raisedSurface,
         side: const BorderSide(color: AppColors.lightGold, width: 1.3),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -125,27 +128,27 @@ abstract final class AppTheme {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.lightGold,
-        backgroundColor: AppColors.oceanBlue.withValues(alpha: 0.72),
+        foregroundColor: AppColors.oceanBlue,
+        backgroundColor: AppColors.paleLavender,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
     chipTheme: ChipThemeData(
-      backgroundColor: AppColors.raisedSurface,
-      selectedColor: AppColors.deepGreen,
-      secondarySelectedColor: AppColors.deepGreen,
-      side: const BorderSide(color: AppColors.gold),
+      backgroundColor: AppColors.surface,
+      selectedColor: AppColors.paleLavender,
+      secondarySelectedColor: AppColors.paleLavender,
+      side: const BorderSide(color: AppColors.border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
-            ? AppColors.deepBlue
+            ? AppColors.violet
             : AppColors.surface,
       ),
       trackColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
-            ? AppColors.brightBlue.withValues(alpha: 0.55)
+            ? AppColors.violet.withValues(alpha: 0.35)
             : AppColors.border,
       ),
     ),
@@ -155,13 +158,27 @@ abstract final class AppTheme {
     ),
     navigationBarTheme: const NavigationBarThemeData(
       backgroundColor: AppColors.midnightBlue,
-      indicatorColor: AppColors.deepGreen,
+      indicatorColor: AppColors.violet,
+    ),
+    listTileTheme: const ListTileThemeData(
+      tileColor: Colors.transparent,
+      textColor: AppColors.textPrimary,
+      iconColor: AppColors.oceanBlue,
+    ),
+    popupMenuTheme: const PopupMenuThemeData(
+      color: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
+      textStyle: TextStyle(color: AppColors.textPrimary),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+        side: BorderSide(color: AppColors.border),
+      ),
     ),
     dividerTheme: const DividerThemeData(color: AppColors.border),
-    iconTheme: const IconThemeData(color: AppColors.cyanGlow),
+    iconTheme: const IconThemeData(color: AppColors.oceanBlue),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: AppColors.brightGreen,
-      foregroundColor: AppColors.midnightBlue,
+      backgroundColor: AppColors.violet,
+      foregroundColor: Colors.white,
       elevation: 6,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(18)),
@@ -173,7 +190,7 @@ abstract final class AppTheme {
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(22)),
-        side: BorderSide(color: AppColors.gold),
+        side: BorderSide(color: AppColors.border),
       ),
     ),
   );
