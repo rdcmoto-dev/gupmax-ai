@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gupmax_ai/core/errors/app_exception.dart';
+import 'package:gupmax_ai/core/theme/app_theme.dart';
 import 'package:gupmax_ai/features/payments_history/domain/payment_history_models.dart';
 import 'package:gupmax_ai/features/payments_history/payments_history_providers.dart';
 import 'package:gupmax_ai/features/payments_history/presentation/payment_detail_page.dart';
@@ -56,6 +57,39 @@ void main() {
     expect(find.text('Falhou'), findsOneWidget);
     expect(find.text('Cancelado'), findsOneWidget);
     expect(find.text('500 créditos'), findsNWidgets(4));
+  });
+
+  testWidgets('filtros usam superfície lilás e texto de alto contraste',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          paymentHistoryRepositoryProvider
+              .overrideWithValue(FakePaymentHistoryRepository()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const PaymentHistoryPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final statusField = find.byKey(const Key('payment_filter_status'));
+    final decorator = tester.widget<InputDecorator>(
+      find.descendant(of: statusField, matching: find.byType(InputDecorator)),
+    );
+    final dropdown = tester.widget<DropdownButton<String?>>(
+      find.descendant(
+          of: statusField, matching: find.byType(DropdownButton<String?>)),
+    );
+    expect(decorator.decoration.fillColor, AppColors.raisedSurface);
+    expect(dropdown.style?.color, AppColors.textPrimary);
+    expect(dropdown.iconEnabledColor, AppColors.oceanBlue);
+    expect(
+        Theme.of(tester.element(find.text('Histórico financeiro')))
+            .cardTheme
+            .color,
+        AppColors.surface);
   });
 
   testWidgets('detalhe mostra dados permitidos e produto amigável',

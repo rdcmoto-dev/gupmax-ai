@@ -8,6 +8,9 @@ class FakePromptChainRepository implements PromptChainRepositoryContract {
   int createCalls = 0;
   int addStepCalls = 0;
   int reorderCalls = 0;
+  int startExecutionCalls = 0;
+  int deleteCalls = 0;
+  int updateCalls = 0;
 
   @override
   Future<List<PromptChainRecord>> list(
@@ -26,11 +29,39 @@ class FakePromptChainRepository implements PromptChainRepositoryContract {
 
   @override
   Future<PromptChainRecord> update(
-          String id, Map<String, dynamic> values) async =>
-      await get(id);
+      String id, Map<String, dynamic> values) async {
+    updateCalls++;
+    final current = await get(id);
+    final updated = PromptChainRecord(
+      id: current.id,
+      name: values['name'] as String? ?? current.name,
+      description: values['description'] as String? ?? current.description,
+      projectId: current.projectId,
+      status: values['status'] == null
+          ? current.status
+          : PromptChainStatus.values.byName(values['status'] as String),
+      stepCount: current.stepCount,
+      steps: current.steps,
+      completedStepCount: current.completedStepCount,
+      currentStepId: current.currentStepId,
+      executionCompleted: current.executionCompleted,
+      category: current.category,
+      createdAt: current.createdAt,
+      updatedAt: current.updatedAt,
+    );
+    items = [
+      for (final item in items)
+        if (item.id == id) updated else item,
+    ];
+    return updated;
+  }
+
   @override
-  Future<void> delete(String id) async =>
-      items = items.where((value) => value.id != id).toList();
+  Future<void> delete(String id) async {
+    deleteCalls++;
+    items = items.where((value) => value.id != id).toList();
+  }
+
   @override
   Future<PromptChainStep> addStep(
       String chainId, Map<String, dynamic> values) async {
@@ -79,6 +110,7 @@ class FakePromptChainRepository implements PromptChainRepositoryContract {
 
   @override
   Future<PromptChainRecord> startExecution(String chainId) async {
+    startExecutionCalls++;
     final chain = await get(chainId);
     final current = chain.steps.indexWhere(
         (step) => step.executionStatus != PromptChainStepStatus.completed);
@@ -135,6 +167,7 @@ class FakePromptChainRepository implements PromptChainRepositoryContract {
       executionCompleted: steps.isNotEmpty && completed == steps.length,
       createdAt: chain.createdAt,
       updatedAt: chain.updatedAt,
+      category: chain.category,
     );
     items = [
       for (final item in items)

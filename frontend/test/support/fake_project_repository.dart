@@ -8,6 +8,8 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   Completer<ProjectPageData>? listCompleter;
   int assignPromptCalls = 0;
   int assignTemplateCalls = 0;
+  int updateCalls = 0;
+  int deleteCalls = 0;
 
   @override
   Future<ProjectPageData> list(
@@ -29,6 +31,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
 
   @override
   Future<ProjectRecord> update(String id, Map<String, dynamic> values) async {
+    updateCalls++;
     final current = await get(id);
     final updated = projectSample(
       id: id,
@@ -46,6 +49,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
 
   @override
   Future<void> delete(String id) async {
+    deleteCalls++;
     items = items.where((item) => item.id != id).toList();
   }
 

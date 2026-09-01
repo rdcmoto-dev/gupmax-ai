@@ -19,15 +19,24 @@ class PromptChainController extends ChangeNotifier {
         final value = await repository.create(values);
         items = [value, ...items];
       });
-  Future<void> update(String id, Map<String, dynamic> values) async =>
-      _run(() async {
-        await repository.update(id, values);
-        await load();
-      });
-  Future<void> remove(String id) async => _run(() async {
-        await repository.delete(id);
-        items = items.where((item) => item.id != id).toList();
-      });
+  Future<bool> update(String id, Map<String, dynamic> values) async {
+    var ok = true;
+    await _run(() async {
+      await repository.update(id, values);
+      await load();
+    }, onError: () => ok = false);
+    return ok;
+  }
+
+  Future<bool> remove(String id) async {
+    var ok = true;
+    await _run(() async {
+      await repository.delete(id);
+      items = items.where((item) => item.id != id).toList();
+    }, onError: () => ok = false);
+    return ok;
+  }
+
   Future<void> addStep(String id, Map<String, dynamic> values) async =>
       _run(() async {
         await repository.addStep(id, values);
@@ -56,7 +65,8 @@ class PromptChainController extends ChangeNotifier {
       _run(() async =>
           selected = await repository.completeStep(id, stepId, result));
 
-  Future<void> _run(Future<void> Function() operation) async {
+  Future<void> _run(Future<void> Function() operation,
+      {VoidCallback? onError}) async {
     loading = true;
     error = null;
     notifyListeners();
@@ -64,6 +74,7 @@ class PromptChainController extends ChangeNotifier {
       await operation();
     } catch (_) {
       error = 'Não foi possível concluir a operação com o fluxo.';
+      onError?.call();
     } finally {
       loading = false;
       notifyListeners();

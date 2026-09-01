@@ -48,9 +48,9 @@ void main() {
     expect(find.text('Reativar'), findsOneWidget);
     await tester.tap(find.text('Reativar'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Excluir'));
+    await tester.tap(find.byKey(const Key('remove_project_project-1')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('confirm_project_delete')));
+    await tester.tap(find.byKey(const Key('confirm_project_remove')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('projects_empty')), findsOneWidget);
   });

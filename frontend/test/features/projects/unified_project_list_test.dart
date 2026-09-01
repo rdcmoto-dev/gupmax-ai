@@ -33,9 +33,9 @@ void main() {
               Scaffold(body: Text('Projeto ${state.pathParameters['id']}')),
         ),
         GoRoute(
-          path: '/chains/:id',
+          path: '/project-workspace/chains/:id',
           builder: (_, state) =>
-              Scaffold(body: Text('Fluxo ${state.pathParameters['id']}')),
+              Scaffold(body: Text('Central ${state.pathParameters['id']}')),
         ),
         GoRoute(
           path: '/dashboard',
@@ -98,7 +98,7 @@ void main() {
     expect(find.text('Fluxo planner'), findsOneWidget);
     await tester.tap(find.byKey(const Key('open_project_planner')));
     await tester.pumpAndSettle();
-    expect(find.text('Fluxo planner'), findsOneWidget);
+    expect(find.text('Central planner'), findsOneWidget);
   });
 
   testWidgets('Project e Chain associados aparecem uma vez com progresso',
@@ -159,5 +159,72 @@ void main() {
     );
     expect(find.byKey(const Key('projects_empty')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Project isolado usa exclusão existente após confirmação',
+      (tester) async {
+    final projects = FakeProjectRepository()..items = [project('solo')];
+    await pumpList(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+    );
+    await tester.tap(find.byKey(const Key('remove_project_solo')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Projeto solo'), findsWidgets);
+    await tester.tap(find.byKey(const Key('confirm_project_remove')));
+    await tester.pumpAndSettle();
+    expect(projects.deleteCalls, 1);
+    expect(projects.items, isEmpty);
+  });
+
+  testWidgets('Chain isolada usa exclusão segura e atualiza a lista',
+      (tester) async {
+    final chains = FakePromptChainRepository()..items = [chain(id: 'planner')];
+    await pumpList(
+      tester,
+      projects: FakeProjectRepository(),
+      chains: chains,
+    );
+    await tester.tap(find.byKey(const Key('remove_project_planner')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm_project_remove')));
+    await tester.pumpAndSettle();
+    expect(chains.deleteCalls, 1);
+    expect(chains.items, isEmpty);
+  });
+
+  testWidgets('Project e Chain associados são arquivados sem cascade delete',
+      (tester) async {
+    final projects = FakeProjectRepository()..items = [project('delivery')];
+    final chains = FakePromptChainRepository()
+      ..items = [chain(id: 'flow', projectId: 'delivery')];
+    await pumpList(tester, projects: projects, chains: chains);
+
+    await tester.tap(find.byKey(const Key('remove_project_delivery')));
+    await tester.pumpAndSettle();
+    expect(find.text('Arquivar trabalho?'), findsOneWidget);
+    expect(find.textContaining('preservar etapas'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm_project_remove')));
+    await tester.pumpAndSettle();
+
+    expect(projects.deleteCalls, 0);
+    expect(chains.deleteCalls, 0);
+    expect(projects.items.single.status, ProjectStatus.archived);
+    expect(chains.items.single.status, PromptChainStatus.archived);
+  });
+
+  testWidgets('cancelar remoção mantém Project e Chain associados',
+      (tester) async {
+    final projects = FakeProjectRepository()..items = [project('delivery')];
+    final chains = FakePromptChainRepository()
+      ..items = [chain(id: 'flow', projectId: 'delivery')];
+    await pumpList(tester, projects: projects, chains: chains);
+    await tester.tap(find.byKey(const Key('remove_project_delivery')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(projects.updateCalls, 0);
+    expect(chains.updateCalls, 0);
   });
 }

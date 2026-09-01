@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_page_app_bar.dart';
 import '../../usage/domain/usage_models.dart';
 import '../domain/payment_history_models.dart';
@@ -262,17 +263,44 @@ class _Dropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
         width: 200,
-        child: DropdownButtonFormField<String?>(
-          isExpanded: true,
-          initialValue: value,
-          decoration: InputDecoration(
-              labelText: label, border: const OutlineInputBorder()),
-          items: [
-            const DropdownMenuItem(value: null, child: Text('Todos')),
-            ...entries.entries.map((entry) =>
-                DropdownMenuItem(value: entry.key, child: Text(entry.value))),
-          ],
-          onChanged: changed,
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            canvasColor: AppColors.surface,
+            disabledColor: AppColors.textSecondary,
+          ),
+          child: DropdownButtonFormField<String?>(
+            key: Key('payment_filter_${label.toLowerCase()}'),
+            isExpanded: true,
+            initialValue: value,
+            dropdownColor: AppColors.surface,
+            iconEnabledColor: AppColors.oceanBlue,
+            iconDisabledColor: AppColors.textSecondary,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: InputDecoration(
+              labelText: label,
+              filled: true,
+              fillColor: AppColors.raisedSurface,
+              border: const OutlineInputBorder(),
+              enabledBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: AppColors.oceanBlue),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: AppColors.lightGold, width: 2),
+              ),
+              disabledBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: AppColors.border),
+              ),
+            ),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Todos')),
+              ...entries.entries.map((entry) =>
+                  DropdownMenuItem(value: entry.key, child: Text(entry.value))),
+            ],
+            onChanged: changed,
+          ),
         ),
       );
 }

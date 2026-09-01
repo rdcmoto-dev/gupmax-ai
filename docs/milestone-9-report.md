@@ -570,3 +570,31 @@ SMOKE MANUAL REAL DA ETAPA 9.19: APROVADO
 O smoke manual real confirmou Projects e Prompt Chains reais no Dashboard e na visão unificada de “Meus projetos”, incluindo Delivery Restaurantes e Lançamento Pizzaria Donatello com categoria, progresso e status corretos. Não houve duplicidade entre Project e Chain associados. As ações “Abrir”, “Continuar” e a navegação entre Dashboard, Projects e Prompt Chains foram aprovadas.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## Etapa 9.20 — Project Workspace / Central do Projeto
+
+A Central do Projeto unifica a abertura de Project e Prompt Chain em uma tela simples de trabalho. A composição reutiliza os contratos existentes: o detalhe de Project fornece nome, descrição, contexto, prompts e templates associados; o detalhe de Chain fornece categoria, etapas, estado persistente, progresso e etapa atual. Project + Chain associados continuam representando um único trabalho, e Chains independentes do Expert Planner recebem a mesma experiência sem criar um Project artificial.
+
+A tela destaca primeiro o progresso e uma única ação principal contextual: “Iniciar projeto”, “Continuar projeto” ou “Ver projeto concluído”. A lista compacta mostra somente número, título e estado de cada etapa, com destaque visual para a etapa atual. Ao iniciar, a operação persistente e idempotente já existente é reutilizada; ao retornar da execução guiada, a Central invalida sua leitura e busca novamente o estado persistido, atualizando progresso e próxima etapa sem duplicar estado no frontend.
+
+Projects sem Chain não exibem progresso inventado. Eles preservam criação e associação de prompts/templates e mostram somente conteúdo realmente relacionado pelo `project_id`. A navegação Dashboard/Meus projetos → Central → execução usa as rotas existentes e `push`, permitindo que “Voltar” retorne à Central; o fallback padrão permanece “Meus projetos”/Dashboard.
+
+Nenhum endpoint, tabela ou migration foi criado. Ownership, isolamento entre usuários e 404 uniforme permanecem nos endpoints existentes de Projects e Prompt Chains. A Central é determinística: não chama OpenAI, Gemini ou Anthropic, não consome créditos, não cria Usage e não altera Ledger.
+
+**Status: IMPLEMENTADA — AGUARDANDO SMOKE MANUAL.**
+
+### Correções pré-auditoria da Etapa 9.20
+
+O smoke preliminar identificou baixo contraste nos filtros do Histórico financeiro e inconsistência entre superfícies brancas e lilás. O tema global passou a definir superfícies, campos, menus, labels, ícones, bordas, foco, estado desabilitado, diálogos e feedback sobre a paleta lilás existente, mantendo texto azul-marinho de alto contraste. Cards de Dashboard, Projects, Prompts, Chains, formulários, históricos e Project Workspace herdam o mesmo padrão sem introduzir lógica funcional de estilo nas páginas.
+
+“Meus prompts” passou a oferecer lixeira discreta por registro, com tooltip, identificação nominal, confirmação explícita, cancelamento seguro, bloqueio durante processamento, atualização imediata e feedback de sucesso ou erro. A operação reutiliza o DELETE autenticado existente e seu ownership/404 uniforme.
+
+Na visão unificada de Projects, Project isolado e Chain isolada reutilizam suas exclusões existentes. Quando Project e Chain representam o mesmo trabalho, a ação não executa cascade delete: a confirmação explica a preservação e arquiva os dois componentes. “Meus fluxos” também passou a exigir confirmação nominal antes da exclusão segura já suportada. Pagamentos e transações permanecem imutáveis e sem ação destrutiva.
+
+**Status das correções: IMPLEMENTADAS — AGUARDANDO SMOKE MANUAL. A Etapa 9.20 ainda não está finalmente aprovada.**
+
+SMOKE MANUAL REAL DA ETAPA 9.20: APROVADO
+
+O smoke final confirmou a Central do Projeto, o progresso persistente de 0/2 para 1/2, a atualização da etapa concluída e da próxima etapa atual, “Continuar projeto” abrindo a etapa correta e a navegação Central → execução → Central. Também foram aprovados o padrão visual lilás, o contraste do Histórico financeiro e o gerenciamento seguro de Prompts, Projects e Chains, mantendo confirmação explícita e nenhum mecanismo destrutivo no histórico financeiro.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

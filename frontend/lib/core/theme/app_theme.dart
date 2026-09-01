@@ -15,6 +15,7 @@ abstract final class AppColors {
   static const background = Color(0xFF68548F);
   static const surface = Color(0xFFCFC2EA);
   static const raisedSurface = Color(0xFFBDADE0);
+  static const mutedSurface = Color(0xFFC5B7E4);
   static const paleMint = Color(0xFFE4F7ED);
   static const paleGold = Color(0xFFFFF7DC);
   static const textPrimary = Color(0xFF10213E);
@@ -43,6 +44,13 @@ abstract final class AppTheme {
     tertiaryContainer: AppColors.paleGold,
     onTertiaryContainer: AppColors.midnightBlue,
     surface: AppColors.surface,
+    surfaceDim: AppColors.raisedSurface,
+    surfaceBright: AppColors.paleLavender,
+    surfaceContainerLowest: AppColors.surface,
+    surfaceContainerLow: AppColors.surface,
+    surfaceContainer: AppColors.mutedSurface,
+    surfaceContainerHigh: AppColors.raisedSurface,
+    surfaceContainerHighest: AppColors.paleLavender,
     onSurface: AppColors.textPrimary,
     onSurfaceVariant: AppColors.textSecondary,
     outline: AppColors.oceanBlue,
@@ -105,6 +113,29 @@ abstract final class AppTheme {
       ),
       filled: true,
       fillColor: AppColors.raisedSurface,
+      labelStyle: TextStyle(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.w600,
+      ),
+      floatingLabelStyle: TextStyle(
+        color: AppColors.midnightBlue,
+        fontWeight: FontWeight.w700,
+      ),
+      hintStyle: TextStyle(color: AppColors.textSecondary),
+      iconColor: AppColors.oceanBlue,
+      prefixIconColor: AppColors.oceanBlue,
+      suffixIconColor: AppColors.oceanBlue,
+    ),
+    dropdownMenuTheme: const DropdownMenuThemeData(
+      textStyle: TextStyle(color: AppColors.textPrimary),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.raisedSurface,
+        labelStyle: TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -192,6 +223,12 @@ abstract final class AppTheme {
         borderRadius: BorderRadius.all(Radius.circular(22)),
         side: BorderSide(color: AppColors.border),
       ),
+    ),
+    snackBarTheme: const SnackBarThemeData(
+      backgroundColor: AppColors.midnightBlue,
+      contentTextStyle: TextStyle(color: Colors.white),
+      actionTextColor: AppColors.lightGold,
+      behavior: SnackBarBehavior.floating,
     ),
   );
 }

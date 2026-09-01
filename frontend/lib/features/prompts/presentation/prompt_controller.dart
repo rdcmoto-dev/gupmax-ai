@@ -26,6 +26,7 @@ class PromptController extends ChangeNotifier {
   int offset = 0;
   bool isComparing = false;
   String? comparisonError;
+  String? deletionError;
   List<MultiTargetPreview> comparisonItems = [];
   PromptGenerateInput? comparisonInput;
   final Map<TargetAI, PromptRecord> savedComparisons = {};
@@ -289,7 +290,7 @@ class PromptController extends ChangeNotifier {
   Future<bool> remove(String id) async {
     if (isSubmitting) return false;
     isSubmitting = true;
-    error = null;
+    deletionError = null;
     notifyListeners();
     try {
       await _repository.delete(id);
@@ -298,7 +299,7 @@ class PromptController extends ChangeNotifier {
       selected = null;
       return true;
     } on AppException catch (exception) {
-      error = exception.message;
+      deletionError = exception.message;
       return false;
     } finally {
       isSubmitting = false;

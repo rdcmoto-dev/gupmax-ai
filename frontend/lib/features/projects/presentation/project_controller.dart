@@ -25,19 +25,28 @@ class ProjectController extends ChangeNotifier {
     return ok;
   }
 
-  Future<void> update(String id, Map<String, dynamic> values) async =>
-      _run(() async {
-        final updated = await repository.update(id, values);
-        items = [
-          for (final item in items)
-            if (item.id == id) updated else item
-        ];
-        if (selected?.id == id) selected = await repository.get(id);
-      });
-  Future<void> remove(String id) async => _run(() async {
-        await repository.delete(id);
-        items = items.where((item) => item.id != id).toList();
-      });
+  Future<bool> update(String id, Map<String, dynamic> values) async {
+    var ok = true;
+    await _run(() async {
+      final updated = await repository.update(id, values);
+      items = [
+        for (final item in items)
+          if (item.id == id) updated else item
+      ];
+      if (selected?.id == id) selected = await repository.get(id);
+    }, onError: () => ok = false);
+    return ok;
+  }
+
+  Future<bool> remove(String id) async {
+    var ok = true;
+    await _run(() async {
+      await repository.delete(id);
+      items = items.where((item) => item.id != id).toList();
+    }, onError: () => ok = false);
+    return ok;
+  }
+
   Future<void> assignPrompt(String projectId, String promptId) async =>
       _run(() async {
         await repository.assignPrompt(projectId, promptId);

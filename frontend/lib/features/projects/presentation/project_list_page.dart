@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_page_app_bar.dart';
+import '../../prompt_chains/prompt_chain_providers.dart';
 import '../domain/project.dart';
 import '../project_overview.dart';
 import '../project_providers.dart';
@@ -16,6 +17,7 @@ class ProjectListPage extends ConsumerStatefulWidget {
 }
 
 class _ProjectListPageState extends ConsumerState<ProjectListPage> {
+  String? _removingKey;
   void _refresh() =>
       ref.invalidate(projectOverviewsProvider(_allProjectsQuery));
 
@@ -96,13 +98,21 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
     _refresh();
   }
 
-  Future<void> _delete(ProjectRecord project) async {
+  Future<void> _removeOverview(ProjectOverview item) async {
+    final linked = item.project != null && item.chain != null;
+    final itemKind = linked
+        ? 'o projeto e o fluxo associados'
+        : item.project != null
+            ? 'o projeto'
+            : 'o fluxo';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Excluir projeto?'),
-        content: const Text(
-          'Prompts e templates serão preservados sem associação.',
+        title: Text(linked ? 'Arquivar trabalho?' : 'Excluir trabalho?'),
+        content: Text(
+          linked
+              ? '"${item.name}" reúne um projeto e um fluxo. Para preservar etapas, resultados e relações, os dois serão arquivados, não excluídos.'
+              : 'Deseja excluir $itemKind "${item.name}"? ${item.project != null ? 'Prompts e templates serão preservados sem associação.' : 'As etapas e os resultados deste fluxo também serão removidos.'}',
         ),
         actions: [
           TextButton(
@@ -110,17 +120,46 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            key: const Key('confirm_project_delete'),
+            key: const Key('confirm_project_remove'),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Excluir'),
+            child: Text(linked ? 'Arquivar' : 'Excluir'),
           ),
         ],
       ),
     );
-    if (confirmed == true) {
-      await ref.read(projectControllerProvider).remove(project.id);
-      _refresh();
+    if (confirmed != true || !mounted) return;
+    setState(() => _removingKey = item.key);
+    var success = true;
+    if (linked) {
+      final projectOk = await ref
+          .read(projectControllerProvider)
+          .update(item.project!.id, {'status': 'archived'});
+      final chainOk = projectOk &&
+          await ref
+              .read(promptChainControllerProvider)
+              .update(item.chain!.id, {'status': 'archived'});
+      success = projectOk && chainOk;
+      if (projectOk && !chainOk) {
+        await ref.read(projectControllerProvider).update(item.project!.id, {
+          'status': item.project!.status.name,
+        });
+      }
+    } else if (item.project case final project?) {
+      success = await ref.read(projectControllerProvider).remove(project.id);
+    } else {
+      success =
+          await ref.read(promptChainControllerProvider).remove(item.chain!.id);
     }
+    if (!mounted) return;
+    setState(() => _removingKey = null);
+    if (success) _refresh();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(success
+          ? linked
+              ? '"${item.name}" foi arquivado com segurança.'
+              : '"${item.name}" foi excluído.'
+          : 'Não foi possível ${linked ? 'arquivar' : 'excluir'} "${item.name}".'),
+    ));
   }
 
   @override
@@ -218,14 +257,30 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                                                   ? 'Arquivar'
                                                   : 'Reativar'),
                                             ),
-                                            TextButton.icon(
-                                              onPressed: () => _delete(project),
-                                              icon: const Icon(
-                                                  Icons.delete_outline,
-                                                  size: 18),
-                                              label: const Text('Excluir'),
-                                            ),
                                           ],
+                                          IconButton(
+                                            key: Key(
+                                                'remove_project_${item.key}'),
+                                            tooltip: item.project != null &&
+                                                    item.chain != null
+                                                ? 'Arquivar trabalho'
+                                                : 'Excluir',
+                                            onPressed: _removingKey == null
+                                                ? () => _removeOverview(item)
+                                                : null,
+                                            icon: _removingKey == item.key
+                                                ? const SizedBox.square(
+                                                    dimension: 18,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.delete_outline,
+                                                    size: 20,
+                                                  ),
+                                          ),
                                         ],
                                       ),
                                     ],

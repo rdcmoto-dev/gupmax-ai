@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../domain/prompt_models.dart';
 import '../prompt_providers.dart';
 import 'prompt_controller.dart';
 import 'prompt_scaffold.dart';
@@ -14,6 +15,7 @@ class PromptListPage extends ConsumerStatefulWidget {
 }
 
 class _PromptListPageState extends ConsumerState<PromptListPage> {
+  String? _deletingId;
   @override
   void initState() {
     super.initState();
@@ -71,7 +73,27 @@ class _PromptListPageState extends ConsumerState<PromptListPage> {
                     title: Text(prompt.title),
                     subtitle: Text(
                         '${prompt.category.label} • ${prompt.mode.name.toUpperCase()} • ${prompt.targetAi.label} • ${_date(prompt.createdAt)}'),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          key: Key('delete_prompt_${prompt.id}'),
+                          tooltip: 'Excluir',
+                          onPressed: _deletingId == null
+                              ? () => _confirmDelete(prompt)
+                              : null,
+                          icon: _deletingId == prompt.id
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.delete_outline),
+                        ),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
                     onTap: () => context.go('/prompts/${prompt.id}'),
                   ),
                 )),
@@ -110,6 +132,41 @@ class _PromptListPageState extends ConsumerState<PromptListPage> {
 
   static String _date(DateTime value) =>
       '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
+
+  Future<void> _confirmDelete(PromptRecord prompt) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir prompt?'),
+        content: Text(
+          'O prompt "${prompt.title}" será excluído. Esta ação não pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            key: const Key('confirm_prompt_delete'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deletingId = prompt.id);
+    final removed = await ref.read(promptControllerProvider).remove(prompt.id);
+    if (!mounted) return;
+    setState(() => _deletingId = null);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(removed
+          ? 'Prompt "${prompt.title}" excluído.'
+          : (ref.read(promptControllerProvider).deletionError ??
+              'Não foi possível excluir o prompt.')),
+    ));
+  }
 }
 
 class _Message extends StatelessWidget {

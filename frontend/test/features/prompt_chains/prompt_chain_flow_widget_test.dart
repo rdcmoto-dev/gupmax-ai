@@ -106,6 +106,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Meus fluxos exige confirmação antes de excluir', (tester) async {
+    final repository = FakePromptChainRepository()
+      ..items = [chainSample(name: 'Fluxo protegido')];
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        promptChainRepositoryProvider.overrideWithValue(repository),
+        projectRepositoryProvider.overrideWithValue(FakeProjectRepository()),
+      ],
+      child: const MaterialApp(home: PromptChainListPage()),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('delete_chain_chain-1')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Fluxo protegido'), findsWidgets);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(repository.deleteCalls, 0);
+
+    await tester.tap(find.byKey(const Key('delete_chain_chain-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm_chain_delete')));
+    await tester.pumpAndSettle();
+    expect(repository.deleteCalls, 1);
+    expect(find.text('Fluxo protegido'), findsNothing);
+  });
+
   testWidgets('resultado anterior reaparece ao reabrir e reconstruir a etapa',
       (tester) async {
     final chains = FakePromptChainRepository()

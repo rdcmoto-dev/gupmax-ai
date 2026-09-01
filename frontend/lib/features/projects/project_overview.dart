@@ -101,6 +101,7 @@ class ProjectOverview {
       chain != null &&
       !chain!.executionCompleted &&
       (chain!.completedStepCount > 0 || chain!.currentStepId != null);
-  String get route =>
-      chain != null ? '/chains/${chain!.id}' : '/projects/${project!.id}';
+  String get route => project != null
+      ? '/projects/${project!.id}'
+      : '/project-workspace/chains/${chain!.id}';
 }

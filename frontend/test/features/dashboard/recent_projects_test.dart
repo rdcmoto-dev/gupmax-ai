@@ -47,9 +47,9 @@ void main() {
               Scaffold(body: Text('Projeto ${state.pathParameters['id']}')),
         ),
         GoRoute(
-          path: '/chains/:id',
+          path: '/project-workspace/chains/:id',
           builder: (_, state) =>
-              Scaffold(body: Text('Fluxo ${state.pathParameters['id']}')),
+              Scaffold(body: Text('Central ${state.pathParameters['id']}')),
         ),
         GoRoute(
           path: '/prompts/new',
@@ -178,7 +178,7 @@ void main() {
         findsOneWidget);
     await tester.tap(continueButton);
     await tester.pumpAndSettle();
-    expect(find.text('Fluxo execucao'), findsOneWidget);
+    expect(find.text('Central execucao'), findsOneWidget);
   });
 
   testWidgets(

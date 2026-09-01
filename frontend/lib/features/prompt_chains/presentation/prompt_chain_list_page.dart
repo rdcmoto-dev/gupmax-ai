@@ -15,6 +15,7 @@ class PromptChainListPage extends ConsumerStatefulWidget {
 }
 
 class _PromptChainListPageState extends ConsumerState<PromptChainListPage> {
+  String? _deletingId;
   @override
   void initState() {
     super.initState();
@@ -124,6 +125,41 @@ class _PromptChainListPageState extends ConsumerState<PromptChainListPage> {
     });
   }
 
+  Future<void> _delete(PromptChainRecord chain) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir fluxo?'),
+        content: Text(
+          'O fluxo "${chain.name}", suas etapas e resultados serão excluídos. Esta ação não pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            key: const Key('confirm_chain_delete'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deletingId = chain.id);
+    final success =
+        await ref.read(promptChainControllerProvider).remove(chain.id);
+    if (!mounted) return;
+    setState(() => _deletingId = null);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(success
+          ? 'Fluxo "${chain.name}" excluído.'
+          : 'Não foi possível excluir o fluxo "${chain.name}".'),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(promptChainControllerProvider);
@@ -200,12 +236,26 @@ class _PromptChainListPageState extends ConsumerState<PromptChainListPage> {
                                                               .active
                                                       ? 'Arquivar'
                                                       : 'Reativar')),
-                                              TextButton(
-                                                  onPressed: () => ref
-                                                      .read(
-                                                          promptChainControllerProvider)
-                                                      .remove(chain.id),
-                                                  child: const Text('Excluir')),
+                                              IconButton(
+                                                key: Key(
+                                                    'delete_chain_${chain.id}'),
+                                                tooltip: 'Excluir',
+                                                onPressed: _deletingId == null
+                                                    ? () => _delete(chain)
+                                                    : null,
+                                                icon: _deletingId == chain.id
+                                                    ? const SizedBox.square(
+                                                        dimension: 18,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                        ),
+                                                      )
+                                                    : const Icon(
+                                                        Icons.delete_outline,
+                                                        size: 20,
+                                                      ),
+                                              ),
                                             ]),
                                           ]),
                                     )),
