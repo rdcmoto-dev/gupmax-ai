@@ -241,6 +241,215 @@ void main() {
     expect(find.text('Atual'), findsOneWidget);
   });
 
+  testWidgets('adiciona, edita, remove e reconstroi memoria do Project',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: null)];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    expect(find.byKey(const Key('empty_project_memory')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('edit_project_memory')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_memory_label_0')), 'Público');
+    await tester.enterText(
+        find.byKey(const Key('project_memory_value_0')), 'Famílias da região');
+    await tester.tap(find.byKey(const Key('add_project_memory')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_memory_label_1')), 'Canal');
+    await tester.enterText(
+        find.byKey(const Key('project_memory_value_1')), 'Instagram');
+    await tester.tap(find.byKey(const Key('save_project_memory')));
+    await tester.pumpAndSettle();
+
+    expect(projects.updateCalls, 1);
+    expect(projects.items.single.context,
+        'Público: Famílias da região\nCanal: Instagram');
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('project_memory_card')),
+        matching: find.textContaining('Famílias da região'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('project_memory_card')),
+        matching: find.textContaining('Instagram'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('edit_project_memory')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_memory_value_0')), 'Famílias locais');
+    await tester.tap(find.byKey(const Key('remove_project_memory_1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('save_project_memory')));
+    await tester.pumpAndSettle();
+
+    expect(projects.items.single.context, 'Público: Famílias locais');
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('project_memory_card')),
+        matching: find.textContaining('Famílias locais'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('project_memory_card')),
+        matching: find.textContaining('Instagram'),
+      ),
+      findsNothing,
+    );
+
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('project_memory_card')),
+        matching: find.textContaining('Famílias locais'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Chain sem Project nao cria memoria silenciosamente',
+      (tester) async {
+    await pumpWorkspace(
+      tester,
+      projects: FakeProjectRepository(),
+      chains: FakePromptChainRepository()..items = [chain()],
+      target: const ProjectWorkspaceTarget.chain('chain-1'),
+    );
+
+    expect(
+        find.byKey(const Key('chain_without_project_memory')), findsOneWidget);
+    expect(find.byKey(const Key('edit_project_memory')), findsNothing);
+    expect(find.byKey(const Key('save_chain_as_project')), findsOneWidget);
+  });
+
+  testWidgets(
+      'salva Chain como Project sem duplicar e preserva progresso na reabertura',
+      (tester) async {
+    final steps = [
+      step(1, PromptChainStepStatus.completed, result: 'Escopo aprovado'),
+      step(2, PromptChainStepStatus.inProgress),
+    ];
+    final chains = FakePromptChainRepository()
+      ..items = [
+        chain(completed: 1, current: 'step-2', steps: steps),
+      ];
+    final projects = FakeProjectRepository();
+    projects.onCreateFromChain = (chainId, projectId) async {
+      await chains.update(chainId, {'project_id': projectId});
+    };
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: chains,
+      target: const ProjectWorkspaceTarget.chain('chain-1'),
+    );
+
+    await tester.tap(find.byKey(const Key('save_chain_as_project')));
+    await tester.pumpAndSettle();
+    expect(find.text('Salvar como projeto?'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(projects.createFromChainCalls, 0);
+
+    await tester.tap(find.byKey(const Key('save_chain_as_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm_save_chain_as_project')));
+    await tester.pumpAndSettle();
+
+    expect(projects.createFromChainCalls, 1);
+    expect(projects.items, hasLength(1));
+    expect(find.byKey(const Key('chain_without_project_memory')), findsNothing);
+    expect(find.byKey(const Key('edit_project_memory')), findsOneWidget);
+    expect(find.text('1 de 2 etapas concluídas'), findsOneWidget);
+    expect(chains.items.single.steps.first.result, 'Escopo aprovado');
+
+    final repeated = await projects.createFromChain('chain-1');
+    expect(repeated.id, projects.items.single.id);
+    expect(projects.items, hasLength(1));
+
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: chains,
+      target: const ProjectWorkspaceTarget.chain('chain-1'),
+    );
+    expect(find.byKey(const Key('edit_project_memory')), findsOneWidget);
+    expect(find.text('1 de 2 etapas concluídas'), findsOneWidget);
+  });
+
+  testWidgets('erro ao salvar Chain como Project mantém fluxo utilizável',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..createFromChainError = Exception('falha');
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository()..items = [chain()],
+      target: const ProjectWorkspaceTarget.chain('chain-1'),
+    );
+
+    await tester.tap(find.byKey(const Key('save_chain_as_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm_save_chain_as_project')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Não foi possível salvar este fluxo como projeto.'),
+        findsOneWidget);
+    expect(find.byKey(const Key('save_chain_as_project')), findsOneWidget);
+    expect(find.text('0 de 3 etapas concluídas'), findsOneWidget);
+  });
+
+  testWidgets('Salvar como projeto não apresenta overflow no mobile',
+      (tester) async {
+    await pumpWorkspace(
+      tester,
+      projects: FakeProjectRepository(),
+      chains: FakePromptChainRepository()..items = [chain()],
+      target: const ProjectWorkspaceTarget.chain('chain-1'),
+      size: const Size(390, 844),
+    );
+
+    expect(find.byKey(const Key('save_chain_as_project')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('editor de memoria nao apresenta overflow no mobile',
+      (tester) async {
+    await pumpWorkspace(
+      tester,
+      projects: FakeProjectRepository()..items = [projectSample(context: null)],
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+      size: const Size(390, 844),
+    );
+
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const Key('edit_project_memory')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('project_memory_label_0')), findsOneWidget);
+    expect(find.byKey(const Key('project_memory_value_0')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Central permanece sem overflow no mobile', (tester) async {
     final steps = [
       step(1, PromptChainStepStatus.completed),

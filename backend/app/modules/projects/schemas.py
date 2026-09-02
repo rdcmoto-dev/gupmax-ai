@@ -26,6 +26,12 @@ class ProjectUpdate(BaseModel):
     context: str | None = Field(default=None, max_length=4000)
     status: ProjectStatus | None = None
 
+    @field_validator("name", "description", "context")
+    @classmethod
+    def normalize(cls, value: str | None) -> str | None:
+        normalized = value.strip() if value is not None else None
+        return normalized or None
+
 
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)

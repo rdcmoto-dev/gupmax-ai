@@ -43,6 +43,7 @@ TONES = (
     "inspirador",
     "elegante",
     "divertido",
+    "descontraido",
     "formal",
 )
 STACKS = (
@@ -228,7 +229,10 @@ class DeterministicFactExtractor:
 
     @staticmethod
     def _display_tone(value: str) -> str:
-        return "técnico" if value == "tecnico" else value
+        return {
+            "tecnico": "técnico",
+            "descontraido": "descontraído",
+        }.get(value, value)
 
     @staticmethod
     def _display_stack(value: str) -> str:

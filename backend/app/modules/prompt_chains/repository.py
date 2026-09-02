@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.projects.model import Project
 from app.modules.prompt_chains.model import (
     PromptChain,
     PromptChainStatus,
@@ -40,6 +41,22 @@ class PromptChainRepository:
 
     async def get(self, chain_id: UUID) -> PromptChain | None:
         return await self.session.get(PromptChain, chain_id)
+
+    async def get_for_update(self, chain_id: UUID) -> PromptChain | None:
+        return await self.session.scalar(
+            select(PromptChain).where(PromptChain.id == chain_id).with_for_update()
+        )
+
+    async def attach_new_project(
+        self, chain: PromptChain, project_values: dict[str, object]
+    ) -> Project:
+        project = Project(**project_values)
+        self.session.add(project)
+        await self.session.flush()
+        chain.project_id = project.id
+        await self.session.commit()
+        await self.session.refresh(project)
+        return project
 
     async def list(self, user_id: UUID, offset: int, limit: int, include_archived: bool):
         filters = [PromptChain.user_id == user_id]

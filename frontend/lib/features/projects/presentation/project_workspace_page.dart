@@ -8,6 +8,7 @@ import '../../prompt_chains/prompt_chain_providers.dart';
 import '../../prompts/prompt_providers.dart';
 import '../../templates/template_providers.dart';
 import '../domain/project.dart';
+import '../project_memory.dart';
 import '../project_providers.dart';
 import '../project_workspace.dart';
 
@@ -23,6 +24,165 @@ class ProjectWorkspacePage extends ConsumerStatefulWidget {
 
 class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
   bool _starting = false;
+  bool _savingMemory = false;
+  bool _savingProject = false;
+
+  Future<void> _saveAsProject(PromptChainRecord chain) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Salvar como projeto?'),
+        content: Text(
+          'O fluxo “${chain.name}” será associado a um projeto real. O progresso atual será preservado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            key: const Key('confirm_save_chain_as_project'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Salvar como projeto'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _savingProject = true);
+    try {
+      await ref.read(projectRepositoryProvider).createFromChain(chain.id);
+      ref.invalidate(projectWorkspaceProvider(widget.target));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Projeto criado e associado ao fluxo.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível salvar este fluxo como projeto.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingProject = false);
+    }
+  }
+
+  Future<void> _editMemory(ProjectRecord project) async {
+    final drafts = ProjectMemory.parse(project.context)
+        .map((entry) => _MemoryDraft(entry.label, entry.value))
+        .toList();
+    final retiredDrafts = <_MemoryDraft>[];
+    if (drafts.isEmpty) drafts.add(_MemoryDraft('', ''));
+    final formKey = GlobalKey<FormState>();
+    String? dialogError;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Editar contexto do projeto'),
+          content: SizedBox(
+            width: 640,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Registre somente informações confirmadas. Campos vazios não serão salvos.',
+                    ),
+                    const SizedBox(height: 16),
+                    for (var index = 0; index < drafts.length; index++)
+                      _MemoryEditorRow(
+                        key: ValueKey(drafts[index]),
+                        index: index,
+                        draft: drafts[index],
+                        onRemove: () => setDialogState(() {
+                          retiredDrafts.add(drafts.removeAt(index));
+                          if (drafts.isEmpty) drafts.add(_MemoryDraft('', ''));
+                          dialogError = null;
+                        }),
+                      ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        key: const Key('add_project_memory'),
+                        onPressed: drafts.length < ProjectMemory.maxEntries
+                            ? () => setDialogState(() {
+                                  drafts.add(_MemoryDraft('', ''));
+                                  dialogError = null;
+                                })
+                            : null,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar informação'),
+                      ),
+                    ),
+                    if (dialogError != null)
+                      Text(
+                        dialogError!,
+                        key: const Key('project_memory_error'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              key: const Key('save_project_memory'),
+              onPressed: () {
+                if (!(formKey.currentState?.validate() ?? false)) return;
+                try {
+                  ProjectMemory.serialize(drafts.map((draft) => draft.entry));
+                  Navigator.pop(dialogContext, true);
+                } on FormatException catch (error) {
+                  setDialogState(() => dialogError = error.message);
+                }
+              },
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Salvar contexto'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (save == true && mounted) {
+      setState(() => _savingMemory = true);
+      final contextValue =
+          ProjectMemory.serialize(drafts.map((draft) => draft.entry));
+      final success = await ref
+          .read(projectControllerProvider)
+          .update(project.id, {'context': contextValue});
+      if (mounted) {
+        setState(() => _savingMemory = false);
+        if (success) {
+          ref.invalidate(projectWorkspaceProvider(widget.target));
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(success
+              ? 'Contexto do projeto salvo.'
+              : 'Não foi possível salvar o contexto do projeto.'),
+        ));
+      }
+    }
+    await Future<void>.delayed(kThemeAnimationDuration);
+    for (final draft in [...drafts, ...retiredDrafts]) {
+      draft.dispose();
+    }
+  }
 
   Future<void> _addPrompt(String projectId) async {
     final prompts = ref.read(promptControllerProvider);
@@ -124,6 +284,20 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _ProjectHeader(data: data),
+                      const SizedBox(height: 18),
+                      _ProjectMemoryCard(
+                        project: data.project,
+                        chain: data.chain,
+                        saving: _savingMemory,
+                        savingProject: _savingProject,
+                        onEdit: data.project == null
+                            ? null
+                            : () => _editMemory(data.project!),
+                        onSaveAsProject:
+                            data.project == null && data.chain != null
+                                ? () => _saveAsProject(data.chain!)
+                                : null,
+                      ),
                       if (data.chain case final chain?) ...[
                         const SizedBox(height: 18),
                         _ProgressCard(
@@ -216,6 +390,233 @@ class _ProjectHeader extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _ProjectMemoryCard extends StatelessWidget {
+  const _ProjectMemoryCard({
+    required this.project,
+    required this.chain,
+    required this.saving,
+    required this.savingProject,
+    required this.onEdit,
+    required this.onSaveAsProject,
+  });
+
+  final ProjectRecord? project;
+  final PromptChainRecord? chain;
+  final bool saving;
+  final bool savingProject;
+  final VoidCallback? onEdit;
+  final VoidCallback? onSaveAsProject;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = ProjectMemory.parse(project?.context);
+    return Card(
+      key: const Key('project_memory_card'),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final heading = Row(
+                  children: [
+                    const Icon(Icons.psychology_alt_outlined),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Contexto do projeto',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                  ],
+                );
+                final edit = onEdit == null
+                    ? null
+                    : TextButton.icon(
+                        key: const Key('edit_project_memory'),
+                        onPressed: saving ? null : onEdit,
+                        icon: saving
+                            ? const SizedBox.square(
+                                dimension: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.edit_outlined, size: 18),
+                        label: Text(saving ? 'Salvando...' : 'Editar contexto'),
+                      );
+                if (constraints.maxWidth < 360 && edit != null) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      heading,
+                      Align(alignment: Alignment.centerLeft, child: edit),
+                    ],
+                  );
+                }
+                return Row(children: [
+                  Expanded(child: heading),
+                  if (edit != null) edit
+                ]);
+              },
+            ),
+            const SizedBox(height: 10),
+            if (project == null) ...[
+              Text(
+                chain == null
+                    ? 'Nenhum contexto disponível.'
+                    : 'Este fluxo ainda não está associado a um projeto. O contexto do fluxo continua disponível, mas nenhuma memória será criada automaticamente.',
+                key: const Key('chain_without_project_memory'),
+              ),
+              if (onSaveAsProject != null) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    key: const Key('save_chain_as_project'),
+                    onPressed: savingProject ? null : onSaveAsProject,
+                    icon: savingProject
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_business_outlined),
+                    label: Text(savingProject
+                        ? 'Salvando projeto...'
+                        : 'Salvar como projeto'),
+                  ),
+                ),
+              ],
+            ] else if (entries.isEmpty)
+              const Text(
+                'O GUPMAX ainda não possui informações salvas sobre este projeto.',
+                key: Key('empty_project_memory'),
+              )
+            else ...[
+              for (final entry in entries.take(4))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${entry.label}: ',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        TextSpan(text: entry.value),
+                      ],
+                    ),
+                  ),
+                ),
+              if (entries.length > 4)
+                Text('+ ${entries.length - 4} informações salvas'),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MemoryEditorRow extends StatelessWidget {
+  const _MemoryEditorRow({
+    required this.index,
+    required this.draft,
+    required this.onRemove,
+    super.key,
+  });
+
+  final int index;
+  final _MemoryDraft draft;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final fields = [
+              SizedBox(
+                width: compact ? constraints.maxWidth : 180,
+                child: TextFormField(
+                  key: Key('project_memory_label_$index'),
+                  controller: draft.label,
+                  maxLength: ProjectMemory.maxLabelLength,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de informação',
+                    hintText: 'Ex.: Público',
+                    counterText: '',
+                  ),
+                  validator: (_) => draft.isPartiallyFilled
+                      ? 'Preencha o tipo e a informação.'
+                      : null,
+                ),
+              ),
+              if (!compact) const SizedBox(width: 10),
+              SizedBox(
+                width:
+                    compact ? constraints.maxWidth : constraints.maxWidth - 238,
+                child: TextFormField(
+                  key: Key('project_memory_value_$index'),
+                  controller: draft.value,
+                  maxLength: ProjectMemory.maxValueLength,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Informação',
+                    counterText: '',
+                  ),
+                  validator: (_) => draft.isPartiallyFilled
+                      ? 'Preencha o tipo e a informação.'
+                      : null,
+                ),
+              ),
+              IconButton(
+                key: Key('remove_project_memory_$index'),
+                tooltip: 'Remover informação',
+                onPressed: onRemove,
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ];
+            return compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      fields[0],
+                      const SizedBox(height: 8),
+                      fields[1],
+                      Align(alignment: Alignment.centerRight, child: fields[2])
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: fields);
+          },
+        ),
+      );
+}
+
+class _MemoryDraft {
+  _MemoryDraft(String initialLabel, String initialValue)
+      : label = TextEditingController(text: initialLabel),
+        value = TextEditingController(text: initialValue);
+
+  final TextEditingController label;
+  final TextEditingController value;
+
+  bool get isPartiallyFilled =>
+      label.text.trim().isEmpty != value.text.trim().isEmpty;
+
+  ProjectMemoryEntry get entry =>
+      ProjectMemoryEntry(label: label.text, value: value.text);
+
+  void dispose() {
+    label.dispose();
+    value.dispose();
+  }
 }
 
 class _ProgressCard extends StatelessWidget {

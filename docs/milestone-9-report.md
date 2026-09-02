@@ -598,3 +598,27 @@ SMOKE MANUAL REAL DA ETAPA 9.20: APROVADO
 O smoke final confirmou a Central do Projeto, o progresso persistente de 0/2 para 1/2, a atualização da etapa concluída e da próxima etapa atual, “Continuar projeto” abrindo a etapa correta e a navegação Central → execução → Central. Também foram aprovados o padrão visual lilás, o contraste do Histórico financeiro e o gerenciamento seguro de Prompts, Projects e Chains, mantendo confirmação explícita e nenhum mecanismo destrutivo no histórico financeiro.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## Etapa 9.21 — Project Memory / Memória do Projeto
+
+A Memória do Projeto reutiliza o campo persistente `Project.context`, o CRUD e o ownership já existentes. A Central do Projeto apresenta um resumo compacto e uma edição simples de até dez informações confirmadas pelo usuário. É possível adicionar, editar, remover e salvar; campos vazios são ignorados, cada valor respeita os limites de tamanho e o contexto serializado permanece limitado a 4.000 caracteres. Reabrir a Central ou atualizar o navegador reconstrói a memória diretamente do Project persistido, sem estado paralelo no frontend.
+
+A preparação do Prompt Engine mantém a precedência: campo explícito atual > Smart Answer > fato inferido da ideia > memória explícita do Project > demais contextos autorizados > Smart Profile/default. Prompt Variables semânticas também prevalecem sobre informações antigas equivalentes. Entradas substituídas são removidas somente da memória aplicada à geração; o registro original do Project não é alterado silenciosamente.
+
+A memória chega ao `PromptBuilder` como dados citados e delimitados. Markdown, HTML, cabeçalhos e texto semelhante a instruções permanecem literais, sem `eval`, `exec`, shell ou execução de conteúdo. Em Prompt Chains, o objetivo da Step atual continua soberano e `resultado_anterior` permanece exclusivamente em `PREVIOUS STEP RESULT (CONTEXT ONLY)`. Uma Chain sem Project informa essa condição e não cria Project nem memória automaticamente.
+
+Não foi necessária migration, tabela ou sistema paralelo. O caminho é determinístico: não chama OpenAI, Gemini ou Anthropic, não consome créditos, não cria Usage e não altera Ledger.
+
+### Correção pré-auditoria da Etapa 9.21
+
+O smoke preliminar mostrou que uma Prompt Chain independente, criada pelo Expert Planner, não oferecia uma ação para habilitar memória persistente. A Central agora apresenta “Salvar como projeto” nesse estado, com confirmação e feedback. A operação autenticada cria um Project real com os dados confiáveis da Chain, associa os dois registros na mesma transação e retorna o mesmo Project em chamadas repetidas. Um bloqueio de linha evita duplicação concorrente.
+
+Após o sucesso, a própria Central recarrega Project e Chain, libera “Editar contexto” e preserva integralmente progresso, etapas concluídas, resultados e etapa atual. Cancelamento e falha mantêm o fluxo intacto. Nenhum resultado de Step é copiado para a memória, e a operação não chama IA, não consome créditos, não cria Usage e não altera Ledger. Nenhuma migration foi necessária.
+
+A correção final de precedência promove campos semânticos já reconhecidos — tom/tone, público e canal/plataforma — da memória para seus campos canônicos quando nenhuma fonte superior os informou. Assim, a memória prevalece sobre Smart Profile/default sem duplicar o mesmo dado no bloco CONTEXT. Campo atual, Smart Answer, fato inferido e Prompt Variable continuam superiores; a Chain e `resultado_anterior` não foram alterados.
+
+SMOKE MANUAL REAL DA ETAPA 9.21: APROVADO
+
+O smoke final aprovou a conversão explícita de uma Chain independente em Project sem reiniciar a execução, preservando o progresso em 1 de 2 etapas concluídas. A memória persistiu após reabertura e promoveu público, canal e tom aos campos canônicos, manteve o diferencial e a estratégia no contexto, não duplicou informações promovidas e preservou `PREVIOUS STEP RESULT (CONTEXT ONLY)` e a soberania do objetivo atual. O resultado obteve GUPMAX Score 92/100.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

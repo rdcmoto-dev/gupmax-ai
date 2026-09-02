@@ -113,7 +113,22 @@ class AppShell extends ConsumerWidget {
               ),
             ),
           ),
-          Expanded(child: child),
+          Expanded(
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.background,
+                    Color(0xFFF7FCFF),
+                    Color(0xFFDCEEFF),
+                  ],
+                ),
+              ),
+              child: child,
+            ),
+          ),
         ],
       ),
     );
@@ -170,7 +185,7 @@ class _NavigationItem extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 5),
         child: Material(
           color: selected
-              ? AppColors.violet.withValues(alpha: 0.32)
+              ? AppColors.electricBlue.withValues(alpha: 0.25)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           child: ListTile(
@@ -179,7 +194,7 @@ class _NavigationItem extends StatelessWidget {
             selectedTileColor: Colors.transparent,
             selectedColor: Colors.white,
             textColor: const Color(0xFFDCE7F7),
-            iconColor: selected ? AppColors.lightGold : const Color(0xFFAFC2DB),
+            iconColor: selected ? AppColors.cyanGlow : const Color(0xFFAFC2DB),
             leading: Icon(destination.icon),
             title: Text(
               destination.label,
@@ -190,7 +205,9 @@ class _NavigationItem extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: selected
-                  ? BorderSide(color: AppColors.gold.withValues(alpha: 0.7))
+                  ? BorderSide(
+                      color: AppColors.cyanGlow.withValues(alpha: 0.8),
+                    )
                   : BorderSide.none,
             ),
             onTap: onTap,

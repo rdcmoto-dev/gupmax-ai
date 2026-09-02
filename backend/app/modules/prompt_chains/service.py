@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.projects.model import Project
 from app.modules.projects.service import ProjectService
 from app.modules.prompt_chains.model import PromptChain, PromptChainStep, PromptChainStepStatus
 from app.modules.prompt_chains.repository import PromptChainRepository
@@ -33,6 +34,22 @@ class PromptChainService:
         if chain is None or chain.user_id != user.id:
             raise HTTPException(status_code=404, detail="Prompt chain not found")
         return chain
+
+    async def save_as_project(self, chain_id: UUID, user: User) -> Project:
+        chain = await self.repository.get_for_update(chain_id)
+        if chain is None or chain.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Prompt chain not found")
+        if chain.project_id is not None:
+            return await self.projects.accessible(chain.project_id, user)
+        return await self.repository.attach_new_project(
+            chain,
+            {
+                "user_id": user.id,
+                "name": chain.name[:160],
+                "description": chain.description,
+                "context": chain.description,
+            },
+        )
 
     async def accessible_step(self, chain_id: UUID, step_id: UUID, user: User) -> PromptChainStep:
         await self.accessible(chain_id, user)

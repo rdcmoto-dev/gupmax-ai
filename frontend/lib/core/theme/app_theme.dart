@@ -1,26 +1,26 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  static const brightGreen = Color(0xFF62DFA8);
-  static const deepGreen = Color(0xFF125E4B);
-  static const forest = Color(0xFF083D32);
-  static const gold = Color(0xFFD7B44A);
-  static const lightGold = Color(0xFFF1D77B);
-  static const midnightBlue = Color(0xFF03162F);
-  static const oceanBlue = Color(0xFF063F69);
-  static const electricBlue = Color(0xFF0B91C9);
-  static const cyanGlow = Color(0xFF53D9F2);
-  static const violet = Color(0xFF6936E8);
-  static const paleLavender = Color(0xFFB9A6DF);
-  static const background = Color(0xFF68548F);
-  static const surface = Color(0xFFCFC2EA);
-  static const raisedSurface = Color(0xFFBDADE0);
-  static const mutedSurface = Color(0xFFC5B7E4);
-  static const paleMint = Color(0xFFE4F7ED);
-  static const paleGold = Color(0xFFFFF7DC);
-  static const textPrimary = Color(0xFF10213E);
-  static const textSecondary = Color(0xFF596985);
-  static const border = Color(0xFF8F79BB);
+  static const brightGreen = Color(0xFF4DA6FF);
+  static const deepGreen = Color(0xFF1478F5);
+  static const forest = Color(0xFF082B52);
+  static const gold = Color(0xFF62B8FF);
+  static const lightGold = Color(0xFFA7D6FF);
+  static const midnightBlue = Color(0xFF061A33);
+  static const oceanBlue = Color(0xFF1478F5);
+  static const electricBlue = Color(0xFF238CF6);
+  static const cyanGlow = Color(0xFF61C8FF);
+  static const violet = Color(0xFF1478F5);
+  static const paleLavender = Color(0xFFE1F1FF);
+  static const background = Color(0xFFEAF6FF);
+  static const surface = Color(0xFFF8FCFF);
+  static const raisedSurface = Color(0xFFFFFFFF);
+  static const mutedSurface = Color(0xFFDCEEFF);
+  static const paleMint = Color(0xFFEAF6FF);
+  static const paleGold = Color(0xFFF0F8FF);
+  static const textPrimary = Color(0xFF0A2040);
+  static const textSecondary = Color(0xFF506784);
+  static const border = Color(0xFFB4D8F7);
 
   // Aliases preservam componentes anteriores dentro da identidade azul,
   // verde-claro e dourada.
@@ -65,8 +65,8 @@ abstract final class AppTheme {
     textTheme: Typography.material2021().black.apply(
       bodyColor: AppColors.textPrimary,
       displayColor: AppColors.textPrimary,
-      fontFamily: 'Segoe UI',
-      fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
+      fontFamily: 'Inter',
+      fontFamilyFallback: const ['Segoe UI', 'Roboto', 'Arial', 'sans-serif'],
     ).copyWith(
       headlineMedium: const TextStyle(
         fontSize: 30,
@@ -96,19 +96,23 @@ abstract final class AppTheme {
     cardTheme: const CardThemeData(
       color: AppColors.surface,
       surfaceTintColor: Colors.transparent,
-      elevation: 2,
-      shadowColor: Color(0x2410213E),
+      elevation: 3,
+      shadowColor: Color(0x2B1478F5),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(20)),
-        side: BorderSide(color: AppColors.border, width: 1.1),
+        borderRadius: BorderRadius.all(Radius.circular(22)),
+        side: BorderSide(color: AppColors.border),
       ),
     ),
     inputDecorationTheme: const InputDecorationTheme(
-      border: OutlineInputBorder(),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(14)),
+      ),
       enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(14)),
         borderSide: BorderSide(color: AppColors.border),
       ),
       focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(14)),
         borderSide: BorderSide(color: AppColors.violet, width: 2),
       ),
       filled: true,
@@ -142,8 +146,9 @@ abstract final class AppTheme {
         backgroundColor: AppColors.violet,
         foregroundColor: Colors.white,
         disabledBackgroundColor: AppColors.border,
-        elevation: 5,
-        side: const BorderSide(color: AppColors.lightGold, width: 1.4),
+        elevation: 4,
+        shadowColor: AppColors.cyanGlow,
+        side: const BorderSide(color: AppColors.cyanGlow, width: 1.2),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -151,8 +156,8 @@ abstract final class AppTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.oceanBlue,
-        backgroundColor: AppColors.raisedSurface,
-        side: const BorderSide(color: AppColors.lightGold, width: 1.3),
+        backgroundColor: AppColors.surface,
+        side: const BorderSide(color: AppColors.electricBlue, width: 1.2),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -160,7 +165,7 @@ abstract final class AppTheme {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: AppColors.oceanBlue,
-        backgroundColor: AppColors.paleLavender,
+        backgroundColor: AppColors.mutedSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),

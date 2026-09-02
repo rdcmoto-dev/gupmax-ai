@@ -36,7 +36,9 @@ class FakePromptChainRepository implements PromptChainRepositoryContract {
       id: current.id,
       name: values['name'] as String? ?? current.name,
       description: values['description'] as String? ?? current.description,
-      projectId: current.projectId,
+      projectId: values.containsKey('project_id')
+          ? values['project_id'] as String?
+          : current.projectId,
       status: values['status'] == null
           ? current.status
           : PromptChainStatus.values.byName(values['status'] as String),

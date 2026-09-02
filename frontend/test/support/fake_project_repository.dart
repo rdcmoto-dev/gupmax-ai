@@ -10,6 +10,9 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   int assignTemplateCalls = 0;
   int updateCalls = 0;
   int deleteCalls = 0;
+  int createFromChainCalls = 0;
+  Object? createFromChainError;
+  Future<void> Function(String chainId, String projectId)? onCreateFromChain;
 
   @override
   Future<ProjectPageData> list(
@@ -30,12 +33,32 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   }
 
   @override
+  Future<ProjectRecord> createFromChain(String chainId) async {
+    createFromChainCalls++;
+    if (createFromChainError != null) throw createFromChainError!;
+    final existing =
+        items.where((item) => item.id == 'project-$chainId').firstOrNull;
+    if (existing != null) return existing;
+    final created = projectSample(
+      id: 'project-$chainId',
+      name: 'Plano de entrega',
+      context: 'Execução organizada do projeto.',
+    );
+    items = [created, ...items];
+    await onCreateFromChain?.call(chainId, created.id);
+    return created;
+  }
+
+  @override
   Future<ProjectRecord> update(String id, Map<String, dynamic> values) async {
     updateCalls++;
     final current = await get(id);
     final updated = projectSample(
       id: id,
       name: values['name'] as String? ?? current.name,
+      context: values.containsKey('context')
+          ? values['context'] as String?
+          : current.context,
       status: values['status'] == null
           ? current.status
           : ProjectStatus.values.byName(values['status'] as String),
@@ -73,13 +96,14 @@ ProjectRecord projectSample({
   String id = 'project-1',
   String name = 'Pizzaria Donatello',
   ProjectStatus status = ProjectStatus.active,
+  String? context = 'Pizzaria com delivery',
   DateTime? updatedAt,
 }) =>
     ProjectRecord(
       id: id,
       name: name,
       description: 'Marketing e vendas',
-      context: 'Pizzaria com delivery',
+      context: context,
       status: status,
       promptCount: 0,
       templateCount: 0,

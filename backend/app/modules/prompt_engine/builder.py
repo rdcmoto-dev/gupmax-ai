@@ -71,7 +71,7 @@ class PromptBuilder:
         role = data.role or self.DEFAULT_ROLES.get(data.category.value, self.DEFAULT_ROLES["geral"])
         audience = self._resolved_field(data, "audience", data.audience)
         tone = self._resolved_field(data, "tone", data.tone)
-        context = self._resolved_field(data, "context", data.context)
+        context = self._resolved_context(data)
         sections: list[tuple[str, str | None]] = [("ROLE", role), ("OBJECTIVE", data.input)]
         sections.extend((
             ("CONTEXT", context),
@@ -119,6 +119,9 @@ class PromptBuilder:
             return self._as_user_data(smart_value)
         return current or self._as_user_data(smart_value)
 
+    def _resolved_context(self, data: PromptGenerateRequest) -> str | None:
+        return self._as_user_data(data.context or data.smart_answers.get("context"))
+
     @staticmethod
     def _append_previous_result(built: str, previous_result: str | None) -> str:
         if not previous_result:
@@ -143,7 +146,7 @@ class PromptBuilder:
         common = {
             "ROLE": role,
             "OBJECTIVE": data.input,
-            "CONTEXT": self._resolved_field(data, "context", data.context),
+            "CONTEXT": self._resolved_context(data),
             "AUDIENCE": self._resolved_field(data, "audience", data.audience),
             "INSTRUCTIONS": listed_instructions,
             "CONSTRAINTS": listed_constraints, "OUTPUT FORMAT": default_format,
@@ -164,7 +167,9 @@ class PromptBuilder:
             visual_constraints = self._matching_items(data.constraints, self.VISUAL_TERMS)
             explicit_visual = self._visual_facts(data.input)
             values.update({
-                "ENVIRONMENT": self._compatible(data.context, self.VISUAL_TERMS)
+                "ENVIRONMENT": self._as_user_data(
+                    self._compatible(data.context, self.VISUAL_TERMS)
+                )
                 or explicit_visual["environment"],
                 "COMPOSITION": self._compatible(data.output_format, self.VISUAL_TERMS)
                 or self._visual_composition(data.input, data.mode),
@@ -190,7 +195,9 @@ class PromptBuilder:
             values.update({
                 "SCENE": explicit_video["scene"],
                 "SUBJECT": explicit_video["subject"],
-                "ENVIRONMENT": self._compatible(data.context, self.VIDEO_TERMS)
+                "ENVIRONMENT": self._as_user_data(
+                    self._compatible(data.context, self.VIDEO_TERMS)
+                )
                 or explicit_video["environment"],
                 "VISUAL STYLE": self._compatible(data.tone, self.VIDEO_TERMS),
                 "TEMPORAL CONTEXT": explicit_video["duration"]
@@ -205,7 +212,9 @@ class PromptBuilder:
             values.update({
                 "TECHNICAL ROLE": self._compatible(data.role, self.TECHNICAL_TERMS)
                 or "Engenheiro de software experiente",
-                "TECHNICAL CONTEXT": self._compatible(data.context, self.TECHNICAL_TERMS),
+                "TECHNICAL CONTEXT": self._as_user_data(
+                    self._compatible(data.context, self.TECHNICAL_TERMS)
+                ),
                 "STACK": self._coding_stack(data.input),
                 "REQUIREMENTS": self._combine(data.input, self._list(technical_instructions)),
                 "CONSTRAINTS": self._list(technical_constraints),

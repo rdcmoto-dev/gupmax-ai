@@ -3,6 +3,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
+from app.modules.projects.schemas import ProjectRead
+from app.modules.projects.service import ProjectService
 from app.modules.prompt_chains.repository import PromptChainRepository
 from app.modules.prompt_chains.schemas import (
     ChainCreate,
@@ -70,6 +72,14 @@ async def get_chain(chain_id: UUID, session: DbSession, user: CurrentUser) -> Ch
 async def update_chain(chain_id: UUID, data: ChainUpdate, session: DbSession, user: CurrentUser) -> ChainRead:
     service = PromptChainService(session)
     return await service.read(await service.update(chain_id, user, data))
+
+
+@router.post("/{chain_id}/project", response_model=ProjectRead)
+async def save_chain_as_project(
+    chain_id: UUID, session: DbSession, user: CurrentUser
+) -> ProjectRead:
+    project = await PromptChainService(session).save_as_project(chain_id, user)
+    return await ProjectService(session).read(project)
 
 
 @router.delete("/{chain_id}", status_code=status.HTTP_204_NO_CONTENT)

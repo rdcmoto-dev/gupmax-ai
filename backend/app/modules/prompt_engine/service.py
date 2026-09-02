@@ -18,6 +18,7 @@ from app.modules.credits.enums import CreditOperationType
 from app.modules.credits.model import CreditReservation
 from app.modules.credits.service import CreditService
 from app.modules.interviews.facts import DeterministicFactExtractor
+from app.modules.projects.memory import ProjectMemory
 from app.modules.projects.model import ProjectStatus
 from app.modules.projects.service import ProjectService
 from app.modules.prompt_chains.model import PromptChainStatus
@@ -293,12 +294,13 @@ class PromptService:
                 data = PromptGenerateRequest.model_validate({**data.model_dump(), **template_values})
         data = self._normalize_structured_fields(data)
         explicit_fields = request_explicit_fields
+        variable_overrides = ProjectMemory.semantic_keys(request_values["variable_values"])
+        project_context: str | None = None
         if data.project_id is not None:
             project = await ProjectService(self.repository.session).accessible(data.project_id, user)
             if project.status == ProjectStatus.ARCHIVED:
                 raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Archived project is read-only")
-            if data.context is None and project.context:
-                data = data.model_copy(update={"context": project.context})
+            project_context = project.context
         profile = await self.smart_profile.enabled(user.id) if self.smart_profile is not None else None
         data = SmartProfileService.apply(data, profile)
         explicit_facts = DeterministicFactExtractor().extract(data.input, data.category)
@@ -314,6 +316,39 @@ class PromptService:
             has_explicit_value = key in explicit_fields and bool(request_values.get(key))
             if smart_value and not has_explicit_value:
                 overrides[key] = smart_value
+        has_current_context = (
+            "context" in variable_overrides
+            or ("context" in explicit_fields and bool(request_values.get("context")))
+        )
+        if project_context and not has_current_context and not data.smart_answers.get("context"):
+            overridden = set(explicit_facts) | set(data.smart_answers)
+            overridden.update(
+                key for key in explicit_fields if request_values.get(key) not in (None, "", [])
+            )
+            overridden.update(variable_overrides)
+            memory_values = ProjectMemory.semantic_values(project_context)
+            promoted: set[str] = set()
+            for key in ("tone", "audience"):
+                if key not in overridden and (value := memory_values.get(key)):
+                    overrides[key] = value
+                    promoted.add(key)
+            if (
+                "channel" not in overridden
+                and "platform" not in overridden
+                and "additional_information" not in explicit_fields
+            ):
+                channel_value = memory_values.get("channel") or memory_values.get(
+                    "platform"
+                )
+                if channel_value:
+                    overrides["additional_information"] = (
+                        f"Canal/plataforma: {channel_value}"
+                    )
+                    promoted.update({"channel", "platform"})
+            overridden.update(promoted)
+            memory = ProjectMemory.without_overridden(project_context, overridden)
+            if memory:
+                overrides["context"] = memory
         return PromptGenerateRequest.model_validate(overrides)
 
     async def refine(

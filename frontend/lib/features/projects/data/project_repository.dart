@@ -8,6 +8,7 @@ abstract interface class ProjectRepositoryContract {
   Future<ProjectPageData> list({bool includeArchived = true, int limit = 20});
   Future<ProjectRecord> get(String id);
   Future<ProjectRecord> create(Map<String, dynamic> values);
+  Future<ProjectRecord> createFromChain(String chainId);
   Future<ProjectRecord> update(String id, Map<String, dynamic> values);
   Future<void> delete(String id);
   Future<void> assignPrompt(String projectId, String promptId);
@@ -40,6 +41,17 @@ class ProjectRepository implements ProjectRepositoryContract {
   @override
   Future<ProjectRecord> create(Map<String, dynamic> values) =>
       _write('post', '', values);
+  @override
+  Future<ProjectRecord> createFromChain(String chainId) async {
+    try {
+      final response = await client.dio
+          .post<Map<String, dynamic>>('/chains/$chainId/project');
+      return ProjectRecord.fromJson(response.data!);
+    } catch (error) {
+      _map(error);
+    }
+  }
+
   @override
   Future<ProjectRecord> update(String id, Map<String, dynamic> values) =>
       _write('put', id, values);

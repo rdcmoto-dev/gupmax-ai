@@ -56,9 +56,9 @@ class DashboardPage extends ConsumerWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.surface,
               AppColors.background,
-              AppColors.paleLavender,
+              Color(0xFFF8FCFF),
+              Color(0xFFDCEEFF),
             ],
           ),
         ),
