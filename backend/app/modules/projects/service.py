@@ -5,7 +5,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.projects.model import Project
 from app.modules.projects.repository import ProjectRepository
-from app.modules.projects.schemas import ProjectCreate, ProjectDetail, ProjectRead, ProjectUpdate
+from app.modules.projects.schemas import (
+    ProjectActivityItem,
+    ProjectCreate,
+    ProjectDetail,
+    ProjectLibraryChain,
+    ProjectLibraryPage,
+    ProjectLibraryPrompt,
+    ProjectLibraryStep,
+    ProjectRead,
+    ProjectUpdate,
+)
 from app.modules.prompt_engine.repository import PromptRepository
 from app.modules.prompt_templates.repository import PromptTemplateRepository
 from app.modules.users.model import User
@@ -40,6 +50,90 @@ class ProjectService:
             **summary.model_dump(),
             prompts=prompts,
             templates=templates,
+        )
+
+    async def library(self, project_id: UUID, user: User, offset: int, limit: int) -> ProjectLibraryPage:
+        project = await self.accessible(project_id, user)
+        prompt_rows, prompt_total = await self.repository.library_prompts(project.id, offset, limit)
+        chain_rows = await self.repository.project_chains(project.id)
+        prompts = [
+            ProjectLibraryPrompt(
+                id=prompt.id,
+                title=prompt.title,
+                category=prompt.category,
+                mode=prompt.mode,
+                target_ai=prompt.target_ai,
+                version_count=version_count,
+                created_at=prompt.created_at,
+                updated_at=prompt.updated_at,
+            )
+            for prompt, version_count in prompt_rows
+        ]
+        chains: list[ProjectLibraryChain] = []
+        activity: list[ProjectActivityItem] = [
+            ProjectActivityItem(
+                kind="project", label="Projeto atualizado", occurred_at=project.updated_at, stable_id=project.id
+            )
+        ]
+        for prompt in prompts:
+            activity.append(
+                ProjectActivityItem(
+                    kind="prompt",
+                    label="Prompt criado" if prompt.version_count == 1 else "Prompt refinado",
+                    occurred_at=prompt.updated_at,
+                    stable_id=prompt.id,
+                )
+            )
+        completed_total = 0
+        for chain, steps in chain_rows:
+            completed = [step for step in steps if step.execution_status == "completed"]
+            completed_total += len(completed)
+            current = next((step.id for step in steps if step.execution_status == "in_progress"), None)
+            library_steps = [
+                ProjectLibraryStep(
+                    id=step.id,
+                    position=step.position,
+                    title=step.title,
+                    status=step.execution_status,
+                    has_result=bool(step.result),
+                    result_preview=(step.result[:240] if step.result else None),
+                    completed_at=step.completed_at,
+                )
+                for step in steps
+            ]
+            chains.append(
+                ProjectLibraryChain(
+                    id=chain.id,
+                    name=chain.name,
+                    completed_count=len(completed),
+                    step_count=len(steps),
+                    current_step_id=current,
+                    steps=library_steps,
+                    updated_at=chain.updated_at,
+                )
+            )
+            activity.extend(
+                ProjectActivityItem(
+                    kind="step",
+                    label=f"Etapa concluída: {step.title}",
+                    occurred_at=step.completed_at,
+                    stable_id=step.id,
+                )
+                for step in completed
+                if step.completed_at is not None
+            )
+        activity.sort(key=lambda item: (item.occurred_at, str(item.stable_id)), reverse=True)
+        last_activity = activity[0].occurred_at if activity else project.updated_at
+        return ProjectLibraryPage(
+            project_id=project.id,
+            prompts=prompts,
+            prompt_total=prompt_total,
+            offset=offset,
+            limit=limit,
+            chains=chains,
+            completed_step_count=completed_total,
+            activity=activity[:20],
+            last_activity_at=last_activity,
         )
 
     async def update(self, project_id: UUID, user: User, data: ProjectUpdate) -> Project:

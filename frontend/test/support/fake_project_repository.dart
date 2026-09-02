@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:gupmax_ai/features/projects/data/project_repository.dart';
 import 'package:gupmax_ai/features/projects/domain/project.dart';
+import 'package:gupmax_ai/features/projects/project_library.dart';
 
 class FakeProjectRepository implements ProjectRepositoryContract {
   List<ProjectRecord> items = [];
@@ -12,6 +13,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   int deleteCalls = 0;
   int createFromChainCalls = 0;
   Object? createFromChainError;
+  ProjectLibraryData? libraryData;
   Future<void> Function(String chainId, String projectId)? onCreateFromChain;
 
   @override
@@ -48,6 +50,21 @@ class FakeProjectRepository implements ProjectRepositoryContract {
     await onCreateFromChain?.call(chainId, created.id);
     return created;
   }
+
+  @override
+  Future<ProjectLibraryData> library(String projectId,
+          {int offset = 0, int limit = 20}) async =>
+      libraryData ??
+      ProjectLibraryData(
+          projectId: projectId,
+          prompts: const [],
+          promptTotal: 0,
+          chains: const [],
+          completedStepCount: 0,
+          activity: const [],
+          lastActivityAt: DateTime.utc(2026, 8, 20),
+          offset: offset,
+          limit: limit);
 
   @override
   Future<ProjectRecord> update(String id, Map<String, dynamic> values) async {

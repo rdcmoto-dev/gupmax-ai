@@ -298,6 +298,10 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                                 ? () => _saveAsProject(data.chain!)
                                 : null,
                       ),
+                      if (data.project case final project?) ...[
+                        const SizedBox(height: 18),
+                        _ProjectContentCard(projectId: project.id),
+                      ],
                       if (data.chain case final chain?) ...[
                         const SizedBox(height: 18),
                         _ProgressCard(
@@ -336,6 +340,46 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ProjectContentCard extends ConsumerWidget {
+  const _ProjectContentCard({required this.projectId});
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final library = ref.watch(projectLibraryProvider(projectId));
+    return Card(
+      key: const Key('project_content_summary'),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('Conteúdo do projeto',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          library.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (_, __) =>
+                const Text('Não foi possível carregar o resumo agora.'),
+            data: (data) => Text(
+              '${data.promptTotal} prompts • ${data.completedStepCount} etapas concluídas',
+              key: const Key('project_content_summary_label'),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                key: const Key('open_project_content'),
+                onPressed: () => context.push('/projects/$projectId/content'),
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('Ver conteúdo'),
+              )),
+        ]),
       ),
     );
   }

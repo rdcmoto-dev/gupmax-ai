@@ -4,6 +4,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.modules.projects.model import ProjectStatus
+from app.modules.prompt_chains.model import PromptChainStepStatus
+from app.modules.prompt_engine.enums import PromptCategory, PromptMode, TargetAI
 from app.modules.prompt_engine.schemas import PromptRead
 from app.modules.prompt_templates.schemas import TemplateRead
 
@@ -58,3 +60,53 @@ class ProjectPage(BaseModel):
 class ProjectDetail(ProjectRead):
     prompts: list[PromptRead]
     templates: list[TemplateRead]
+
+
+class ProjectLibraryPrompt(BaseModel):
+    id: UUID
+    title: str
+    category: PromptCategory
+    mode: PromptMode
+    target_ai: TargetAI
+    version_count: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProjectLibraryStep(BaseModel):
+    id: UUID
+    position: int
+    title: str
+    status: PromptChainStepStatus
+    has_result: bool
+    result_preview: str | None = None
+    completed_at: datetime | None = None
+
+
+class ProjectLibraryChain(BaseModel):
+    id: UUID
+    name: str
+    completed_count: int
+    step_count: int
+    current_step_id: UUID | None
+    steps: list[ProjectLibraryStep]
+    updated_at: datetime
+
+
+class ProjectActivityItem(BaseModel):
+    kind: str
+    label: str
+    occurred_at: datetime
+    stable_id: UUID
+
+
+class ProjectLibraryPage(BaseModel):
+    project_id: UUID
+    prompts: list[ProjectLibraryPrompt]
+    prompt_total: int
+    offset: int
+    limit: int
+    chains: list[ProjectLibraryChain]
+    completed_step_count: int
+    activity: list[ProjectActivityItem]
+    last_activity_at: datetime

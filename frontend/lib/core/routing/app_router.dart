@@ -22,6 +22,7 @@ import '../../features/prompts/presentation/prompt_detail_page.dart';
 import '../../features/prompts/presentation/prompt_list_page.dart';
 import '../../features/projects/presentation/project_detail_page.dart';
 import '../../features/projects/presentation/project_list_page.dart';
+import '../../features/projects/presentation/project_library_page.dart';
 import '../../features/projects/presentation/project_workspace_page.dart';
 import '../../features/projects/project_workspace.dart';
 import '../../features/prompt_chains/presentation/prompt_chain_detail_page.dart';
@@ -85,6 +86,11 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
               path: '/projects/:id',
               builder: (_, state) =>
                   ProjectDetailPage(projectId: state.pathParameters['id']!)),
+          GoRoute(
+            path: '/projects/:id/content',
+            builder: (_, state) =>
+                ProjectLibraryPage(projectId: state.pathParameters['id']!),
+          ),
           GoRoute(
             path: '/project-workspace/chains/:id',
             builder: (_, state) => ProjectWorkspacePage(

@@ -4,7 +4,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.modules.projects.repository import ProjectRepository
-from app.modules.projects.schemas import ProjectCreate, ProjectDetail, ProjectPage, ProjectRead, ProjectUpdate
+from app.modules.projects.schemas import (
+    ProjectCreate,
+    ProjectDetail,
+    ProjectLibraryPage,
+    ProjectPage,
+    ProjectRead,
+    ProjectUpdate,
+)
 from app.modules.projects.service import ProjectService
 from app.modules.users.dependencies import DbSession, get_current_user
 from app.modules.users.model import User
@@ -15,8 +22,11 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 @router.get("", response_model=ProjectPage)
 async def list_projects(
-    session: DbSession, current_user: CurrentUser, offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100), include_archived: bool = False,
+    session: DbSession,
+    current_user: CurrentUser,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    include_archived: bool = False,
 ) -> ProjectPage:
     repository = ProjectRepository(session)
     items, total = await repository.list(current_user.id, offset, limit, include_archived)
@@ -42,6 +52,17 @@ async def create_project(data: ProjectCreate, session: DbSession, current_user: 
 @router.get("/{project_id}", response_model=ProjectDetail)
 async def get_project(project_id: UUID, session: DbSession, current_user: CurrentUser) -> ProjectDetail:
     return await ProjectService(session).detail(project_id, current_user)
+
+
+@router.get("/{project_id}/library", response_model=ProjectLibraryPage)
+async def get_project_library(
+    project_id: UUID,
+    session: DbSession,
+    current_user: CurrentUser,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=50),
+) -> ProjectLibraryPage:
+    return await ProjectService(session).library(project_id, current_user, offset, limit)
 
 
 @router.put("/{project_id}", response_model=ProjectRead)

@@ -622,3 +622,23 @@ SMOKE MANUAL REAL DA ETAPA 9.21: APROVADO
 O smoke final aprovou a conversão explícita de uma Chain independente em Project sem reiniciar a execução, preservando o progresso em 1 de 2 etapas concluídas. A memória persistiu após reabertura e promoveu público, canal e tom aos campos canônicos, manteve o diferencial e a estratégia no contexto, não duplicou informações promovidas e preservou `PREVIOUS STEP RESULT (CONTEXT ONLY)` e a soberania do objetivo atual. O resultado obteve GUPMAX Score 92/100.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+## Etapa 9.22 — Project Activity & Prompt Library / Histórico do Projeto
+
+SMOKE MANUAL REAL DA ETAPA 9.22: APROVADO
+
+Status: concluída após auditoria técnica e aprovação do smoke manual real.
+
+- A Central do Projeto possui um resumo compacto de conteúdo e a ação `Ver conteúdo`.
+- A biblioteca usa os relacionamentos existentes `Prompt.project_id` e `PromptChain.project_id`; não faz associação por nome ou texto.
+- `GET /api/v1/projects/{project_id}/library` é a única agregação nova, com ownership uniforme, paginação de prompts e consultas agrupadas para evitar N+1.
+- Refinamentos são agrupados pelo `root_prompt_id`; a lista apresenta uma entrada por família e informa a quantidade de versões.
+- O Score não é persistido no modelo atual; ele continua disponível e é calculado na abertura do prompt, sem carregar o conteúdo integral de todos os prompts nos cards. Busca textual ficou adiada porque a paginação existente atende o volume atual e adicionar busca neste momento ampliaria o contrato sem necessidade.
+- A abertura do prompt reutiliza a tela existente, que preserva histórico, Score, cópia e exclusão segura.
+- Fluxos associados apresentam etapa pendente, atual e concluída. O card recebe somente uma prévia curta; o resultado completo é obtido pelo endpoint existente da Chain apenas após `Ver resultado`.
+- Consultar resultado é somente leitura e não altera execução, `resultado_anterior`, progresso ou Project Memory.
+- Atividade recente é reconstruída apenas com timestamps confiáveis já existentes: atualização do Project, prompt/refinamento e conclusão de Step. Em empates, UUID fornece ordenação estável.
+- Chain sem Project continua operando normalmente e deve usar `Salvar como projeto` para habilitar biblioteca persistente; nenhum Project é criado silenciosamente.
+- Não foi criada migration, tabela de activity log, event sourcing ou segundo sistema de histórico.
+- A funcionalidade é determinística: zero chamadas de IA, créditos, Usage ou Ledger.
+- Arquivos novos: `frontend/lib/features/projects/project_library.dart`, `frontend/lib/features/projects/presentation/project_library_page.dart` e `frontend/test/features/projects/project_library_test.dart`.
+- Arquivos modificados: módulos Projects do backend, testes de integração de Projects, repository/providers/Workspace/rotas Flutter, fake repository e este relatório.

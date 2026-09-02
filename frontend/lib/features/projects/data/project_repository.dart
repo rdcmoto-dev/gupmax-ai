@@ -3,12 +3,15 @@ import 'package:dio/dio.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/project.dart';
+import '../project_library.dart';
 
 abstract interface class ProjectRepositoryContract {
   Future<ProjectPageData> list({bool includeArchived = true, int limit = 20});
   Future<ProjectRecord> get(String id);
   Future<ProjectRecord> create(Map<String, dynamic> values);
   Future<ProjectRecord> createFromChain(String chainId);
+  Future<ProjectLibraryData> library(String projectId,
+      {int offset = 0, int limit = 20});
   Future<ProjectRecord> update(String id, Map<String, dynamic> values);
   Future<void> delete(String id);
   Future<void> assignPrompt(String projectId, String promptId);
@@ -47,6 +50,19 @@ class ProjectRepository implements ProjectRepositoryContract {
       final response = await client.dio
           .post<Map<String, dynamic>>('/chains/$chainId/project');
       return ProjectRecord.fromJson(response.data!);
+    } catch (error) {
+      _map(error);
+    }
+  }
+
+  @override
+  Future<ProjectLibraryData> library(String projectId,
+      {int offset = 0, int limit = 20}) async {
+    try {
+      final response = await client.dio.get<Map<String, dynamic>>(
+          '/projects/$projectId/library',
+          queryParameters: {'offset': offset, 'limit': limit});
+      return ProjectLibraryData.fromJson(response.data!);
     } catch (error) {
       _map(error);
     }
