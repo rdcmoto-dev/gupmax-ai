@@ -9,6 +9,7 @@ import '../../prompts/prompt_providers.dart';
 import '../../templates/template_providers.dart';
 import '../domain/project.dart';
 import '../project_memory.dart';
+import '../project_insight.dart';
 import '../project_providers.dart';
 import '../project_workspace.dart';
 
@@ -285,6 +286,15 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                     children: [
                       _ProjectHeader(data: data),
                       const SizedBox(height: 18),
+                      _ProjectInsightCard(
+                        insight: projectInsightFor(
+                          project: data.project,
+                          chain: data.chain,
+                        ),
+                        starting: _starting,
+                        onAction: (action) => _handleInsight(action, data),
+                      ),
+                      const SizedBox(height: 18),
                       _ProjectMemoryCard(
                         project: data.project,
                         chain: data.chain,
@@ -306,8 +316,6 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                         const SizedBox(height: 18),
                         _ProgressCard(
                           chain: chain,
-                          starting: _starting,
-                          onOpen: () => _openChain(chain),
                         ),
                         const SizedBox(height: 18),
                         _StepsCard(chain: chain),
@@ -343,7 +351,91 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
       ),
     );
   }
+
+  Future<void> _handleInsight(
+    ProjectInsightAction action,
+    ProjectWorkspaceData data,
+  ) async {
+    switch (action) {
+      case ProjectInsightAction.continueChain:
+      case ProjectInsightAction.startChain:
+      case ProjectInsightAction.viewCompletedChain:
+        await _openChain(data.chain!);
+        return;
+      case ProjectInsightAction.editContext:
+        await _editMemory(data.project!);
+        return;
+      case ProjectInsightAction.createPrompt:
+        await context.push('/prompts/new?project=${data.project!.id}');
+        return;
+      case ProjectInsightAction.viewContent:
+        await context.push('/projects/${data.project!.id}/content');
+        return;
+      case ProjectInsightAction.none:
+        return;
+    }
+  }
 }
+
+class _ProjectInsightCard extends StatelessWidget {
+  const _ProjectInsightCard({
+    required this.insight,
+    required this.starting,
+    required this.onAction,
+  });
+
+  final ProjectInsight insight;
+  final bool starting;
+  final ValueChanged<ProjectInsightAction> onAction;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        key: const Key('project_next_step'),
+        color: Theme.of(context).colorScheme.primaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Próximo passo',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text(
+                insight.recommendation,
+                key: const Key('project_next_step_recommendation'),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(insight.explanation),
+              if (insight.actionLabel case final label?) ...[
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    key: const Key('workspace_primary_action'),
+                    onPressed: starting ? null : () => onAction(insight.action),
+                    icon: Icon(_insightIcon(insight.action)),
+                    label: Text(starting ? 'Iniciando...' : label),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+}
+
+IconData _insightIcon(ProjectInsightAction action) => switch (action) {
+      ProjectInsightAction.continueChain => Icons.play_arrow_rounded,
+      ProjectInsightAction.startChain => Icons.rocket_launch_outlined,
+      ProjectInsightAction.editContext => Icons.edit_outlined,
+      ProjectInsightAction.createPrompt => Icons.auto_awesome,
+      ProjectInsightAction.viewContent => Icons.folder_open_outlined,
+      ProjectInsightAction.viewCompletedChain => Icons.visibility_outlined,
+      ProjectInsightAction.none => Icons.check_circle_outline,
+    };
 
 class _ProjectContentCard extends ConsumerWidget {
   const _ProjectContentCard({required this.projectId});
@@ -664,27 +756,13 @@ class _MemoryDraft {
 }
 
 class _ProgressCard extends StatelessWidget {
-  const _ProgressCard({
-    required this.chain,
-    required this.starting,
-    required this.onOpen,
-  });
+  const _ProgressCard({required this.chain});
 
   final PromptChainRecord chain;
-  final bool starting;
-  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final total = chain.steps.isEmpty ? chain.stepCount : chain.steps.length;
-    final pending = chain.completedStepCount == 0 &&
-        chain.currentStepId == null &&
-        !chain.executionCompleted;
-    final label = chain.executionCompleted
-        ? 'Ver projeto concluído'
-        : pending
-            ? 'Iniciar projeto'
-            : 'Continuar projeto';
     return Card(
       key: const Key('workspace_progress'),
       child: Padding(
@@ -704,20 +782,6 @@ class _ProgressCard extends StatelessWidget {
               value: total == 0 ? 0 : chain.completedStepCount / total,
               minHeight: 10,
               borderRadius: BorderRadius.circular(10),
-            ),
-            const SizedBox(height: 18),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.icon(
-                key: const Key('workspace_primary_action'),
-                onPressed: total == 0 || starting ? null : onOpen,
-                icon: Icon(chain.executionCompleted
-                    ? Icons.visibility_outlined
-                    : pending
-                        ? Icons.rocket_launch_outlined
-                        : Icons.play_arrow_rounded),
-                label: Text(starting ? 'Iniciando...' : label),
-              ),
             ),
           ],
         ),

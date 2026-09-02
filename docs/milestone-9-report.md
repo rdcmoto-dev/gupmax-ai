@@ -449,6 +449,48 @@ Detecção, labels, validação e substituição são locais e não chamam OpenA
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
 
+## Etapa 9.23 — Project Insights / Próximo Melhor Passo
+
+A Central do Projeto agora apresenta uma seção lilás compacta, “Próximo passo”, com uma recomendação principal, uma explicação curta e no máximo uma ação. A decisão é produzida pela função pura e reutilizável `projectInsightFor`, no domínio Flutter, usando somente o `ProjectRecord` e o `PromptChainRecord` que o workspace já carregava. Não foi criado endpoint, provider, planner, Context Engine, tabela ou migration; também não há nova consulta, N+1 ou carregamento do conteúdo completo da biblioteca.
+
+A prioridade final é:
+
+1. Chain em andamento: continuar a etapa identificada por `currentStepId`, exibindo o progresso persistido.
+2. Chain pendente: iniciar o fluxo existente.
+3. Project ativo sem Chain e sem Project Memory útil: editar o contexto.
+4. Project ativo sem Chain, com memória e sem prompts: criar o primeiro prompt no Project.
+5. Chain concluída: revisar o conteúdo do Project associado ou abrir o fluxo concluído quando não existe Project.
+6. Project ativo sem Chain e com prompts: revisar o conteúdo existente.
+7. Project arquivado sem Chain: apresentar estado concluído sem botão ou urgência inventada.
+
+As ações reutilizam exclusivamente as rotas e operações existentes: execução guiada da Chain, edição explícita de Project Memory, `/prompts/new?project=...` e `/projects/{id}/content`. Uma Chain do Expert Planner sem Project continua iniciável/retomável e mantém “Salvar como projeto” na área de contexto quando o usuário desejar memória ou biblioteca persistente; nenhum Project é criado silenciosamente. Uma Chain concluída nunca recebe “Continuar”, não é reiniciada e abre apenas conteúdo já existente.
+
+Os dados considerados são: presença e status do Project, Project Memory parseada, quantidade agregada de prompts associados, presença da Chain, `executionCompleted`, `completedStepCount`, `currentStepId`, quantidade e títulos das Steps. Datas, categoria e atividade recente permanecem visíveis na Central, mas não alteram a prioridade quando não representam uma ação pendente inequívoca. A única porcentagem visual continua sendo o progresso real da Chain.
+
+Arquivos criados:
+
+- `frontend/lib/features/projects/project_insight.dart`.
+- `frontend/test/features/projects/project_insight_test.dart`.
+
+Arquivos modificados:
+
+- `frontend/lib/features/projects/presentation/project_workspace_page.dart`.
+- `docs/milestone-9-report.md`.
+
+Cobertura adicionada e preservada: Project sem Chain/memória, memória sem prompts, Project com prompts, Chain pendente, em andamento e concluída, Chain sem Project, Project + Chain, prioridade, etapa atual, ação de cada estado, ausência de mutação de memória/progresso/biblioteca, projeto arquivado, rotas, ownership/IDOR e isolamento existentes, além de desktop e mobile sem overflow.
+
+Validação técnica: Ruff aprovado; 384 testes backend aprovados; `dart format` verificou 146 arquivos sem alterações; Flutter Analyze sem issues; 235 testes Flutter aprovados; `git diff --check` aprovado; Health respondeu HTTP 200 com `{"status":"ok"}`; OpenAPI respondeu HTTP 200; `alembic current` e `alembic heads` confirmaram `0016_guided_chain_execution (head)`. Nenhuma migration foi criada.
+
+Na conferência anterior à inclusão deste relatório, `git diff --stat` registrou `project_workspace_page.dart | 126` (`95 insertions`, `31 deletions`); os dois arquivos novos ainda aparecem como untracked e, por definição, não entram no `git diff --stat` sem staging. O `git status --short` final deve listar os três arquivos de implementação/teste e este relatório, sem `git add`.
+
+Auditoria: `backend/.env` continua ignorado; não há secret, debug temporário ou build/cache novo no diff. A recomendação é uma função síncrona e somente leitura: zero chamadas OpenAI, Gemini ou Anthropic, zero créditos, nenhum Usage e nenhuma alteração de Ledger.
+
+SMOKE MANUAL REAL DA ETAPA 9.23: APROVADO
+
+O smoke real confirmou o próximo passo do Project “Lançamento Pizzaria Donatello” em 1 de 2 etapas, com a etapa “campanha de lançamento” atual, ação “Continuar projeto” e preservação de memória, conteúdo e prompts. Também confirmou “Delivery Restaurantes” concluído em 9 de 9 etapas, com recomendação para revisar o conteúdo concluído, ação “Ver projeto concluído”, sem “Continuar projeto”, nova etapa ou reinício do fluxo.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
 O primeiro smoke manual revelou que o formulário de variáveis não aparecia depois de criar o Template e navegar por “Usar”. O teste anterior construía `PromptCreatePage` diretamente e, por isso, não exercitava criação, listagem, `GoRouter`, query parameter e nova consulta do Template. A desserialização agora usa a metadata retornada pela API e recalcula deterministicamente as variáveis a partir dos campos do Template quando a metadata estiver ausente; a página mantém o `template_id` selecionado no próprio estado e recarrega o registro quando a rota muda. Um teste de regressão percorre o fluxo de produção completo, preenche Produto, Público e Canal, confirma `variable_values`, reentrada e preservação do Template original.
 
 O smoke manual final aprovou o Template “Campanha dinâmica”: `{produto}`, `{publico}` e `{canal}` foram substituídos respectivamente por “Pizza artesanal”, “Famílias da região” e “Instagram”. O Prompt Basic final não apresentou placeholders restantes e indicou IA não utilizada. A auditoria final aprovou Ruff e os 302 testes backend, `dart format` em 108 arquivos sem alterações, Flutter Analyze sem issues e os 168 testes Flutter. Health e OpenAPI responderam 200, `0014_target_ai` permaneceu como único Alembic head e `git diff --check` passou. A resolução determinística não chamou OpenAI, não consumiu créditos, não criou Usage e não alterou o ledger.
