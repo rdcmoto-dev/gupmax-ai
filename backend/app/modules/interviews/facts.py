@@ -202,18 +202,18 @@ class DeterministicFactExtractor:
 
     def _audience(self, original: str) -> str | None:
         patterns = (
+            r"\b(?:voltad[oa]s?|direcionad[oa]s?|destinad[oa]s?)\s+(?:a|aos?|as|às|para)\s+([^,.]+)",
             r"\bpara\s+((?:mulheres|homens|jovens|adultos|criancas|crianças|adolescentes|idosos|estudantes|profissionais|empreendedores)\b[^,.]*)",
             r"\bpublico\s+(?:de\s+)?((?:mulheres|homens|jovens|adultos|criancas|crianças|adolescentes|idosos|estudantes|profissionais|empreendedores)\b[^,.]*)",
             r"\bpúblico\s+(?:de\s+)?((?:mulheres|homens|jovens|adultos|crianças|adolescentes|idosos|estudantes|profissionais|empreendedores)\b[^,.]*)",
         )
-        normalized = self._normalize(original)
         matches: list[str] = []
         for pattern in patterns:
-            matches.extend(match.group(1).strip() for match in re.finditer(pattern, normalized, re.IGNORECASE))
+            matches.extend(match.group(1).strip() for match in re.finditer(pattern, original, re.IGNORECASE))
         if not matches:
             return None
         value = matches[-1]
-        value = re.split(r"\s+com\s+tom\b", value, maxsplit=1)[0].strip()
+        value = re.split(r"\s+com\s+tom\b", value, maxsplit=1, flags=re.IGNORECASE)[0].strip()
         return value if len(value) >= 6 else None
 
     @staticmethod

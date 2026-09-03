@@ -8,6 +8,7 @@ import '../../prompt_chains/prompt_chain_providers.dart';
 import '../../prompts/prompt_providers.dart';
 import '../../templates/template_providers.dart';
 import '../domain/project.dart';
+import '../project_goals.dart';
 import '../project_health.dart';
 import '../project_memory.dart';
 import '../project_insight.dart';
@@ -27,6 +28,7 @@ class ProjectWorkspacePage extends ConsumerStatefulWidget {
 class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
   bool _starting = false;
   bool _savingMemory = false;
+  bool _savingGoals = false;
   bool _savingProject = false;
 
   Future<void> _saveAsProject(PromptChainRecord chain) async {
@@ -186,6 +188,166 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
     }
   }
 
+  Future<void> _editGoals(ProjectRecord project) async {
+    final current = ProjectGoals.parse(project.context);
+    final objective = TextEditingController(text: current.objective);
+    final criteria = current.criteria
+        .map((value) => TextEditingController(text: value))
+        .toList(growable: true);
+    final retired = <TextEditingController>[];
+    final formKey = GlobalKey<FormState>();
+    String? dialogError;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Editar objetivos'),
+          content: SizedBox(
+            width: 640,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      key: const Key('project_goal_objective'),
+                      controller: objective,
+                      maxLength: ProjectMemory.maxValueLength,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Objetivo principal',
+                        hintText: 'O que você quer alcançar?',
+                      ),
+                      onChanged: (_) => setDialogState(() {
+                        dialogError = null;
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Critérios de sucesso',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Os itens abaixo são critérios definidos, não uma confirmação de que foram alcançados.',
+                    ),
+                    const SizedBox(height: 10),
+                    for (var index = 0; index < criteria.length; index++)
+                      Padding(
+                        key: ValueKey(criteria[index]),
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                key: Key('project_goal_criterion_$index'),
+                                controller: criteria[index],
+                                maxLength: ProjectMemory.maxValueLength,
+                                maxLines: 2,
+                                decoration: InputDecoration(
+                                  labelText: 'Critério ${index + 1}',
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              key: Key('remove_project_goal_criterion_$index'),
+                              onPressed: () => setDialogState(() {
+                                retired.add(criteria.removeAt(index));
+                                dialogError = null;
+                              }),
+                              tooltip: 'Remover critério',
+                              icon: const Icon(Icons.delete_outline),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        key: const Key('add_project_goal_criterion'),
+                        onPressed: criteria.length <
+                                ProjectGoals.availableCriteria(
+                                  project.context,
+                                  hasObjective:
+                                      objective.text.trim().isNotEmpty,
+                                )
+                            ? () => setDialogState(() {
+                                  criteria.add(TextEditingController());
+                                  dialogError = null;
+                                })
+                            : null,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar critério'),
+                      ),
+                    ),
+                    if (dialogError != null)
+                      Text(
+                        dialogError!,
+                        key: const Key('project_goals_error'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              key: const Key('save_project_goals'),
+              onPressed: () {
+                if (!(formKey.currentState?.validate() ?? false)) return;
+                try {
+                  ProjectGoals.merge(
+                    context: project.context,
+                    objective: objective.text,
+                    criteria: criteria.map((item) => item.text),
+                  );
+                  Navigator.pop(dialogContext, true);
+                } on FormatException catch (error) {
+                  setDialogState(() => dialogError = error.message);
+                }
+              },
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Salvar objetivos'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (save == true && mounted) {
+      final merged = ProjectGoals.merge(
+        context: project.context,
+        objective: objective.text,
+        criteria: criteria.map((item) => item.text),
+      );
+      setState(() => _savingGoals = true);
+      final success = await ref
+          .read(projectControllerProvider)
+          .update(project.id, {'context': merged});
+      if (mounted) {
+        setState(() => _savingGoals = false);
+        if (success) ref.invalidate(projectWorkspaceProvider(widget.target));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(success
+              ? 'Objetivos do projeto salvos.'
+              : 'Não foi possível salvar os objetivos do projeto.'),
+        ));
+      }
+    }
+    await Future<void>.delayed(kThemeAnimationDuration);
+    objective.dispose();
+    for (final controller in [...criteria, ...retired]) {
+      controller.dispose();
+    }
+  }
+
   Future<void> _addPrompt(String projectId) async {
     final prompts = ref.read(promptControllerProvider);
     await prompts.loadPage();
@@ -303,6 +465,14 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                         ),
                       ),
                       const SizedBox(height: 18),
+                      _ProjectGoalsCard(
+                        project: data.project,
+                        saving: _savingGoals,
+                        onEdit: data.project == null
+                            ? null
+                            : () => _editGoals(data.project!),
+                      ),
+                      const SizedBox(height: 18),
                       _ProjectMemoryCard(
                         project: data.project,
                         chain: data.chain,
@@ -382,6 +552,112 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
       case ProjectInsightAction.none:
         return;
     }
+  }
+}
+
+class _ProjectGoalsCard extends StatelessWidget {
+  const _ProjectGoalsCard({
+    required this.project,
+    required this.saving,
+    required this.onEdit,
+  });
+
+  final ProjectRecord? project;
+  final bool saving;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final goals = ProjectGoals.parse(project?.context);
+    return Card(
+      key: const Key('project_goals'),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(builder: (context, constraints) {
+              final title = Text('Objetivo do projeto',
+                  style: Theme.of(context).textTheme.titleLarge);
+              final action = onEdit == null
+                  ? null
+                  : TextButton.icon(
+                      key: const Key('edit_project_goals'),
+                      onPressed: saving ? null : onEdit,
+                      icon: saving
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.edit_outlined, size: 18),
+                      label: Text(goals.isEmpty
+                          ? 'Definir objetivo'
+                          : 'Editar objetivos'),
+                    );
+              if (constraints.maxWidth < 360 && action != null) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    title,
+                    Align(alignment: Alignment.centerLeft, child: action),
+                  ],
+                );
+              }
+              return Row(children: [
+                Expanded(child: title),
+                if (action != null) action,
+              ]);
+            }),
+            const SizedBox(height: 10),
+            if (project == null)
+              const Text(
+                'Salve este fluxo como projeto para definir objetivos persistentes.',
+                key: Key('chain_without_project_goals'),
+              )
+            else if (goals.isEmpty)
+              const Text(
+                'Objetivo ainda não definido.',
+                key: Key('empty_project_goals'),
+              )
+            else ...[
+              if (goals.objective case final objective?) ...[
+                Text('Objetivo', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 3),
+                Text(objective, key: const Key('project_goal_value')),
+              ],
+              if (goals.criteria.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('Critérios de sucesso definidos',
+                    style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 5),
+                for (var index = 0; index < goals.criteria.length; index++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.check, size: 18),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            goals.criteria[index],
+                            key: Key('project_goal_criterion_value_$index'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 3),
+                Text(
+                  'Critérios definidos pelo usuário; ainda não avaliados.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -618,7 +894,7 @@ class _ProjectMemoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = ProjectMemory.parse(project?.context);
+    final entries = ProjectGoals.memoryEntries(project?.context);
     return Card(
       key: const Key('project_memory_card'),
       child: Padding(
@@ -698,7 +974,7 @@ class _ProjectMemoryCard extends StatelessWidget {
               ],
             ] else if (entries.isEmpty)
               const Text(
-                'O GUPMAX ainda não possui informações salvas sobre este projeto.',
+                'O GUPMAX ainda não possui outras informações salvas sobre este projeto.',
                 key: Key('empty_project_memory'),
               )
             else ...[

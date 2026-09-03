@@ -82,6 +82,28 @@ def test_case_b_extracts_safe_facts_and_omits_redundant_questions() -> None:
     assert [question.key for question in questions] == ["cta"]
 
 
+@pytest.mark.parametrize(
+    ("input_text", "expected"),
+    [
+        ("campanha voltada para empresas da região", "empresas da região"),
+        ("anúncio direcionado para restaurantes", "restaurantes"),
+        ("conteúdo destinado a profissionais de saúde", "profissionais de saúde"),
+        ("campanha voltada às pequenas empresas", "pequenas empresas"),
+    ],
+)
+def test_extracts_audience_from_explicit_direction_without_specializing_it(
+    input_text: str,
+    expected: str,
+) -> None:
+    facts = DeterministicFactExtractor().extract(
+        input_text,
+        PromptCategory.MARKETING,
+    )
+
+    assert facts["audience"].value == expected
+    assert facts["audience"].source == FactSource.INITIAL_REQUEST
+
+
 def test_cases_c_and_d_extract_category_specific_facts() -> None:
     extractor = DeterministicFactExtractor()
     video = extractor.extract(

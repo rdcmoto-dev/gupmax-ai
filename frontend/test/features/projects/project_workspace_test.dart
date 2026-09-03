@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gupmax_ai/core/theme/app_theme.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_workspace_page.dart';
@@ -271,6 +272,8 @@ void main() {
     );
 
     expect(find.byKey(const Key('empty_project_memory')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('edit_project_memory')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_memory')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -304,6 +307,8 @@ void main() {
       findsOneWidget,
     );
 
+    await tester.ensureVisible(find.byKey(const Key('edit_project_memory')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_memory')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -381,6 +386,8 @@ void main() {
       target: const ProjectWorkspaceTarget.chain('chain-1'),
     );
 
+    await tester.ensureVisible(find.byKey(const Key('save_chain_as_project')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('save_chain_as_project')));
     await tester.pumpAndSettle();
     expect(find.text('Salvar como projeto?'), findsOneWidget);
@@ -388,6 +395,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(projects.createFromChainCalls, 0);
 
+    await tester.ensureVisible(find.byKey(const Key('save_chain_as_project')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('save_chain_as_project')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('confirm_save_chain_as_project')));
@@ -437,6 +446,8 @@ void main() {
       target: const ProjectWorkspaceTarget.chain('chain-1'),
     );
 
+    await tester.ensureVisible(find.byKey(const Key('save_chain_as_project')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('save_chain_as_project')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('confirm_save_chain_as_project')));
@@ -567,6 +578,164 @@ void main() {
           matching: find.text('Adicione contexto ou crie o primeiro conteúdo'),
         ),
         findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('adiciona edita remove e persiste objetivo e critérios',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: 'Público: Famílias')];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    expect(find.byKey(const Key('empty_project_goals')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('project_goal_objective')),
+        'Criar uma campanha regional');
+    await tester.tap(find.byKey(const Key('add_project_goal_criterion')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('project_goal_criterion_0')),
+        'Campanha pronta para Instagram');
+    await tester.tap(find.byKey(const Key('add_project_goal_criterion')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('project_goal_criterion_1')),
+        'Oferta claramente definida');
+    await tester.tap(find.byKey(const Key('save_project_goals')));
+    await tester.pumpAndSettle();
+
+    expect(projects.items.single.context, contains('Público: Famílias'));
+    expect(projects.items.single.context,
+        contains('Objetivo: Criar uma campanha regional'));
+    expect(find.text('Criar uma campanha regional'), findsOneWidget);
+    expect(find.text('Campanha pronta para Instagram'), findsOneWidget);
+
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+    expect(find.text('Criar uma campanha regional'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_goal_objective')), 'Objetivo revisado');
+    await tester.enterText(find.byKey(const Key('project_goal_criterion_0')),
+        'Mensagem principal definida');
+    await tester.tap(find.byKey(const Key('remove_project_goal_criterion_1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('save_project_goals')));
+    await tester.pumpAndSettle();
+
+    expect(
+        projects.items.single.context, contains('Objetivo: Objetivo revisado'));
+    expect(projects.items.single.context,
+        contains('Critério de sucesso: Mensagem principal definida'));
+    expect(projects.items.single.context,
+        isNot(contains('Oferta claramente definida')));
+
+    await tester.tap(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('project_goal_objective')), '');
+    await tester.tap(find.byKey(const Key('remove_project_goal_criterion_0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('save_project_goals')));
+    await tester.pumpAndSettle();
+
+    expect(projects.items.single.context, 'Público: Famílias');
+    expect(find.byKey(const Key('empty_project_goals')), findsOneWidget);
+  });
+
+  testWidgets('cancelar e erro da API preservam objetivos anteriores',
+      (tester) async {
+    const original = 'Objetivo: Meta original\n'
+        'Critério de sucesso: Critério original\n'
+        'Canal: Instagram';
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: original)];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester.tap(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_goal_objective')), 'Não salvar');
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, original);
+    expect(find.text('Meta original'), findsOneWidget);
+
+    projects.updateError = const AppException('falha');
+    await tester.tap(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_goal_objective')), 'Também não salvar');
+    await tester.tap(find.byKey(const Key('save_project_goals')));
+    await tester.pumpAndSettle();
+
+    expect(projects.items.single.context, original);
+    expect(find.text('Meta original'), findsOneWidget);
+    expect(find.text('Não foi possível salvar os objetivos do projeto.'),
+        findsOneWidget);
+  });
+
+  testWidgets('editor limita critérios e não cria Project para Chain',
+      (tester) async {
+    await pumpWorkspace(
+      tester,
+      projects: FakeProjectRepository()..items = [projectSample()],
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+    await tester.tap(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
+    for (var index = 0; index < 5; index++) {
+      await tester.tap(find.byKey(const Key('add_project_goal_criterion')));
+      await tester.pumpAndSettle();
+    }
+    final add = tester.widget<TextButton>(
+        find.byKey(const Key('add_project_goal_criterion')));
+    expect(add.onPressed, isNull);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+
+    final projects = FakeProjectRepository();
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository()..items = [chain()],
+      target: const ProjectWorkspaceTarget.chain('chain-1'),
+    );
+    expect(
+        find.byKey(const Key('chain_without_project_goals')), findsOneWidget);
+    expect(find.byKey(const Key('edit_project_goals')), findsNothing);
+    expect(projects.items, isEmpty);
+  });
+
+  testWidgets('objetivos não apresentam overflow no mobile', (tester) async {
+    await pumpWorkspace(
+      tester,
+      projects: FakeProjectRepository()..items = [projectSample(context: null)],
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+      size: const Size(390, 844),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('project_goal_objective')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

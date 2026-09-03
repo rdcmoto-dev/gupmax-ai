@@ -709,3 +709,29 @@ Os testes cobrem Project vazio, contexto útil, prompts associados, Chain penden
 Project Health não chama OpenAI, Gemini ou Anthropic, não consome créditos, não cria Usage e não altera Ledger.
 
 **Status: IMPLEMENTADA — AGUARDANDO SMOKE MANUAL.**
+
+## ETAPA 9.25 — PROJECT GOALS & SUCCESS CRITERIA
+
+Project Goals responde “O que quero atingir?” por meio de dados explicitamente informados pelo usuário. A Central do Projeto agora possui a seção compacta “Objetivo do projeto”, com um objetivo principal e até cinco critérios de sucesso. O símbolo visual dos critérios significa somente “critério definido”; a interface esclarece que eles ainda não foram avaliados e não implementa progresso, confirmação ou avaliação automática de cumprimento.
+
+A persistência reutiliza integralmente `Project.context` e o formato estruturado da Project Memory: `Objetivo: <texto>` e entradas repetíveis `Critério de sucesso: <texto>`. Não há estado paralelo no frontend, tabela, endpoint ou migration nova. As demais entradas de memória são preservadas ao adicionar, editar ou remover objetivos; objetivo e critérios são apresentados em seu card próprio e não são duplicados no resumo genérico da memória. O limite mais seguro prevalece: um objetivo, no máximo cinco critérios, no máximo dez entradas globais, 1.000 caracteres por valor e 4.000 caracteres no contexto serializado.
+
+O modal permite adicionar, editar e remover objetivo e critérios, além de salvar ou cancelar explicitamente. Reabrir a Central reconstrói os dados do Project persistido. Cancelamento e falha da API preservam o estado anterior, e o estado de salvamento impede uma segunda operação concorrente. Project sem objetivo exibe um estado vazio sem bloquear os demais recursos. Chain independente não recebe objetivo persistente nem cria Project silenciosamente; permanece disponível a ação explícita “Salvar como projeto”.
+
+O Context Engine e o Prompt Engine continuam usando o fluxo aprovado da Project Memory. Objetivo e critérios chegam ao `PromptBuilder` como contexto citado e delimitado, sem seção duplicada. A precedência permanece: campo explícito atual > Smart Answer > fato inferido > Prompt Variable semântica > memória do Project > demais contextos autorizados > Smart Profile/default. Assim, o pedido atual continua soberano sobre um objetivo antigo. Cabeçalhos, Markdown, HTML e texto semelhante a instruções permanecem dados literais, sem `eval`, `exec` ou shell.
+
+Project Health, Project Insights e Project Library mantêm responsabilidades separadas e não foram reescritos: ausência de objetivo não torna o projeto ruim, objetivo não vira recomendação e alterações não geram eventos de biblioteca. Ownership, isolamento entre usuários/Projects e IDOR 404 uniforme continuam no CRUD existente de Projects.
+
+Os testes cobrem estado vazio, adicionar, editar e remover objetivo, um ou vários critérios, edição e remoção de critérios, limite de cinco e limite global da memória, persistência após reabertura, cancelamento, falha da API, Project/Chain associados, Chain sem Project, segurança e precedência no `PromptBuilder`, conteúdo hostil, ownership/IDOR e regressões de Health, Insights, Library, desktop e mobile. A gestão é determinística: zero chamadas OpenAI, Gemini ou Anthropic, zero créditos, nenhum Usage e nenhuma alteração de Ledger.
+
+### Correção pré-auditoria de precedência do público atual
+
+O smoke identificou que “campanha voltada para empresas da região” mantinha o público “donos de pequenos negócios”. A proveniência foi confirmada como `default_audience` do Smart Profile. Havia duas causas combinadas: o extrator determinístico originalmente não reconhecia a construção explícita “voltada para”; além disso, o payload real do Flutter envia campos opcionais vazios como `audience: null` e `tone: null`. O backend usava somente a presença da chave em `model_fields_set` para classificá-la como explícita, portanto esses valores nulos bloqueavam os fatos corretamente extraídos e deixavam os defaults do perfil no objeto preparado.
+
+O extrator existente passou a reconhecer marcadores direcionais explícitos — “voltado”, “direcionado” e “destinado”, com suas flexões e preposições — e preserva o complemento fornecido pelo usuário sem especializá-lo. O serviço agora considera explícitos somente campos presentes com valor útil; `null`, string vazia e lista vazia não recebem precedência artificial. A arquitetura e a ordem de precedência não mudaram. Com público atual, “empresas da região” chega como audiência estruturada ao `PromptBuilder` e prevalece sobre Project Memory e Smart Profile; sem público atual, “Moradores da região” continua vindo da memória. Tom atual, Smart Answers, Prompt Variables semânticas, objetivo da Step atual e `resultado_anterior` mantêm seus contratos. O público promovido continua removido do bloco de contexto para evitar duplicação. A correção é determinística e não utiliza IA, créditos, Usage ou Ledger.
+
+SMOKE MANUAL REAL DA ETAPA 9.25: APROVADO
+
+O novo smoke manual real confirmou que o pedido “Agora quero criar uma campanha voltada para empresas da região, com tom profissional e corporativo.” produziu `AUDIENCE = empresas da região` e `TONE = profissional`, sem reutilizar “donos de pequenos negócios” do Smart Profile nem o público antigo da Project Memory.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

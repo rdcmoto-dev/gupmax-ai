@@ -213,8 +213,12 @@ class PromptService:
         return PromptCompareResponse(items=items)
 
     async def _prepare(self, user: User, data: PromptGenerateRequest) -> PromptGenerateRequest:
-        request_explicit_fields = set(data.model_fields_set)
         request_values = data.model_dump()
+        request_explicit_fields = {
+            key
+            for key in data.model_fields_set
+            if request_values.get(key) not in (None, "", [])
+        }
         if data.chain_step_id is not None:
             if data.chain_id is None:
                 raise HTTPException(status_code=422, detail="chain_id is required")
