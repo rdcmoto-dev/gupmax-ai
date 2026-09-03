@@ -114,6 +114,7 @@ ProjectRecord projectSample({
   String name = 'Pizzaria Donatello',
   ProjectStatus status = ProjectStatus.active,
   String? context = 'Pizzaria com delivery',
+  int promptCount = 0,
   DateTime? updatedAt,
 }) =>
     ProjectRecord(
@@ -122,7 +123,7 @@ ProjectRecord projectSample({
       description: 'Marketing e vendas',
       context: context,
       status: status,
-      promptCount: 0,
+      promptCount: promptCount,
       templateCount: 0,
       createdAt: DateTime.utc(2026, 8, 20),
       updatedAt: updatedAt ?? DateTime.utc(2026, 8, 20),

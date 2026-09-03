@@ -684,3 +684,28 @@ Status: concluída após auditoria técnica e aprovação do smoke manual real.
 - A funcionalidade é determinística: zero chamadas de IA, créditos, Usage ou Ledger.
 - Arquivos novos: `frontend/lib/features/projects/project_library.dart`, `frontend/lib/features/projects/presentation/project_library_page.dart` e `frontend/test/features/projects/project_library_test.dart`.
 - Arquivos modificados: módulos Projects do backend, testes de integração de Projects, repository/providers/Workspace/rotas Flutter, fake repository e este relatório.
+
+## ETAPA 9.24 — PROJECT HEALTH / SAÚDE DO PROJETO
+
+Project Health responde “Como está este projeto neste momento?” com uma classificação qualitativa, determinística e explicável na Central do Projeto. A seção compacta “Saúde do projeto” exibe um estado em português e até três sinais derivados exclusivamente do `ProjectRecord` e do `PromptChainRecord` já carregados pelo workspace. Ela não duplica a recomendação ou a ação de “Próximo passo”.
+
+As regras finais são conservadoras:
+
+- `COMPLETED` / “Concluído”: Chain com execução integralmente concluída, ou Project arquivado sem Chain. Exibe o progresso real quando existe Chain e informa que a unidade está pronta para revisão.
+- `NEEDS_SETUP` / “Configuração necessária”: Project ativo sem Chain, memória ou prompts; ou Chain independente sem etapas. Não inventa progresso nem cria Chain ou Project.
+- `ATTENTION` / “Atenção”: existe Project com conteúdo ou Chain estruturada, mas sua Project Memory ainda não possui contexto útil.
+- `GOOD` / “Boa”: Project com contexto útil, ou Chain independente estruturada. Uma Chain independente não recebe sinal negativo de memória porque não existe Project capaz de possuí-la.
+
+Project + Chain associados são tratados como uma unidade: memória vem do Project, progresso vem da Chain e a quantidade de prompts vem da associação real do Project. Os sinais são únicos e limitados a três: contexto configurado ou ausente, etapas prontas/concluídas e prompts associados. Não existe nota, porcentagem de saúde, score 0–100, timestamp inferido ou dado inventado; a única proporção apresentada é a contagem real de etapas da Chain.
+
+O cálculo reside em uma função pura e síncrona no domínio Flutter. Não há endpoint, provider, consulta adicional, N+1, persistência, histórico de saúde, migration, novo Planner ou novo Context Engine. Visualizar a saúde não altera Project, Project Memory, Chain, etapa atual, progresso, prompts, versões ou `resultado_anterior`.
+
+Arquivos criados: `frontend/lib/features/projects/project_health.dart` e `frontend/test/features/projects/project_health_test.dart`.
+
+Arquivos modificados: `frontend/lib/features/projects/presentation/project_workspace_page.dart`, `frontend/test/features/projects/project_workspace_test.dart`, `frontend/test/support/fake_project_repository.dart` e este relatório.
+
+Os testes cobrem Project vazio, contexto útil, prompts associados, Chain pendente, parcialmente concluída e concluída, Project + Chain, Chain independente, ausência de indicadores duplicados, imutabilidade, determinismo, limite de três sinais e renderização desktop/mobile sem overflow. Ruff foi aprovado; os 384 testes backend e os 248 testes Flutter passaram; `dart format` verificou 148 arquivos sem alterações; Flutter Analyze terminou sem issues; Health e OpenAPI responderam HTTP 200; `alembic current` e `alembic heads` confirmaram `0016_guided_chain_execution` como o único head; e `git diff --check` foi aprovado.
+
+Project Health não chama OpenAI, Gemini ou Anthropic, não consome créditos, não cria Usage e não altera Ledger.
+
+**Status: IMPLEMENTADA — AGUARDANDO SMOKE MANUAL.**

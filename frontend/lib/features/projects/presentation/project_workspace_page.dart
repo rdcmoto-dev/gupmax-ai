@@ -8,6 +8,7 @@ import '../../prompt_chains/prompt_chain_providers.dart';
 import '../../prompts/prompt_providers.dart';
 import '../../templates/template_providers.dart';
 import '../domain/project.dart';
+import '../project_health.dart';
 import '../project_memory.dart';
 import '../project_insight.dart';
 import '../project_providers.dart';
@@ -295,6 +296,13 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                         onAction: (action) => _handleInsight(action, data),
                       ),
                       const SizedBox(height: 18),
+                      _ProjectHealthCard(
+                        health: projectHealthFor(
+                          project: data.project,
+                          chain: data.chain,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
                       _ProjectMemoryCard(
                         project: data.project,
                         chain: data.chain,
@@ -376,6 +384,69 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
     }
   }
 }
+
+class _ProjectHealthCard extends StatelessWidget {
+  const _ProjectHealthCard({required this.health});
+
+  final ProjectHealth health;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        key: const Key('project_health'),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Saúde do projeto',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 6),
+              Text(
+                health.label,
+                key: const Key('project_health_state'),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: _healthColor(context, health.state),
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 10),
+              for (var index = 0; index < health.signals.length; index++)
+                Padding(
+                  key: Key('project_health_signal_$index'),
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        health.signals[index].kind ==
+                                ProjectHealthSignalKind.positive
+                            ? Icons.check_circle_outline
+                            : Icons.error_outline,
+                        size: 18,
+                        color: health.signals[index].kind ==
+                                ProjectHealthSignalKind.positive
+                            ? Colors.green.shade700
+                            : Theme.of(context).colorScheme.secondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(health.signals[index].label)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+}
+
+Color _healthColor(BuildContext context, ProjectHealthState state) =>
+    switch (state) {
+      ProjectHealthState.good => Colors.green.shade800,
+      ProjectHealthState.attention => Theme.of(context).colorScheme.secondary,
+      ProjectHealthState.needsSetup =>
+        Theme.of(context).colorScheme.onSurfaceVariant,
+      ProjectHealthState.completed => Colors.green.shade800,
+    };
 
 class _ProjectInsightCard extends StatelessWidget {
   const _ProjectInsightCard({

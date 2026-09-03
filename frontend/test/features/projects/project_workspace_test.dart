@@ -185,7 +185,13 @@ void main() {
 
     expect(find.text('Delivery'), findsOneWidget);
     expect(find.text('Plano de entrega'), findsNothing);
-    expect(find.text('1 de 3 etapas concluídas'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('workspace_progress')),
+        matching: find.text('1 de 3 etapas concluídas'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Continuar projeto'), findsOneWidget);
     expect(find.text('2. Etapa 2'), findsOneWidget);
     expect(find.text('Atual'), findsOneWidget);
@@ -207,8 +213,14 @@ void main() {
       target: const ProjectWorkspaceTarget.chain('chain-1'),
     );
 
-    expect(find.text('2 de 2 etapas concluídas'), findsOneWidget);
-    expect(find.text('Concluído'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('workspace_progress')),
+        matching: find.text('2 de 2 etapas concluídas'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Concluído'), findsNWidgets(2));
     expect(find.text('Ver projeto concluído'), findsOneWidget);
   });
 
@@ -236,7 +248,13 @@ void main() {
     await tester.tap(find.byKey(const Key('finish_current_and_back')));
     await tester.pumpAndSettle();
 
-    expect(find.text('2 de 3 etapas concluídas'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('workspace_progress')),
+        matching: find.text('2 de 3 etapas concluídas'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('3. Etapa 3'), findsOneWidget);
     expect(find.text('Atual'), findsOneWidget);
   });
@@ -379,7 +397,13 @@ void main() {
     expect(projects.items, hasLength(1));
     expect(find.byKey(const Key('chain_without_project_memory')), findsNothing);
     expect(find.byKey(const Key('edit_project_memory')), findsOneWidget);
-    expect(find.text('1 de 2 etapas concluídas'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('workspace_progress')),
+        matching: find.text('1 de 2 etapas concluídas'),
+      ),
+      findsOneWidget,
+    );
     expect(chains.items.single.steps.first.result, 'Escopo aprovado');
 
     final repeated = await projects.createFromChain('chain-1');
@@ -393,7 +417,13 @@ void main() {
       target: const ProjectWorkspaceTarget.chain('chain-1'),
     );
     expect(find.byKey(const Key('edit_project_memory')), findsOneWidget);
-    expect(find.text('1 de 2 etapas concluídas'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('workspace_progress')),
+        matching: find.text('1 de 2 etapas concluídas'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('erro ao salvar Chain como Project mantém fluxo utilizável',
@@ -443,6 +473,8 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.byKey(const Key('edit_project_memory')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_memory')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('project_memory_label_0')), findsOneWidget);
@@ -467,6 +499,74 @@ void main() {
     );
 
     expect(find.byKey(const Key('workspace_progress')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Saúde compacta combina Project e Chain sem duplicidade',
+      (tester) async {
+    final project = projectSample(
+      context: 'Público: Famílias',
+      promptCount: 2,
+    );
+    final steps = [
+      step(1, PromptChainStepStatus.completed),
+      step(2, PromptChainStepStatus.inProgress),
+    ];
+    await pumpWorkspace(
+      tester,
+      projects: FakeProjectRepository()..items = [project],
+      chains: FakePromptChainRepository()
+        ..items = [
+          chain(
+            projectId: project.id,
+            completed: 1,
+            current: 'step-2',
+            steps: steps,
+          ),
+        ],
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    final card = find.byKey(const Key('project_health'));
+    expect(card, findsOneWidget);
+    expect(
+        find.descendant(of: card, matching: find.text('Boa')), findsOneWidget);
+    expect(
+        find.descendant(of: card, matching: find.text('Contexto configurado')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: card, matching: find.text('1 de 2 etapas concluídas')),
+        findsOneWidget);
+    expect(
+        find.descendant(of: card, matching: find.text('2 prompts associados')),
+        findsOneWidget);
+    expect(find.byKey(const Key('project_health_signal_3')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Saúde de Project vazio é responsiva no mobile', (tester) async {
+    await pumpWorkspace(
+      tester,
+      projects: FakeProjectRepository()..items = [projectSample(context: null)],
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+      size: const Size(390, 844),
+    );
+
+    final card = find.byKey(const Key('project_health'));
+    expect(
+        find.descendant(
+          of: card,
+          matching: find.text('Configuração necessária'),
+        ),
+        findsOneWidget);
+    expect(
+        find.descendant(
+          of: card,
+          matching: find.text('Adicione contexto ou crie o primeiro conteúdo'),
+        ),
+        findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
