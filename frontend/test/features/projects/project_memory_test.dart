@@ -24,7 +24,7 @@ void main() {
 
   test('ignora pares vazios e aplica limite de entradas', () {
     final entries = List.generate(
-      12,
+      22,
       (index) => ProjectMemoryEntry(label: 'Campo $index', value: 'Valor'),
     )..add(const ProjectMemoryEntry(label: '', value: 'ignorar'));
 

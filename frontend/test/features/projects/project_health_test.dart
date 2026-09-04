@@ -77,6 +77,13 @@ void main() {
     expect(health.signals.single.label, 'Contexto configurado');
   });
 
+  test('marco isolado não transforma Project vazio em saúde boa', () {
+    final health = projectHealthFor(
+      project: project(context: 'Marco: Publicar campanha'),
+    );
+    expect(health.state, ProjectHealthState.needsSetup);
+  });
+
   test('prompts sem contexto deixam Project em atenção', () {
     final health = projectHealthFor(project: project(prompts: 2));
     expect(health.state, ProjectHealthState.attention);

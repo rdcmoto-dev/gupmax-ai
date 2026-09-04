@@ -11,6 +11,7 @@ import '../domain/project.dart';
 import '../project_goals.dart';
 import '../project_health.dart';
 import '../project_memory.dart';
+import '../project_milestones.dart';
 import '../project_insight.dart';
 import '../project_providers.dart';
 import '../project_workspace.dart';
@@ -29,6 +30,7 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
   bool _starting = false;
   bool _savingMemory = false;
   bool _savingGoals = false;
+  bool _savingMilestones = false;
   bool _savingProject = false;
 
   Future<void> _saveAsProject(PromptChainRecord chain) async {
@@ -77,7 +79,16 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
   }
 
   Future<void> _editMemory(ProjectRecord project) async {
-    final drafts = ProjectMemory.parse(project.context)
+    final allEntries = ProjectMemory.parse(project.context);
+    final structuredEntries = allEntries
+        .where((entry) =>
+            ProjectGoals.isGoalEntry(entry) ||
+            ProjectMilestones.isMilestoneEntry(entry))
+        .toList(growable: false);
+    final drafts = allEntries
+        .where((entry) =>
+            !ProjectGoals.isGoalEntry(entry) &&
+            !ProjectMilestones.isMilestoneEntry(entry))
         .map((entry) => _MemoryDraft(entry.label, entry.value))
         .toList();
     final retiredDrafts = <_MemoryDraft>[];
@@ -117,7 +128,8 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         key: const Key('add_project_memory'),
-                        onPressed: drafts.length < ProjectMemory.maxEntries
+                        onPressed: drafts.length + structuredEntries.length <
+                                ProjectMemory.maxEntries
                             ? () => setDialogState(() {
                                   drafts.add(_MemoryDraft('', ''));
                                   dialogError = null;
@@ -150,7 +162,10 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
               onPressed: () {
                 if (!(formKey.currentState?.validate() ?? false)) return;
                 try {
-                  ProjectMemory.serialize(drafts.map((draft) => draft.entry));
+                  ProjectMemory.serialize([
+                    ...structuredEntries,
+                    ...drafts.map((draft) => draft.entry),
+                  ]);
                   Navigator.pop(dialogContext, true);
                 } on FormatException catch (error) {
                   setDialogState(() => dialogError = error.message);
@@ -165,8 +180,10 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
     );
     if (save == true && mounted) {
       setState(() => _savingMemory = true);
-      final contextValue =
-          ProjectMemory.serialize(drafts.map((draft) => draft.entry));
+      final contextValue = ProjectMemory.serialize([
+        ...structuredEntries,
+        ...drafts.map((draft) => draft.entry),
+      ]);
       final success = await ref
           .read(projectControllerProvider)
           .update(project.id, {'context': contextValue});
@@ -348,6 +365,157 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
     }
   }
 
+  Future<void> _editMilestones(ProjectRecord project) async {
+    final milestones = ProjectMilestones.parse(project.context)
+        .items
+        .map((value) => TextEditingController(text: value))
+        .toList(growable: true);
+    final retired = <TextEditingController>[];
+    final formKey = GlobalKey<FormState>();
+    String? dialogError;
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Editar marcos'),
+          content: SizedBox(
+            width: 640,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Registre pontos importantes planejados para o caminho do projeto.',
+                    ),
+                    const SizedBox(height: 12),
+                    for (var index = 0; index < milestones.length; index++)
+                      Padding(
+                        key: ValueKey(milestones[index]),
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                key: Key('project_milestone_$index'),
+                                controller: milestones[index],
+                                maxLength: ProjectMilestones.maxItemLength,
+                                maxLines: 2,
+                                decoration: InputDecoration(
+                                  labelText: 'Marco ${index + 1}',
+                                ),
+                                onChanged: (_) =>
+                                    setDialogState(() => dialogError = null),
+                              ),
+                            ),
+                            IconButton(
+                              key: Key('remove_project_milestone_$index'),
+                              onPressed: () => setDialogState(() {
+                                retired.add(milestones.removeAt(index));
+                                dialogError = null;
+                              }),
+                              tooltip: 'Remover marco',
+                              icon: const Icon(Icons.delete_outline),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        key: const Key('add_project_milestone'),
+                        onPressed: ProjectMilestones.canAdd(
+                          context: project.context,
+                          milestones: milestones.map((item) => item.text),
+                        )
+                            ? () => setDialogState(() {
+                                  milestones.add(TextEditingController());
+                                  dialogError = null;
+                                })
+                            : null,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar marco'),
+                      ),
+                    ),
+                    if (!ProjectMilestones.canAdd(
+                      context: project.context,
+                      milestones: milestones.map((item) => item.text),
+                    ))
+                      Text(
+                        ProjectMilestones.addUnavailableReason(
+                          context: project.context,
+                          milestones: milestones.map((item) => item.text),
+                        )!,
+                        key: const Key('project_milestones_add_reason'),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    if (dialogError != null)
+                      Text(
+                        dialogError!,
+                        key: const Key('project_milestones_error'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              key: const Key('save_project_milestones'),
+              onPressed: () {
+                if (!(formKey.currentState?.validate() ?? false)) return;
+                try {
+                  ProjectMilestones.merge(
+                    context: project.context,
+                    milestones: milestones.map((item) => item.text),
+                  );
+                  Navigator.pop(dialogContext, true);
+                } on FormatException catch (error) {
+                  setDialogState(() => dialogError = error.message);
+                }
+              },
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Salvar marcos'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (save == true && mounted) {
+      final merged = ProjectMilestones.merge(
+        context: project.context,
+        milestones: milestones.map((item) => item.text),
+      );
+      setState(() => _savingMilestones = true);
+      final success = await ref
+          .read(projectControllerProvider)
+          .update(project.id, {'context': merged});
+      if (mounted) {
+        setState(() => _savingMilestones = false);
+        if (success) ref.invalidate(projectWorkspaceProvider(widget.target));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(success
+              ? 'Marcos do projeto salvos.'
+              : 'Não foi possível salvar os marcos do projeto.'),
+        ));
+      }
+    }
+    await Future<void>.delayed(kThemeAnimationDuration);
+    for (final controller in [...milestones, ...retired]) {
+      controller.dispose();
+    }
+  }
+
   Future<void> _addPrompt(String projectId) async {
     final prompts = ref.read(promptControllerProvider);
     await prompts.loadPage();
@@ -471,6 +639,14 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                         onEdit: data.project == null
                             ? null
                             : () => _editGoals(data.project!),
+                      ),
+                      const SizedBox(height: 18),
+                      _ProjectMilestonesCard(
+                        project: data.project,
+                        saving: _savingMilestones,
+                        onEdit: data.project == null
+                            ? null
+                            : () => _editMilestones(data.project!),
                       ),
                       const SizedBox(height: 18),
                       _ProjectMemoryCard(
@@ -654,6 +830,97 @@ class _ProjectGoalsCard extends StatelessWidget {
                 ),
               ],
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProjectMilestonesCard extends StatelessWidget {
+  const _ProjectMilestonesCard({
+    required this.project,
+    required this.saving,
+    required this.onEdit,
+  });
+
+  final ProjectRecord? project;
+  final bool saving;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final milestones = ProjectMilestones.parse(project?.context);
+    return Card(
+      key: const Key('project_milestones'),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(builder: (context, constraints) {
+              final title = Text(
+                'Marcos do projeto',
+                style: Theme.of(context).textTheme.titleLarge,
+              );
+              final action = onEdit == null
+                  ? null
+                  : TextButton.icon(
+                      key: const Key('edit_project_milestones'),
+                      onPressed: saving ? null : onEdit,
+                      icon: saving
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.edit_outlined, size: 18),
+                      label: Text(milestones.isEmpty
+                          ? 'Definir marcos'
+                          : 'Editar marcos'),
+                    );
+              if (constraints.maxWidth < 360 && action != null) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    title,
+                    Align(alignment: Alignment.centerLeft, child: action),
+                  ],
+                );
+              }
+              return Row(children: [
+                Expanded(child: title),
+                if (action != null) action,
+              ]);
+            }),
+            const SizedBox(height: 10),
+            if (project == null)
+              const Text(
+                'Salve este fluxo como projeto para definir marcos persistentes.',
+                key: Key('chain_without_project_milestones'),
+              )
+            else if (milestones.isEmpty)
+              const Text(
+                'Nenhum marco definido.',
+                key: Key('empty_project_milestones'),
+              )
+            else
+              for (var index = 0; index < milestones.items.length; index++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.radio_button_unchecked, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          milestones.items[index],
+                          key: Key('project_milestone_value_$index'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
           ],
         ),
       ),
@@ -894,7 +1161,11 @@ class _ProjectMemoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = ProjectGoals.memoryEntries(project?.context);
+    final entries = ProjectMemory.parse(project?.context)
+        .where((entry) =>
+            !ProjectGoals.isGoalEntry(entry) &&
+            !ProjectMilestones.isMilestoneEntry(entry))
+        .toList(growable: false);
     return Card(
       key: const Key('project_memory_card'),
       child: Padding(

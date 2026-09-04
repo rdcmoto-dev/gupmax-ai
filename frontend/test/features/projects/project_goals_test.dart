@@ -68,7 +68,7 @@ void main() {
 
   test('respeita limite global sem truncar memória existente', () {
     final context =
-        List.generate(10, (index) => 'Campo $index: Valor').join('\n');
+        List.generate(20, (index) => 'Campo $index: Valor').join('\n');
     expect(
       () => ProjectGoals.merge(
         context: context,

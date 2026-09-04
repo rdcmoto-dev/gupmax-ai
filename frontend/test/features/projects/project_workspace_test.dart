@@ -738,4 +738,299 @@ void main() {
     expect(find.byKey(const Key('project_goal_objective')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('nove entradas permitem salvar três marcos e reabrir',
+      (tester) async {
+    const context = 'Objetivo: Lançar campanha\n'
+        'Critério de sucesso: Campanha aprovada\n'
+        'Critério de sucesso: Material revisado\n'
+        'Critério de sucesso: Publicação preparada\n'
+        'Público: Famílias\n'
+        'Canal: Instagram\n'
+        'Tom: Profissional\n'
+        'Diferencial: Produto artesanal\n'
+        'Informação: Atuação regional';
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: context)];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    const values = [
+      'Campanha de lançamento preparada e revisada.',
+      'Publicar a campanha no Instagram.',
+      'Analisar os resultados iniciais da campanha.',
+    ];
+    for (var index = 0; index < values.length; index++) {
+      await tester.tap(find.byKey(const Key('add_project_milestone')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(Key('project_milestone_$index')),
+        values[index],
+      );
+      await tester.pump();
+    }
+    await tester.tap(find.byKey(const Key('save_project_milestones')));
+    await tester.pumpAndSettle();
+    for (final value in values) {
+      expect(projects.items.single.context, contains('Marco: $value'));
+    }
+
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    for (var index = 0; index < values.length; index++) {
+      expect(
+        tester
+            .widget<TextFormField>(find.byKey(Key('project_milestone_$index')))
+            .controller!
+            .text,
+        values[index],
+      );
+    }
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Adicionar marco reage ao texto e limita o editor a cinco',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: 'Objetivo: Lançar campanha')];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+
+    TextButton addButton() => tester.widget<TextButton>(
+          find.byKey(const Key('add_project_milestone')),
+        );
+
+    expect(addButton().onPressed, isNotNull);
+    for (var index = 0; index < 5; index++) {
+      await tester.tap(find.byKey(const Key('add_project_milestone')));
+      await tester.pump();
+      expect(addButton().onPressed, isNull);
+      await tester.enterText(
+        find.byKey(Key('project_milestone_$index')),
+        'Marco ${index + 1}',
+      );
+      await tester.pump();
+      expect(addButton().onPressed, index < 4 ? isNotNull : isNull);
+    }
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('adiciona edita remove persiste e reabre marcos', (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [
+        projectSample(
+          context: 'Objetivo: Lançar campanha\nPúblico: Famílias',
+        ),
+      ];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    expect(find.byKey(const Key('empty_project_milestones')), findsOneWidget);
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add_project_milestone')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_milestone_0')), 'Definir posicionamento');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('add_project_milestone')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_milestone_1')), 'Publicar campanha');
+    await tester.tap(find.byKey(const Key('save_project_milestones')));
+    await tester.pumpAndSettle();
+
+    expect(projects.items.single.context,
+        contains('Marco: Definir posicionamento'));
+    expect(projects.items.single.context, contains('Marco: Publicar campanha'));
+    expect(
+        projects.items.single.context, contains('Objetivo: Lançar campanha'));
+    expect(find.text('Definir posicionamento'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('project_memory_card')),
+        matching: find.textContaining('Definir posicionamento'),
+      ),
+      findsNothing,
+    );
+
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+    expect(find.text('Publicar campanha'), findsOneWidget);
+
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('add_project_milestone')))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.enterText(
+        find.byKey(const Key('project_milestone_0')), 'Preparar campanha');
+    await tester.tap(find.byKey(const Key('remove_project_milestone_1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('save_project_milestones')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, contains('Marco: Preparar campanha'));
+    expect(projects.items.single.context, isNot(contains('Publicar campanha')));
+  });
+
+  testWidgets('cancelamento duplicidade limite e erro preservam marcos',
+      (tester) async {
+    const original = 'Marco: Marco original\nCanal: Instagram';
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: original)];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_milestone_0')), 'Não salvar');
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, original);
+
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('add_project_milestone')))
+          .onPressed,
+      isNotNull,
+    );
+    for (var index = 1; index < 5; index++) {
+      await tester.tap(find.byKey(const Key('add_project_milestone')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.byKey(Key('project_milestone_$index')), 'Marco $index');
+      await tester.pump();
+    }
+    final add = tester
+        .widget<TextButton>(find.byKey(const Key('add_project_milestone')));
+    expect(add.onPressed, isNull);
+    await tester.enterText(
+        find.byKey(const Key('project_milestone_1')), '  marco   original ');
+    await tester.tap(find.byKey(const Key('save_project_milestones')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('project_milestones_error')), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+
+    projects.updateError = const AppException('falha');
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_milestone_0')), 'Também não salvar');
+    await tester.tap(find.byKey(const Key('save_project_milestones')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, original);
+    expect(find.text('Não foi possível salvar os marcos do projeto.'),
+        findsOneWidget);
+
+    projects.updateError = null;
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_milestone_0')), 'Nova tentativa');
+    await tester.tap(find.byKey(const Key('save_project_milestones')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, contains('Marco: Nova tentativa'));
+  });
+
+  testWidgets('Chain sem Project não cria marcos nem Project', (tester) async {
+    final projects = FakeProjectRepository();
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository()..items = [chain()],
+      target: const ProjectWorkspaceTarget.chain('chain-1'),
+    );
+
+    expect(find.byKey(const Key('chain_without_project_milestones')),
+        findsOneWidget);
+    expect(find.byKey(const Key('edit_project_milestones')), findsNothing);
+    expect(projects.items, isEmpty);
+  });
+
+  testWidgets('marcos e editor não apresentam overflow no mobile',
+      (tester) async {
+    await pumpWorkspace(
+      tester,
+      projects: FakeProjectRepository()
+        ..items = [projectSample(context: 'Marco: Preparar campanha')],
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+      size: const Size(390, 844),
+    );
+
+    await tester
+        .ensureVisible(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit_project_milestones')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('project_milestone_0')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

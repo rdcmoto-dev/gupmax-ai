@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.modules.projects.memory import ProjectMemory
 from app.modules.projects.model import ProjectStatus
 from app.modules.prompt_chains.model import PromptChainStepStatus
 from app.modules.prompt_engine.enums import PromptCategory, PromptMode, TargetAI
@@ -15,11 +16,16 @@ class ProjectCreate(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     context: str | None = Field(default=None, max_length=4000)
 
-    @field_validator("name", "description", "context")
+    @field_validator("name", "description")
     @classmethod
     def normalize(cls, value: str | None) -> str | None:
         normalized = value.strip() if value is not None else None
         return normalized or None
+
+    @field_validator("context")
+    @classmethod
+    def normalize_context(cls, value: str | None) -> str | None:
+        return ProjectMemory.normalize_context(value)
 
 
 class ProjectUpdate(BaseModel):
@@ -28,11 +34,16 @@ class ProjectUpdate(BaseModel):
     context: str | None = Field(default=None, max_length=4000)
     status: ProjectStatus | None = None
 
-    @field_validator("name", "description", "context")
+    @field_validator("name", "description")
     @classmethod
     def normalize(cls, value: str | None) -> str | None:
         normalized = value.strip() if value is not None else None
         return normalized or None
+
+    @field_validator("context")
+    @classmethod
+    def normalize_context(cls, value: str | None) -> str | None:
+        return ProjectMemory.normalize_context(value)
 
 
 class ProjectRead(BaseModel):

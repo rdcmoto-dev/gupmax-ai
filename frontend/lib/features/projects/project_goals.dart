@@ -32,12 +32,12 @@ class ProjectGoals {
 
   static List<ProjectMemoryEntry> memoryEntries(String? context) =>
       ProjectMemory.parse(context)
-          .where((entry) => !_isGoalEntry(entry))
+          .where((entry) => !isGoalEntry(entry))
           .toList(growable: false);
 
   static int availableCriteria(String? context, {required bool hasObjective}) {
     final otherCount = ProjectMemory.parse(context)
-        .where((entry) => !_isGoalEntry(entry))
+        .where((entry) => !isGoalEntry(entry))
         .length;
     final available =
         ProjectMemory.maxEntries - otherCount - (hasObjective ? 1 : 0);
@@ -60,7 +60,7 @@ class ProjectGoals {
       );
     }
     final others = ProjectMemory.parse(context)
-        .where((entry) => !_isGoalEntry(entry))
+        .where((entry) => !isGoalEntry(entry))
         .toList(growable: false);
     final goals = <ProjectMemoryEntry>[
       if (normalizedObjective != null && normalizedObjective.isNotEmpty)
@@ -73,13 +73,13 @@ class ProjectGoals {
     ];
     if (goals.length + others.length > ProjectMemory.maxEntries) {
       throw const FormatException(
-        'Remova informações do contexto para respeitar o limite de 10 entradas.',
+        'Limite de informações do projeto atingido. Remova uma informação para adicionar outra.',
       );
     }
     return ProjectMemory.serialize([...goals, ...others]);
   }
 
-  static bool _isGoalEntry(ProjectMemoryEntry entry) =>
+  static bool isGoalEntry(ProjectMemoryEntry entry) =>
       _isObjective(entry.label) || _isCriterion(entry.label);
 
   static bool _isObjective(String label) {

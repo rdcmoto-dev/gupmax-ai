@@ -714,7 +714,7 @@ Project Health não chama OpenAI, Gemini ou Anthropic, não consome créditos, n
 
 Project Goals responde “O que quero atingir?” por meio de dados explicitamente informados pelo usuário. A Central do Projeto agora possui a seção compacta “Objetivo do projeto”, com um objetivo principal e até cinco critérios de sucesso. O símbolo visual dos critérios significa somente “critério definido”; a interface esclarece que eles ainda não foram avaliados e não implementa progresso, confirmação ou avaliação automática de cumprimento.
 
-A persistência reutiliza integralmente `Project.context` e o formato estruturado da Project Memory: `Objetivo: <texto>` e entradas repetíveis `Critério de sucesso: <texto>`. Não há estado paralelo no frontend, tabela, endpoint ou migration nova. As demais entradas de memória são preservadas ao adicionar, editar ou remover objetivos; objetivo e critérios são apresentados em seu card próprio e não são duplicados no resumo genérico da memória. O limite mais seguro prevalece: um objetivo, no máximo cinco critérios, no máximo dez entradas globais, 1.000 caracteres por valor e 4.000 caracteres no contexto serializado.
+A persistência reutiliza integralmente `Project.context` e o formato estruturado da Project Memory: `Objetivo: <texto>` e entradas repetíveis `Critério de sucesso: <texto>`. Não há estado paralelo no frontend, tabela, endpoint ou migration nova. As demais entradas de memória são preservadas ao adicionar, editar ou remover objetivos; objetivo e critérios são apresentados em seu card próprio e não são duplicados no resumo genérico da memória. O limite mais seguro prevalece: um objetivo, no máximo cinco critérios, no máximo vinte entradas globais, 1.000 caracteres por valor e 4.000 caracteres no contexto serializado. O limite global foi ampliado de forma conservadora para permitir a coexistência de memória geral, objetivo, critérios e marcos; os 4.000 caracteres continuam sendo a proteção principal contra crescimento excessivo.
 
 O modal permite adicionar, editar e remover objetivo e critérios, além de salvar ou cancelar explicitamente. Reabrir a Central reconstrói os dados do Project persistido. Cancelamento e falha da API preservam o estado anterior, e o estado de salvamento impede uma segunda operação concorrente. Project sem objetivo exibe um estado vazio sem bloquear os demais recursos. Chain independente não recebe objetivo persistente nem cria Project silenciosamente; permanece disponível a ação explícita “Salvar como projeto”.
 
@@ -733,5 +733,27 @@ O extrator existente passou a reconhecer marcadores direcionais explícitos — 
 SMOKE MANUAL REAL DA ETAPA 9.25: APROVADO
 
 O novo smoke manual real confirmou que o pedido “Agora quero criar uma campanha voltada para empresas da região, com tom profissional e corporativo.” produziu `AUDIENCE = empresas da região` e `TONE = profissional`, sem reutilizar “donos de pequenos negócios” do Smart Profile nem o público antigo da Project Memory.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## Etapa 9.26 — Project Milestones
+
+Project Milestones permite registrar na Central até cinco pontos importantes planejados para o caminho do projeto, mantendo-os conceitualmente separados de objetivo, critérios de sucesso, tarefas, Steps, resultados e atividade. A seção compacta “Marcos do projeto” usa indicadores neutros, sem afirmar conclusão, score, percentual, prazo ou progresso.
+
+A persistência reutiliza exclusivamente `Project.context` e Project Memory, com o formato canônico repetível `Marco: <texto>`. Os aliases `Marco`, `marco`, `Milestone` e `milestone` são reconhecidos e canonicalizados para português. Não há tabela, modelo SQL, estado paralelo ou migration. O backend e o Flutter aplicam trim, compactação de espaços, máximo de cinco marcos, 500 caracteres por item, rejeição determinística de duplicatas normalizadas e o limite global documentado de vinte entradas, preservando o teto total de 4.000 caracteres. Valores vazios não são persistidos e as demais informações, Goals e critérios são preservados.
+
+O editor modal permite adicionar, editar, remover, salvar e cancelar. Cancelar mantém o contexto anterior; falha da API não substitui o Project local e permite nova tentativa. A Chain independente apenas orienta a usar “Salvar como projeto” e nunca recebe Project ou marcos silenciosamente. O card próprio evita duplicação no resumo genérico de contexto, e o editor genérico preserva Goals e Milestones estruturados.
+
+Marcos permanecem dados fornecidos pelo usuário e chegam uma única vez ao bloco de contexto citado do `PromptBuilder`. Eles não possuem chave de promoção semântica e não substituem objetivo, audience, tone, plataforma, campo atual, Smart Answer, fato inferido ou Prompt Variable. Markdown, HTML e conteúdo hostil permanecem literais, sem `eval`, `exec` ou shell. Em Chains, a Step atual continua soberana e `resultado_anterior` permanece exclusivamente em `PREVIOUS STEP RESULT (CONTEXT ONLY)`.
+
+Project Insights e Project Library não foram alterados: o primeiro marco não vira próximo passo e nenhuma atividade artificial é criada. Project Health ignora um contexto composto apenas por marcos, impedindo que sua simples existência transforme um Project vazio em saúde “Boa”. Ownership, isolamento e IDOR 404 continuam no CRUD de Project, agora com validação server-side dos limites de marcos.
+
+A funcionalidade é determinística e não chama OpenAI, Gemini ou Anthropic, não consome créditos, não cria Usage, Reservation ou Settlement e não altera Ledger ou Wallet.
+
+SMOKE MANUAL REAL DA ETAPA 9.26: APROVADO
+
+O smoke manual real confirmou no Project “Lançamento Pizzaria Donatello” a inclusão conjunta de três marcos, persistência após salvar, reabrir e atualizar a página, edição do segundo marco e remoção do terceiro. Também confirmou que alterações e inclusão local descartadas por Cancelar não modificaram os dois marcos persistidos.
+
+Na correção final pré-aprovação, `ProjectMemory.normalize_context()` passou a garantir também no backend a cardinalidade de um objetivo e até cinco critérios de sucesso, contando aliases após normalização de caixa e acentos. A mesma validação central atende criação, atualização e conversão explícita de Chain em Project, preservando cinco marcos, vinte entradas globais, 4.000 caracteres totais e os limites individuais. Payload inválido não modifica o contexto persistido anterior. A regressão definitiva aprovou Ruff, 403 testes backend, Dart format, Flutter Analyze, 274 testes Flutter, Health, OpenAPI, Alembic com um único head e `git diff --check`.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.projects.memory import ProjectMemory
 from app.modules.projects.model import Project
 from app.modules.projects.service import ProjectService
 from app.modules.prompt_chains.model import PromptChain, PromptChainStep, PromptChainStepStatus
@@ -41,13 +42,20 @@ class PromptChainService:
             raise HTTPException(status_code=404, detail="Prompt chain not found")
         if chain.project_id is not None:
             return await self.projects.accessible(chain.project_id, user)
+        try:
+            project_context = ProjectMemory.normalize_context(chain.description)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(error),
+            ) from error
         return await self.repository.attach_new_project(
             chain,
             {
                 "user_id": user.id,
                 "name": chain.name[:160],
                 "description": chain.description,
-                "context": chain.description,
+                "context": project_context,
             },
         )
 

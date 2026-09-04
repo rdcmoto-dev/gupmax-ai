@@ -6,7 +6,7 @@ class ProjectMemoryEntry {
 }
 
 abstract final class ProjectMemory {
-  static const maxEntries = 10;
+  static const maxEntries = 20;
   static const maxLabelLength = 80;
   static const maxValueLength = 1000;
   static const maxSerializedLength = 4000;
