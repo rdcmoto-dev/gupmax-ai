@@ -350,7 +350,7 @@ class PromptService:
                     )
                     promoted.update({"channel", "platform"})
             overridden.update(promoted)
-            memory = ProjectMemory.without_overridden(project_context, overridden)
+            memory = ProjectMemory.prompt_context(project_context, overridden)
             if memory:
                 overrides["context"] = memory
         return PromptGenerateRequest.model_validate(overrides)

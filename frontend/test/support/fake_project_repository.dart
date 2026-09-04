@@ -10,6 +10,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   int assignPromptCalls = 0;
   int assignTemplateCalls = 0;
   int updateCalls = 0;
+  Completer<void>? updateCompleter;
   Object? updateError;
   int deleteCalls = 0;
   int createFromChainCalls = 0;
@@ -70,6 +71,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   @override
   Future<ProjectRecord> update(String id, Map<String, dynamic> values) async {
     updateCalls++;
+    await updateCompleter?.future;
     if (updateError != null) throw updateError!;
     final current = await get(id);
     final updated = projectSample(

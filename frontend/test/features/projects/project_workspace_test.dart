@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1012,6 +1014,64 @@ void main() {
         findsOneWidget);
     expect(find.byKey(const Key('edit_project_milestones')), findsNothing);
     expect(projects.items, isEmpty);
+  });
+
+  testWidgets('confirma e desfaz critério e marco com rollback em erro',
+      (tester) async {
+    const original = 'Objetivo: Meta\n'
+        'Critério de sucesso: Campanha pronta\n'
+        'Marco: Publicar campanha';
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: original)];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester.ensureVisible(
+      find.byKey(const Key('project_criterion_completion_0')),
+    );
+    await tester.pumpAndSettle();
+    projects.updateCompleter = Completer<void>();
+    await tester.tap(find.byKey(const Key('project_criterion_completion_0')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<Checkbox>(
+              find.byKey(const Key('project_criterion_completion_0')))
+          .onChanged,
+      isNull,
+    );
+    projects.updateCompleter!.complete();
+    projects.updateCompleter = null;
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context,
+        contains('Critério de sucesso: [x] Campanha pronta'));
+
+    await tester.ensureVisible(
+      find.byKey(const Key('project_milestone_completion_0')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('project_milestone_completion_0')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context,
+        contains('Marco: [x] Publicar campanha'));
+
+    await tester.tap(find.byKey(const Key('project_milestone_completion_0')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, contains('Marco: Publicar campanha'));
+
+    projects.updateError = const AppException('falha');
+    await tester.tap(find.byKey(const Key('project_milestone_completion_0')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(projects.updateCalls, 4);
+    expect(projects.items.single.context, contains('Marco: Publicar campanha'));
+    expect(find.text('Não foi possível atualizar o status manual.'),
+        findsOneWidget);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('marcos e editor não apresentam overflow no mobile',

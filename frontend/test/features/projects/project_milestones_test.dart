@@ -3,6 +3,26 @@ import 'package:gupmax_ai/features/projects/project_memory.dart';
 import 'package:gupmax_ai/features/projects/project_milestones.dart';
 
 void main() {
+  test('marca e desmarca marco manualmente sem criar entrada adicional', () {
+    const context = 'Marco: Publicar campanha\nCanal: Instagram';
+    final completed = ProjectMilestones.toggle(
+      context: context,
+      milestone: '  publicar   campanha ',
+      completed: true,
+    );
+    final milestones = ProjectMilestones.parse(completed);
+    expect(milestones.items, ['Publicar campanha']);
+    expect(milestones.isCompleted('PUBLICAR CAMPANHA'), isTrue);
+    expect(ProjectMemory.parse(completed), hasLength(2));
+    expect(
+      ProjectMilestones.toggle(
+        context: completed,
+        milestone: 'Publicar campanha',
+        completed: false,
+      ),
+      context,
+    );
+  });
   test('parseia aliases e deduplica trim case e espaços', () {
     const context = 'Marco: Publicar campanha\n'
         'milestone:   publicar   campanha\n'

@@ -1,7 +1,29 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gupmax_ai/features/projects/project_goals.dart';
+import 'package:gupmax_ai/features/projects/project_memory.dart';
 
 void main() {
+  test('marca e desmarca critério manualmente sem criar entrada adicional', () {
+    const context =
+        'Objetivo: Meta\nCritério de sucesso: Campanha pronta\nTom: Claro';
+    final completed = ProjectGoals.toggleCriterion(
+      context: context,
+      criterion: '  campanha   pronta ',
+      completed: true,
+    );
+    final goals = ProjectGoals.parse(completed);
+    expect(goals.criteria, ['Campanha pronta']);
+    expect(goals.isCriterionCompleted('CAMPANHA PRONTA'), isTrue);
+    expect(ProjectMemory.parse(completed), hasLength(3));
+    expect(
+      ProjectGoals.toggleCriterion(
+        context: completed,
+        criterion: 'Campanha pronta',
+        completed: false,
+      ),
+      context,
+    );
+  });
   test('parseia objetivo e múltiplos critérios sem duplicar memória', () {
     const context = 'Público: Famílias\n'
         'Objetivo: Aumentar reconhecimento local\n'

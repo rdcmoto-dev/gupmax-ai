@@ -31,7 +31,24 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
   bool _savingMemory = false;
   bool _savingGoals = false;
   bool _savingMilestones = false;
+  bool _savingCompletion = false;
   bool _savingProject = false;
+
+  Future<void> _saveCompletion(ProjectRecord project, String? context) async {
+    setState(() => _savingCompletion = true);
+    final success = await ref
+        .read(projectControllerProvider)
+        .update(project.id, {'context': context});
+    if (!mounted) return;
+    setState(() => _savingCompletion = false);
+    if (success) ref.invalidate(projectWorkspaceProvider(widget.target));
+    final messenger = ScaffoldMessenger.of(this.context)..hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: Text(success
+          ? 'Status manual atualizado.'
+          : 'Não foi possível atualizar o status manual.'),
+    ));
+  }
 
   Future<void> _saveAsProject(PromptChainRecord chain) async {
     final confirmed = await showDialog<bool>(
@@ -636,17 +653,39 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                       _ProjectGoalsCard(
                         project: data.project,
                         saving: _savingGoals,
+                        savingCompletion: _savingCompletion,
                         onEdit: data.project == null
                             ? null
                             : () => _editGoals(data.project!),
+                        onToggleCriterion: data.project == null
+                            ? null
+                            : (criterion, completed) => _saveCompletion(
+                                  data.project!,
+                                  ProjectGoals.toggleCriterion(
+                                    context: data.project!.context,
+                                    criterion: criterion,
+                                    completed: completed,
+                                  ),
+                                ),
                       ),
                       const SizedBox(height: 18),
                       _ProjectMilestonesCard(
                         project: data.project,
                         saving: _savingMilestones,
+                        savingCompletion: _savingCompletion,
                         onEdit: data.project == null
                             ? null
                             : () => _editMilestones(data.project!),
+                        onToggleMilestone: data.project == null
+                            ? null
+                            : (milestone, completed) => _saveCompletion(
+                                  data.project!,
+                                  ProjectMilestones.toggle(
+                                    context: data.project!.context,
+                                    milestone: milestone,
+                                    completed: completed,
+                                  ),
+                                ),
                       ),
                       const SizedBox(height: 18),
                       _ProjectMemoryCard(
@@ -735,12 +774,16 @@ class _ProjectGoalsCard extends StatelessWidget {
   const _ProjectGoalsCard({
     required this.project,
     required this.saving,
+    required this.savingCompletion,
     required this.onEdit,
+    required this.onToggleCriterion,
   });
 
   final ProjectRecord? project;
   final bool saving;
+  final bool savingCompletion;
   final VoidCallback? onEdit;
+  final void Function(String, bool)? onToggleCriterion;
 
   @override
   Widget build(BuildContext context) {
@@ -812,8 +855,17 @@ class _ProjectGoalsCard extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.check, size: 18),
-                        const SizedBox(width: 7),
+                        Checkbox(
+                          key: Key('project_criterion_completion_$index'),
+                          value:
+                              goals.isCriterionCompleted(goals.criteria[index]),
+                          onChanged:
+                              savingCompletion || onToggleCriterion == null
+                                  ? null
+                                  : (value) => onToggleCriterion!(
+                                      goals.criteria[index], value ?? false),
+                          visualDensity: VisualDensity.compact,
+                        ),
                         Expanded(
                           child: Text(
                             goals.criteria[index],
@@ -825,7 +877,7 @@ class _ProjectGoalsCard extends StatelessWidget {
                   ),
                 const SizedBox(height: 3),
                 Text(
-                  'Critérios definidos pelo usuário; ainda não avaliados.',
+                  'Status confirmado manualmente por você.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -841,12 +893,16 @@ class _ProjectMilestonesCard extends StatelessWidget {
   const _ProjectMilestonesCard({
     required this.project,
     required this.saving,
+    required this.savingCompletion,
     required this.onEdit,
+    required this.onToggleMilestone,
   });
 
   final ProjectRecord? project;
   final bool saving;
+  final bool savingCompletion;
   final VoidCallback? onEdit;
+  final void Function(String, bool)? onToggleMilestone;
 
   @override
   Widget build(BuildContext context) {
@@ -910,8 +966,15 @@ class _ProjectMilestonesCard extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.radio_button_unchecked, size: 18),
-                      const SizedBox(width: 8),
+                      Checkbox(
+                        key: Key('project_milestone_completion_$index'),
+                        value: milestones.isCompleted(milestones.items[index]),
+                        onChanged: savingCompletion || onToggleMilestone == null
+                            ? null
+                            : (value) => onToggleMilestone!(
+                                milestones.items[index], value ?? false),
+                        visualDensity: VisualDensity.compact,
+                      ),
                       Expanded(
                         child: Text(
                           milestones.items[index],
@@ -921,6 +984,9 @@ class _ProjectMilestonesCard extends StatelessWidget {
                     ],
                   ),
                 ),
+            if (project != null && milestones.items.isNotEmpty)
+              Text('Status confirmado manualmente por você.',
+                  style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
       ),

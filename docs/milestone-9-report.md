@@ -757,3 +757,17 @@ O smoke manual real confirmou no Project “Lançamento Pizzaria Donatello” a 
 Na correção final pré-aprovação, `ProjectMemory.normalize_context()` passou a garantir também no backend a cardinalidade de um objetivo e até cinco critérios de sucesso, contando aliases após normalização de caixa e acentos. A mesma validação central atende criação, atualização e conversão explícita de Chain em Project, preservando cinco marcos, vinte entradas globais, 4.000 caracteres totais e os limites individuais. Payload inválido não modifica o contexto persistido anterior. A regressão definitiva aprovou Ruff, 403 testes backend, Dart format, Flutter Analyze, 274 testes Flutter, Health, OpenAPI, Alembic com um único head e `git diff --check`.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## ETAPA 9.27 — MANUAL COMPLETION / CONFIRMAÇÃO MANUAL
+
+A Central do Projeto permite ao usuário marcar e desmarcar explicitamente critérios de sucesso e marcos como concluídos. O estado nunca é inferido de prompts, Chains, resultados, Health, Insights ou atividade. Checks exibem a orientação “Status confirmado manualmente por você” e ficam desabilitados durante a atualização; falhas preservam o estado anterior e apresentam feedback amigável.
+
+A persistência reutiliza `Project.context` e a própria entrada definida, no formato compacto `Critério de sucesso: [x] <texto>` ou `Marco: [x] <texto>`. Assim, a conclusão não consome entrada global adicional nem cria tabela, entidade, endpoint, migration ou estado local paralelo. O backend canonicaliza `[x]`, rejeita representações órfãs e duplicatas normalizadas. Editores preservam a conclusão quando o texto permanece semanticamente igual; alterar ou remover o texto elimina deterministicamente a conclusão associada.
+
+O `PromptBuilder` recebe somente os objetivos, critérios e marcos definidos: o marcador de gestão `[x]` é removido pelo Project Memory antes da composição do contexto. Precedência, objetivo da Step e `resultado_anterior` permanecem intactos. Marcar um item não altera execução, progresso ou status de Prompt Chain, não cria Project para Chain independente e não gera atividade artificial em Library. Health e Insights mantêm suas regras determinísticas.
+
+Ownership e IDOR 404 continuam protegidos pelo update existente do Project. A validação server-side cobre conclusão inline, rejeição de conclusão órfã, normalização, limites e payload direto. Testes unitários, de integração e widget cobrem marcar, desmarcar, persistir, loading, rollback em erro, edição/remoção, isolamento da Chain e exclusão do marcador no prompt. A funcionalidade não chama OpenAI, Gemini ou Anthropic, não consome créditos e não cria Usage ou alterações financeiras.
+
+SMOKE MANUAL REAL DA ETAPA 9.27: APROVADO
+
+**Status: CONCLUÍDA E APROVADA.**

@@ -24,10 +24,24 @@ def test_goal_criteria_and_milestones_coexist_at_their_limits() -> None:
     assert len(ProjectMemory.normalize_context(context).splitlines()) == 20
 
 
+def test_manual_completion_is_inline_and_removed_from_prompt_context() -> None:
+    context = ProjectMemory.normalize_context(
+        "Critério de sucesso: [X] Campanha pronta\nMarco: [x] Publicar campanha"
+    )
+    assert context == (
+        "Critério de sucesso: [x] Campanha pronta\nMarco: [x] Publicar campanha"
+    )
+    assert ProjectMemory.prompt_context(context, set()) == (
+        "Critério de sucesso: Campanha pronta\nMarco: Publicar campanha"
+    )
+
+
 @pytest.mark.parametrize(
     "context",
     [
         "Objetivo: A\nobjetivo do projeto: B",
+        "Marco concluído: Item inexistente",
+        "Critério concluído: Item inexistente",
         "\n".join(f"CRITÉRIO DE SUCESSO: Critério {index}" for index in range(6)),
         "\n".join(f"Marco: Marco {index}" for index in range(6)),
         f"Marco: {'x' * 501}",

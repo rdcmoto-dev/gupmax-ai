@@ -14,8 +14,10 @@ class ProjectMemory:
     MAX_MILESTONE_LENGTH = 500
     MAX_CONTEXT_LENGTH = 4000
     MILESTONE_LABEL = "Marco"
+    COMPLETION_PREFIX = "[x] "
     OBJECTIVE_LABELS = {"objetivo", "objetivo do projeto"}
     SUCCESS_CRITERION_LABELS = {"criterio de sucesso", "criterios de sucesso"}
+    COMPLETION_LABELS = {"marco concluido", "criterio concluido"}
 
     LABEL_KEYS = {
         "objetivo": "objective",
@@ -92,6 +94,7 @@ class ProjectMemory:
         lines: list[str] = []
         objective_count = 0
         success_criterion_count = 0
+        success_criterion_signatures: set[str] = set()
         milestone_count = 0
         milestone_signatures: set[str] = set()
         for raw_line in value.splitlines():
@@ -109,6 +112,21 @@ class ProjectMemory:
                 if len(normalized_value) > cls.MAX_VALUE_LENGTH:
                     raise ValueError("Cada informação do projeto deve ter no máximo 1.000 caracteres.")
                 folded_label = cls._fold(normalized_label)
+                if folded_label in cls.COMPLETION_LABELS:
+                    raise ValueError(
+                        "A conclusão deve ser informada no próprio marco ou critério existente."
+                    )
+                completed = False
+                if folded_label in cls.SUCCESS_CRITERION_LABELS or folded_label in {
+                    "marco",
+                    "milestone",
+                }:
+                    marker = re.match(r"^\[\s*x\s*\]\s*(.*)$", normalized_value, re.IGNORECASE)
+                    if marker:
+                        completed = True
+                        normalized_value = marker.group(1).strip()
+                        if not normalized_value:
+                            raise ValueError("Uma conclusão deve referenciar um item existente.")
                 if folded_label in cls.OBJECTIVE_LABELS:
                     objective_count += 1
                     if objective_count > cls.MAX_OBJECTIVES:
@@ -117,8 +135,13 @@ class ProjectMemory:
                     success_criterion_count += 1
                     if success_criterion_count > cls.MAX_SUCCESS_CRITERIA:
                         raise ValueError("Use no máximo 5 critérios de sucesso.")
+                    signature = cls._fold(normalized_value)
+                    if signature in success_criterion_signatures:
+                        raise ValueError("Não adicione critérios de sucesso duplicados.")
+                    success_criterion_signatures.add(signature)
                 if folded_label not in {"marco", "milestone"}:
-                    lines.append(f"{normalized_label}: {normalized_value}")
+                    prefix = cls.COMPLETION_PREFIX if completed else ""
+                    lines.append(f"{normalized_label}: {prefix}{normalized_value}")
                     continue
                 milestone = " ".join(normalized_value.split())
                 if len(milestone) > cls.MAX_MILESTONE_LENGTH:
@@ -130,7 +153,8 @@ class ProjectMemory:
                 milestone_count += 1
                 if milestone_count > cls.MAX_MILESTONES:
                     raise ValueError("Use no máximo 5 marcos.")
-                lines.append(f"{cls.MILESTONE_LABEL}: {milestone}")
+                prefix = cls.COMPLETION_PREFIX if completed else ""
+                lines.append(f"{cls.MILESTONE_LABEL}: {prefix}{milestone}")
             else:
                 if len(line) > cls.MAX_VALUE_LENGTH:
                     raise ValueError("Cada informação do projeto deve ter no máximo 1.000 caracteres.")
@@ -141,6 +165,26 @@ class ProjectMemory:
         if len(result) > cls.MAX_CONTEXT_LENGTH:
             raise ValueError("O contexto do projeto deve ter no máximo 4.000 caracteres.")
         return result or None
+
+    @classmethod
+    def prompt_context(cls, value: str, overridden: set[str]) -> str | None:
+        filtered = cls.without_overridden(value, overridden)
+        if filtered is None:
+            return None
+        lines: list[str] = []
+        for line in filtered.splitlines():
+            label, separator, raw_value = line.partition(":")
+            folded_label = cls._fold(label) if separator else ""
+            if folded_label in cls.SUCCESS_CRITERION_LABELS or folded_label in {
+                "marco",
+                "milestone",
+            }:
+                raw_value = re.sub(
+                    r"^\s*\[\s*x\s*\]\s*", "", raw_value, flags=re.IGNORECASE
+                )
+                line = f"{label.strip()}: {raw_value.strip()}"
+            lines.append(line.strip())
+        return "\n".join(lines) or None
 
     @staticmethod
     def _fold(value: str) -> str:

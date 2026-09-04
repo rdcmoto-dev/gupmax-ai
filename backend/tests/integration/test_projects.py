@@ -118,6 +118,68 @@ def test_project_context_cardinality_is_enforced_on_create_and_update(
     assert updated.json()["context"] == flutter_payload["context"]
 
 
+def test_manual_completion_persists_without_affecting_chain_or_prompt_context(
+    client: TestClient,
+) -> None:
+    owner = auth(client, "project-manual-completion@example.com")
+    other = auth(client, "project-manual-completion-other@example.com")
+    project = create_project(
+        client,
+        owner,
+        context="Critério de sucesso: Campanha pronta\nMarco: Publicar campanha",
+    )
+    chain = client.post(
+        "/api/v1/chains",
+        headers=owner,
+        json={"name": "Fluxo", "project_id": project["id"]},
+    ).json()
+    before = client.get(f"/api/v1/chains/{chain['id']}", headers=owner).json()
+    completed = (
+        "Critério de sucesso: [x] Campanha pronta\nMarco: [x] Publicar campanha"
+    )
+    assert client.put(
+        f"/api/v1/projects/{project['id']}", headers=other, json={"context": completed}
+    ).status_code == 404
+    response = client.put(
+        f"/api/v1/projects/{project['id']}", headers=owner, json={"context": completed}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["context"] == completed
+    after = client.get(f"/api/v1/chains/{chain['id']}", headers=owner).json()
+    assert after == before
+
+    prompt = client.post(
+        "/api/v1/prompts/generate",
+        headers=owner,
+        json={
+            "project_id": project["id"],
+            "input": "Crie uma campanha",
+            "category": "marketing",
+            "mode": "basic",
+            "optimize_with_ai": False,
+        },
+    )
+    assert prompt.status_code == 201, prompt.text
+    assert "[x]" not in prompt.json()["generated_prompt"]
+    assert "Marco: Publicar campanha" in prompt.json()["generated_prompt"]
+
+    uncompleted = client.put(
+        f"/api/v1/projects/{project['id']}",
+        headers=owner,
+        json={"context": "Critério de sucesso: Campanha pronta\nMarco: Publicar campanha"},
+    )
+    assert uncompleted.status_code == 200
+    orphan = client.put(
+        f"/api/v1/projects/{project['id']}",
+        headers=owner,
+        json={"context": "Marco concluído: Item inexistente"},
+    )
+    assert orphan.status_code == 422
+    assert client.get(f"/api/v1/projects/{project['id']}", headers=owner).json()[
+        "context"
+    ] == "Critério de sucesso: Campanha pronta\nMarco: Publicar campanha"
+
+
 def test_associations_ownership_and_delete_preserve_content(client: TestClient) -> None:
     owner = auth(client, "project-association@example.com")
     other = auth(client, "project-association-other@example.com")
