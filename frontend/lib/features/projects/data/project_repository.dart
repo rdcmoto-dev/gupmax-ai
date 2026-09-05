@@ -1,8 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../../../core/errors/app_exception.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/project.dart';
+import '../project_export.dart';
 import '../project_library.dart';
 
 abstract interface class ProjectRepositoryContract {
@@ -12,6 +15,8 @@ abstract interface class ProjectRepositoryContract {
   Future<ProjectRecord> createFromChain(String chainId);
   Future<ProjectLibraryData> library(String projectId,
       {int offset = 0, int limit = 20});
+  Future<ProjectExportFile> export(
+      String projectId, String projectName, ProjectExportFormat format);
   Future<ProjectRecord> update(String id, Map<String, dynamic> values);
   Future<void> delete(String id);
   Future<void> assignPrompt(String projectId, String promptId);
@@ -63,6 +68,29 @@ class ProjectRepository implements ProjectRepositoryContract {
           '/projects/$projectId/library',
           queryParameters: {'offset': offset, 'limit': limit});
       return ProjectLibraryData.fromJson(response.data!);
+    } catch (error) {
+      _map(error);
+    }
+  }
+
+  @override
+  Future<ProjectExportFile> export(
+      String projectId, String projectName, ProjectExportFormat format) async {
+    try {
+      final response = await client.dio.get<List<int>>(
+        '/projects/$projectId/export',
+        queryParameters: {'format': format.queryValue},
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return ProjectExportFile(
+        bytes: Uint8List.fromList(response.data ?? const []),
+        filename: safeExportFilename(
+          response.headers.value('content-disposition'),
+          projectName: projectName,
+          format: format,
+        ),
+        mimeType: response.headers.value('content-type') ?? format.mimeType,
+      );
     } catch (error) {
       _map(error);
     }

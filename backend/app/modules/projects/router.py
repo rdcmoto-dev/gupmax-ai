@@ -1,8 +1,16 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
+from app.modules.projects.export import (
+    ProjectExportFormat,
+    ProjectExportService,
+    enforce_file_size,
+    render_json,
+    render_markdown,
+    safe_export_filename,
+)
 from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import (
     ProjectCreate,
@@ -63,6 +71,28 @@ async def get_project_library(
     limit: int = Query(20, ge=1, le=50),
 ) -> ProjectLibraryPage:
     return await ProjectService(session).library(project_id, current_user, offset, limit)
+
+
+@router.get("/{project_id}/export")
+async def export_project(
+    project_id: UUID,
+    session: DbSession,
+    current_user: CurrentUser,
+    format: Annotated[ProjectExportFormat, Query()],
+) -> Response:
+    package = await ProjectExportService(session).build(project_id, current_user)
+    content = render_json(package) if format == ProjectExportFormat.JSON else render_markdown(package)
+    enforce_file_size(content)
+    media_type = "application/json" if format == ProjectExportFormat.JSON else "text/markdown"
+    filename = safe_export_filename(package.project.name, format)
+    return Response(
+        content=content,
+        media_type=f"{media_type}; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.put("/{project_id}", response_model=ProjectRead)

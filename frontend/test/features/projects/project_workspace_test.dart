@@ -8,12 +8,14 @@ import 'package:go_router/go_router.dart';
 import 'package:gupmax_ai/core/theme/app_theme.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_workspace_page.dart';
 import 'package:gupmax_ai/features/projects/project_providers.dart';
+import 'package:gupmax_ai/features/projects/project_export.dart';
 import 'package:gupmax_ai/features/projects/project_workspace.dart';
 import 'package:gupmax_ai/features/prompt_chains/domain/prompt_chain.dart';
 import 'package:gupmax_ai/features/prompt_chains/prompt_chain_providers.dart';
 import 'package:gupmax_ai/features/prompts/domain/prompt_models.dart';
 
 import '../../support/fake_project_repository.dart';
+import '../../support/fake_file_download.dart';
 import '../../support/fake_prompt_chain_repository.dart';
 
 void main() {
@@ -65,6 +67,7 @@ void main() {
     required ProjectWorkspaceTarget target,
     Size size = const Size(1200, 900),
     bool completionRoute = false,
+    FakeFileDownload? downloads,
   }) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -112,6 +115,8 @@ void main() {
       ProviderScope(
         overrides: [
           projectRepositoryProvider.overrideWithValue(projects),
+          if (downloads != null)
+            fileDownloadProvider.overrideWithValue(downloads),
           promptChainRepositoryProvider.overrideWithValue(chains),
         ],
         child: MaterialApp.router(
@@ -1237,5 +1242,72 @@ void main() {
     expect(projects.items.single.context, 'Conclusão do projeto: Original');
     expect(find.text('Não foi possível atualizar a revisão do projeto.'),
         findsOneWidget);
+  });
+
+  testWidgets('exporta Markdown e JSON pelo modal em desktop', (tester) async {
+    final projects = FakeProjectRepository()..items = [projectSample()];
+    final downloads = FakeFileDownload();
+    await pumpWorkspace(tester,
+        projects: projects,
+        chains: FakePromptChainRepository(),
+        downloads: downloads,
+        target: const ProjectWorkspaceTarget.project('project-1'));
+    await tester.ensureVisible(find.byKey(const Key('export_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('export_project')));
+    await tester.pumpAndSettle();
+    expect(find.text('Baixe uma cópia organizada dos dados deste projeto.'),
+        findsOneWidget);
+    await tester.tap(find.byKey(const Key('export_project_markdown')));
+    await tester.pumpAndSettle();
+    expect(projects.lastExportFormat, ProjectExportFormat.markdown);
+    expect(downloads.filename, 'pizzaria-donatello.md');
+
+    await tester.tap(find.byKey(const Key('export_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('export_project_json')));
+    await tester.pumpAndSettle();
+    expect(projects.lastExportFormat, ProjectExportFormat.json);
+    expect(downloads.filename, 'pizzaria-donatello.json');
+    expect(downloads.calls, 2);
+  });
+
+  testWidgets('bloqueia duplo clique durante export e informa erro',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [projectSample()]
+      ..exportCompleter = Completer<ProjectExportFile>();
+    await pumpWorkspace(tester,
+        projects: projects,
+        chains: FakePromptChainRepository(),
+        downloads: FakeFileDownload(),
+        target: const ProjectWorkspaceTarget.project('project-1'));
+    await tester.ensureVisible(find.byKey(const Key('export_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('export_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('export_project_json')));
+    await tester.pump();
+    expect(find.text('Exportando...'), findsOneWidget);
+    expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(const Key('export_project')))
+            .onPressed,
+        isNull);
+    expect(projects.exportCalls, 1);
+    projects.exportCompleter!.completeError(const AppException('falha'));
+    await tester.pumpAndSettle();
+    expect(find.text('Não foi possível exportar o projeto.'), findsOneWidget);
+  });
+
+  testWidgets('mobile sem overflow e Chain sem Project não oferece export',
+      (tester) async {
+    await pumpWorkspace(tester,
+        projects: FakeProjectRepository(),
+        chains: FakePromptChainRepository()..items = [chain()],
+        size: const Size(360, 800),
+        target: const ProjectWorkspaceTarget.chain('chain-1'));
+    expect(find.byKey(const Key('export_project')), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

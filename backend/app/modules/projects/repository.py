@@ -130,12 +130,39 @@ class ProjectRepository:
         total = await self.session.scalar(select(func.count()).select_from(roots))
         return rows, total or 0
 
-    async def project_chains(self, project_id: UUID) -> list[tuple[PromptChain, list[PromptChainStep]]]:
+    async def export_prompts(self, project_id: UUID, user_id: UUID, limit: int) -> list[Prompt]:
+        """Return every project prompt in deterministic version order.
+
+        Export has its own bounded query so it cannot accidentally inherit the
+        Project Library pagination contract.
+        """
+        return list(
+            (
+                await self.session.scalars(
+                    select(Prompt)
+                    .where(Prompt.project_id == project_id, Prompt.user_id == user_id)
+                    .order_by(
+                        func.coalesce(Prompt.root_prompt_id, Prompt.id),
+                        Prompt.version_number,
+                        Prompt.created_at,
+                        Prompt.id,
+                    )
+                    .limit(limit + 1)
+                )
+            ).all()
+        )
+
+    async def project_chains(
+        self, project_id: UUID, user_id: UUID | None = None
+    ) -> list[tuple[PromptChain, list[PromptChainStep]]]:
+        filters = [PromptChain.project_id == project_id]
+        if user_id is not None:
+            filters.append(PromptChain.user_id == user_id)
         chains = list(
             (
                 await self.session.scalars(
                     select(PromptChain)
-                    .where(PromptChain.project_id == project_id)
+                    .where(*filters)
                     .order_by(PromptChain.updated_at.desc(), PromptChain.id.asc())
                 )
             ).all()

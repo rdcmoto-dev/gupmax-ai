@@ -9,6 +9,7 @@ import '../../prompts/prompt_providers.dart';
 import '../../templates/template_providers.dart';
 import '../domain/project.dart';
 import '../project_goals.dart';
+import '../project_export.dart';
 import '../project_health.dart';
 import '../project_memory.dart';
 import '../project_milestones.dart';
@@ -35,6 +36,66 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
   bool _savingCompletion = false;
   bool _savingReview = false;
   bool _savingProject = false;
+  bool _exporting = false;
+
+  Future<void> _exportProject(ProjectRecord project) async {
+    final format = await showDialog<ProjectExportFormat>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Exportar projeto'),
+        content: const Text(
+          'Baixe uma cópia organizada dos dados deste projeto.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          OutlinedButton.icon(
+            key: const Key('export_project_markdown'),
+            onPressed: () =>
+                Navigator.pop(dialogContext, ProjectExportFormat.markdown),
+            icon: const Icon(Icons.description_outlined),
+            label: const Text('Markdown'),
+          ),
+          FilledButton.icon(
+            key: const Key('export_project_json'),
+            onPressed: () =>
+                Navigator.pop(dialogContext, ProjectExportFormat.json),
+            icon: const Icon(Icons.data_object),
+            label: const Text('JSON'),
+          ),
+        ],
+      ),
+    );
+    if (format == null || !mounted || _exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final file = await ref
+          .read(projectRepositoryProvider)
+          .export(project.id, project.name, format);
+      ref.read(fileDownloadProvider).download(
+            bytes: file.bytes,
+            filename: file.filename,
+            mimeType: file.mimeType,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${file.filename} baixado.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível exportar o projeto.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   Future<void> _saveCompletion(ProjectRecord project, String? context) async {
     setState(() => _savingCompletion = true);
@@ -928,6 +989,10 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                             ? null
                             : ProjectReview.parse(data.project!.context),
                         saving: _savingReview,
+                        exporting: _exporting,
+                        onExport: data.project == null
+                            ? null
+                            : () => _exportProject(data.project!),
                         onReview: data.project == null
                             ? null
                             : () => _reviewProject(data.project!, data.chain),
@@ -975,12 +1040,16 @@ class _ProjectReviewCard extends StatelessWidget {
     required this.project,
     required this.review,
     required this.saving,
+    required this.exporting,
+    required this.onExport,
     required this.onReview,
   });
 
   final ProjectRecord? project;
   final ProjectReview? review;
   final bool saving;
+  final bool exporting;
+  final VoidCallback? onExport;
   final VoidCallback? onReview;
 
   @override
@@ -999,6 +1068,19 @@ class _ProjectReviewCard extends StatelessWidget {
                 children: [
                   Text('Revisão do projeto',
                       style: Theme.of(context).textTheme.titleLarge),
+                  if (project != null)
+                    OutlinedButton.icon(
+                      key: const Key('export_project'),
+                      onPressed: saving || exporting ? null : onExport,
+                      icon: exporting
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.download_outlined),
+                      label: Text(
+                          exporting ? 'Exportando...' : 'Exportar projeto'),
+                    ),
                   if (project != null)
                     OutlinedButton.icon(
                       key: const Key('review_project'),

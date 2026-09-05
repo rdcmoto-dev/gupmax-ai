@@ -795,3 +795,35 @@ SMOKE MANUAL REAL DA ETAPA 9.28: APROVADO
 O resultado do smoke manual foi fornecido e confirmado pelo usuário nesta auditoria final. O relatório registra somente essa confirmação explícita, sem atribuir ao smoke cenários adicionais não descritos.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## ETAPA 9.29 — PROJECT EXPORT / PACOTE DE ENTREGA
+
+Project Export permite baixar uma cópia completa e organizada de um Project nos formatos Markdown (`.md`) e JSON (`.json`). A ação discreta “Exportar projeto” fica na revisão da Central e abre um modal simples de escolha. Chains independentes não oferecem export nem criam Project silenciosamente; o usuário continua usando “Salvar como projeto” quando deseja essa persistência.
+
+### Arquitetura e contrato
+
+O backend é o agregador autorizado por meio de `GET /api/v1/projects/{project_id}/export?format=json|markdown`. Essa decisão evita exportar apenas a primeira página da Library, elimina dezenas de requests do Flutter e permite incluir versões completas de Prompts e resultados integrais de Steps. A resposta é construída em memória, possui `Content-Disposition` com filename seguro e `Cache-Control: private, no-store`; nenhum arquivo ou registro de export é persistido.
+
+O JSON possui schema explícito e versionado com `export_version: 1`, `exported_at`, Project, objetivo, critérios com `completed`, marcos com `completed`, contexto não duplicado, Chains/Steps/resultados, Prompts agrupados com suas versões e revisão final. Dumps crus de ORM não são usados. `user_id`, IDs financeiros, hashes, tokens, secrets, provider/model internos, contagens de tokens, idempotency, Wallet, Ledger, Payment, Subscription, Usage e variáveis de ambiente não fazem parte do contrato.
+
+O Markdown usa seções humanas para descrição, objetivo, critérios, marcos, contexto, progresso, etapas/resultados, Prompts e revisão final. Estados são apresentados como Ativo, Encerrado ou Arquivado; a sintaxe técnica `Projeto encerrado: sim` não é exibida. Conteúdo do usuário é tratado exclusivamente como dado: valores multiline são delimitados, HTML é escapado e títulos/checklists recebem escape Markdown, sem template execution, `eval`, `exec`, shell ou preview HTML.
+
+### Segurança, volume e consistência
+
+Ownership é validado antes de qualquer consulta associada e falhas de IDOR retornam 404 uniforme. As consultas de Prompts e Chains também filtram `project_id` e `user_id`, carregam coleções em lote e mantêm ordenação determinística. Refinamentos são agrupados pelo `root_prompt_id`; a versão corrente e todas as versões pertencentes ao Project são exportadas uma única vez. A exportação não herda paginação da Library.
+
+O filename é produzido no backend por normalização NFKD, remoção de acentos, whitelist alfanumérica/hífen, limite de comprimento e fallback `projeto`, impedindo slash, backslash, `..`, controles, path traversal e header injection. O frontend revalida o filename recebido antes do download. Os limites conservadores são 1.000 registros de Prompt/versão, 100 Chains, 1.000 Steps e 10 MiB por arquivo medidos em UTF-8; excesso retorna HTTP 413 sem truncamento silencioso.
+
+Exportar Project ativo, encerrado ou arquivado é somente leitura. O estado humano usa a precedência Arquivado > Encerrado > Ativo. Export não altera Project, `updated_at`, Memory, Goals, checks, Milestones, Review, Chain, Steps, progresso, `resultado_anterior`, Prompts, versões ou resultados. Não chama Prompt Engine ou AI Gateway, realiza zero chamadas OpenAI/Gemini/Anthropic, consome zero créditos, não cria Usage/Reservation/Settlement e não modifica Ledger ou Wallet.
+
+No Flutter, o download usa uma abstração multiplataforma com implementação Web isolada e stub seguro nas demais plataformas. Os testes usam fake e não dependem de download físico do navegador. Loading desabilita nova ação concorrente, falhas exibem mensagem sem descartar o estado, e desktop/mobile permanecem sem overflow.
+
+Nenhuma migration, tabela de exports, PDF, DOCX, ZIP, integração externa, compartilhamento público ou importação foi criada.
+
+### Smoke manual real
+
+O smoke manual real foi executado no Project “Lançamento Pizzaria Donatello” e aprovado. Na Central, a ação “Exportar projeto” abriu corretamente as opções Markdown e JSON. Os dois arquivos foram baixados e abertos com filename seguro e estrutura íntegra. Nome, objetivo, três critérios com somente o primeiro confirmado, dois marcos pendentes, contexto do Project, progresso da Chain em 1/2, resultados existentes, quatro Prompts e conclusão final foram preservados nos dois formatos.
+
+Após as exportações, o Project permaneceu ativo, a Chain permaneceu em 1/2 e nenhum check, memória, resultado, Prompt ou estado foi alterado. O smoke confirmou também que a operação não iniciou geração ou refinamento e não apresentou consumo de IA ou créditos.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:gupmax_ai/features/projects/data/project_repository.dart';
 import 'package:gupmax_ai/features/projects/domain/project.dart';
 import 'package:gupmax_ai/features/projects/project_library.dart';
+import 'package:gupmax_ai/features/projects/project_export.dart';
 
 class FakeProjectRepository implements ProjectRepositoryContract {
   List<ProjectRecord> items = [];
@@ -15,6 +17,10 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   int deleteCalls = 0;
   int createFromChainCalls = 0;
   Object? createFromChainError;
+  int exportCalls = 0;
+  Completer<ProjectExportFile>? exportCompleter;
+  Object? exportError;
+  ProjectExportFormat? lastExportFormat;
   ProjectLibraryData? libraryData;
   Future<void> Function(String chainId, String projectId)? onCreateFromChain;
 
@@ -67,6 +73,21 @@ class FakeProjectRepository implements ProjectRepositoryContract {
           lastActivityAt: DateTime.utc(2026, 8, 20),
           offset: offset,
           limit: limit);
+
+  @override
+  Future<ProjectExportFile> export(
+      String projectId, String projectName, ProjectExportFormat format) async {
+    exportCalls++;
+    lastExportFormat = format;
+    if (exportError != null) throw exportError!;
+    if (exportCompleter != null) return exportCompleter!.future;
+    return ProjectExportFile(
+      bytes: Uint8List.fromList([1, 2, 3]),
+      filename:
+          safeExportFilename(null, projectName: projectName, format: format),
+      mimeType: format.mimeType,
+    );
+  }
 
   @override
   Future<ProjectRecord> update(String id, Map<String, dynamic> values) async {
