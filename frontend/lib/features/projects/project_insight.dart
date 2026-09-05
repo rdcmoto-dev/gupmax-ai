@@ -1,6 +1,7 @@
 import '../prompt_chains/domain/prompt_chain.dart';
 import 'domain/project.dart';
 import 'project_memory.dart';
+import 'project_review.dart';
 
 enum ProjectInsightAction {
   continueChain,
@@ -39,6 +40,16 @@ ProjectInsight projectInsightFor({
   PromptChainRecord? chain,
 }) {
   assert(project != null || chain != null);
+
+  if (project != null && ProjectReview.parse(project.context).isClosed) {
+    return ProjectInsight(
+      state: ProjectInsightState.completed,
+      recommendation: 'Projeto encerrado',
+      explanation: 'O histórico e o conteúdo permanecem disponíveis.',
+      action: ProjectInsightAction.viewContent,
+      actionLabel: project.promptCount > 0 ? 'Ver conteúdo' : null,
+    );
+  }
 
   if (chain != null && !chain.executionCompleted) {
     final pending =

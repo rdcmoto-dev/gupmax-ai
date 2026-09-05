@@ -13,6 +13,7 @@ import '../project_health.dart';
 import '../project_memory.dart';
 import '../project_milestones.dart';
 import '../project_insight.dart';
+import '../project_review.dart';
 import '../project_providers.dart';
 import '../project_workspace.dart';
 
@@ -32,6 +33,7 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
   bool _savingGoals = false;
   bool _savingMilestones = false;
   bool _savingCompletion = false;
+  bool _savingReview = false;
   bool _savingProject = false;
 
   Future<void> _saveCompletion(ProjectRecord project, String? context) async {
@@ -100,12 +102,14 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
     final structuredEntries = allEntries
         .where((entry) =>
             ProjectGoals.isGoalEntry(entry) ||
-            ProjectMilestones.isMilestoneEntry(entry))
+            ProjectMilestones.isMilestoneEntry(entry) ||
+            ProjectReview.isReviewEntry(entry))
         .toList(growable: false);
     final drafts = allEntries
         .where((entry) =>
             !ProjectGoals.isGoalEntry(entry) &&
-            !ProjectMilestones.isMilestoneEntry(entry))
+            !ProjectMilestones.isMilestoneEntry(entry) &&
+            !ProjectReview.isReviewEntry(entry))
         .map((entry) => _MemoryDraft(entry.label, entry.value))
         .toList();
     final retiredDrafts = <_MemoryDraft>[];
@@ -606,6 +610,189 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
     if (mounted) ref.invalidate(projectWorkspaceProvider(widget.target));
   }
 
+  Future<void> _reviewProject(
+    ProjectRecord project,
+    PromptChainRecord? chain,
+  ) async {
+    final current = ProjectReview.parse(project.context);
+    final summary = projectReviewSummaryFor(project: project, chain: chain);
+    final conclusion = TextEditingController(text: current.conclusion);
+    String? dialogError;
+    final action = await showDialog<_ReviewAction>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Revisão final'),
+          content: SizedBox(
+            width: 640,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ReviewSummary(summary: summary),
+                  const SizedBox(height: 16),
+                  TextField(
+                    key: const Key('project_final_conclusion'),
+                    controller: conclusion,
+                    maxLength: ProjectReview.maxConclusionLength,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Conclusão do projeto (opcional)',
+                      hintText: 'Registre observações finais confirmadas.',
+                    ),
+                    onChanged: (_) => setDialogState(() => dialogError = null),
+                  ),
+                  if (summary.hasPendingItems && !current.isClosed)
+                    const Text(
+                      'Há itens pendentes. O projeto pode ser encerrado sem concluir a Chain, critérios ou marcos.',
+                      key: Key('project_review_pending_warning'),
+                    ),
+                  if (dialogError != null)
+                    Text(
+                      dialogError!,
+                      key: const Key('project_review_error'),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              key: const Key('save_project_review'),
+              onPressed: () {
+                try {
+                  ProjectReview.merge(
+                    context: project.context,
+                    conclusion: conclusion.text,
+                    isClosed: current.isClosed,
+                  );
+                  Navigator.pop(dialogContext, _ReviewAction.save);
+                } on FormatException catch (error) {
+                  setDialogState(() => dialogError = error.message);
+                }
+              },
+              child: const Text('Salvar revisão'),
+            ),
+            FilledButton(
+              key: Key(current.isClosed ? 'reopen_project' : 'close_project'),
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                current.isClosed ? _ReviewAction.reopen : _ReviewAction.close,
+              ),
+              child: Text(
+                  current.isClosed ? 'Reabrir projeto' : 'Encerrar projeto'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) {
+      await Future<void>.delayed(kThemeAnimationDuration);
+      conclusion.dispose();
+      return;
+    }
+    if (action == _ReviewAction.close) {
+      final confirmed = await _confirmClosure(project.name);
+      if (!confirmed || !mounted) {
+        await Future<void>.delayed(kThemeAnimationDuration);
+        conclusion.dispose();
+        return;
+      }
+    }
+    final closed = switch (action) {
+      _ReviewAction.close => true,
+      _ReviewAction.reopen => false,
+      _ReviewAction.save => current.isClosed,
+    };
+    String? merged;
+    try {
+      merged = ProjectReview.merge(
+        context: project.context,
+        conclusion: conclusion.text,
+        isClosed: closed,
+      );
+    } on FormatException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      await Future<void>.delayed(kThemeAnimationDuration);
+      conclusion.dispose();
+      return;
+    }
+    setState(() => _savingReview = true);
+    final success = await ref
+        .read(projectControllerProvider)
+        .update(project.id, {'context': merged});
+    if (!mounted) return;
+    setState(() => _savingReview = false);
+    if (success) ref.invalidate(projectWorkspaceProvider(widget.target));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(success
+          ? closed
+              ? 'Projeto encerrado.'
+              : action == _ReviewAction.reopen
+                  ? 'Projeto reaberto.'
+                  : 'Revisão do projeto salva.'
+          : 'Não foi possível atualizar a revisão do projeto.'),
+    ));
+    await Future<void>.delayed(kThemeAnimationDuration);
+    conclusion.dispose();
+  }
+
+  Future<bool> _confirmClosure(String projectName) async {
+    final controller = TextEditingController();
+    var matches = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Confirmar encerramento'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Digite “$projectName” para confirmar.'),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('confirm_project_name'),
+                  controller: controller,
+                  onChanged: (value) => setDialogState(
+                    () => matches = value.trim() == projectName,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              key: const Key('confirm_close_project'),
+              onPressed:
+                  matches ? () => Navigator.pop(dialogContext, true) : null,
+              child: const Text('Confirmar encerramento'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await Future<void>.delayed(kThemeAnimationDuration);
+    controller.dispose();
+    return confirmed == true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final workspace = ref.watch(projectWorkspaceProvider(widget.target));
@@ -734,6 +921,17 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                               _removeTemplate(project.id, templateId),
                         ),
                       ],
+                      const SizedBox(height: 18),
+                      _ProjectReviewCard(
+                        project: data.project,
+                        review: data.project == null
+                            ? null
+                            : ProjectReview.parse(data.project!.context),
+                        saving: _savingReview,
+                        onReview: data.project == null
+                            ? null
+                            : () => _reviewProject(data.project!, data.chain),
+                      ),
                     ],
                   ),
                 ),
@@ -768,6 +966,103 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
         return;
     }
   }
+}
+
+enum _ReviewAction { save, close, reopen }
+
+class _ProjectReviewCard extends StatelessWidget {
+  const _ProjectReviewCard({
+    required this.project,
+    required this.review,
+    required this.saving,
+    required this.onReview,
+  });
+
+  final ProjectRecord? project;
+  final ProjectReview? review;
+  final bool saving;
+  final VoidCallback? onReview;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        key: const Key('project_review_card'),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('Revisão do projeto',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  if (project != null)
+                    OutlinedButton.icon(
+                      key: const Key('review_project'),
+                      onPressed: saving ? null : onReview,
+                      icon: saving
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(review?.isClosed ?? false
+                              ? Icons.lock_open_outlined
+                              : Icons.fact_check_outlined),
+                      label: Text(review?.isClosed ?? false
+                          ? 'Revisão final'
+                          : 'Revisar projeto'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (project == null)
+                const Text(
+                  'Salve este fluxo como projeto para registrar uma revisão final.',
+                )
+              else ...[
+                Text(review!.isClosed ? 'Projeto encerrado' : 'Projeto ativo'),
+                const SizedBox(height: 6),
+                Text(
+                  review!.conclusion ?? 'Conclusão final ainda não registrada.',
+                  key: const Key('project_conclusion_text'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+}
+
+class _ReviewSummary extends StatelessWidget {
+  const _ReviewSummary({required this.summary});
+
+  final ProjectReviewSummary summary;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Resumo', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text('Objetivo: ${summary.objective ?? 'Não definido'}'),
+          Text(
+            'Critérios: ${summary.criteriaCount} definidos, ${summary.confirmedCriteriaCount} confirmados',
+          ),
+          Text(
+            'Marcos: ${summary.milestoneCount} definidos, ${summary.confirmedMilestoneCount} confirmados',
+          ),
+          Text(
+            summary.totalSteps == 0
+                ? 'Chain: não associada'
+                : 'Chain: ${summary.completedSteps} de ${summary.totalSteps} etapas concluídas',
+          ),
+          Text('Conteúdo: ${summary.promptCount} prompts'),
+          Text('Saúde do projeto: ${summary.health.label}'),
+        ],
+      );
 }
 
 class _ProjectGoalsCard extends StatelessWidget {
@@ -1174,7 +1469,8 @@ class _ProjectHeader extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(description),
               ],
-              if (data.context case final projectContext?) ...[
+              if (_visibleProjectContext(data.context)
+                  case final projectContext?) ...[
                 const SizedBox(height: 12),
                 Text('Contexto do projeto',
                     style: Theme.of(context).textTheme.titleMedium),
@@ -1230,7 +1526,8 @@ class _ProjectMemoryCard extends StatelessWidget {
     final entries = ProjectMemory.parse(project?.context)
         .where((entry) =>
             !ProjectGoals.isGoalEntry(entry) &&
-            !ProjectMilestones.isMilestoneEntry(entry))
+            !ProjectMilestones.isMilestoneEntry(entry) &&
+            !ProjectReview.isReviewEntry(entry))
         .toList(growable: false);
     return Card(
       key: const Key('project_memory_card'),
@@ -1338,6 +1635,24 @@ class _ProjectMemoryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _visibleProjectContext(String? context) {
+  if (context == null) return null;
+  final lines = context
+      .split('\n')
+      .where((rawLine) {
+        final line = rawLine.trim();
+        final separator = line.indexOf(':');
+        if (separator <= 0) return line.isNotEmpty;
+        return !ProjectReview.isReviewEntry(ProjectMemoryEntry(
+          label: line.substring(0, separator).trim(),
+          value: line.substring(separator + 1).trim(),
+        ));
+      })
+      .map((line) => line.trim())
+      .toList(growable: false);
+  return lines.isEmpty ? null : lines.join('\n');
 }
 
 class _MemoryEditorRow extends StatelessWidget {

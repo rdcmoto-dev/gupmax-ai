@@ -4,6 +4,7 @@ import '../prompt_chains/domain/prompt_chain.dart';
 import '../prompt_chains/prompt_chain_providers.dart';
 import 'domain/project.dart';
 import 'project_providers.dart';
+import 'project_review.dart';
 
 enum ProjectWorkspaceKind { project, chain }
 
@@ -37,6 +38,9 @@ class ProjectWorkspaceData {
   String? get categoryLabel => chain?.category?.label;
 
   String get statusLabel {
+    if (project != null && ProjectReview.parse(project!.context).isClosed) {
+      return 'Encerrado';
+    }
     final value = chain;
     if (value == null) {
       return project!.status == ProjectStatus.archived ? 'Arquivado' : 'Ativo';

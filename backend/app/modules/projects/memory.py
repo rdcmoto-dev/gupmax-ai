@@ -14,10 +14,18 @@ class ProjectMemory:
     MAX_MILESTONE_LENGTH = 500
     MAX_CONTEXT_LENGTH = 4000
     MILESTONE_LABEL = "Marco"
+    FINAL_CONCLUSION_LABEL = "Conclusão do projeto"
+    CLOSED_PROJECT_LABEL = "Projeto encerrado"
     COMPLETION_PREFIX = "[x] "
     OBJECTIVE_LABELS = {"objetivo", "objetivo do projeto"}
     SUCCESS_CRITERION_LABELS = {"criterio de sucesso", "criterios de sucesso"}
     COMPLETION_LABELS = {"marco concluido", "criterio concluido"}
+    FINAL_CONCLUSION_LABELS = {
+        "conclusao do projeto",
+        "conclusao final",
+        "observacoes finais",
+    }
+    CLOSED_PROJECT_LABELS = {"projeto encerrado"}
 
     LABEL_KEYS = {
         "objetivo": "objective",
@@ -97,6 +105,8 @@ class ProjectMemory:
         success_criterion_signatures: set[str] = set()
         milestone_count = 0
         milestone_signatures: set[str] = set()
+        final_conclusion_count = 0
+        closed_project_count = 0
         for raw_line in value.splitlines():
             line = raw_line.strip()
             if not line:
@@ -112,6 +122,19 @@ class ProjectMemory:
                 if len(normalized_value) > cls.MAX_VALUE_LENGTH:
                     raise ValueError("Cada informação do projeto deve ter no máximo 1.000 caracteres.")
                 folded_label = cls._fold(normalized_label)
+                if folded_label in cls.FINAL_CONCLUSION_LABELS:
+                    final_conclusion_count += 1
+                    if final_conclusion_count > 1:
+                        raise ValueError("Use no máximo 1 conclusão do projeto.")
+                    normalized_label = cls.FINAL_CONCLUSION_LABEL
+                if folded_label in cls.CLOSED_PROJECT_LABELS:
+                    closed_project_count += 1
+                    if closed_project_count > 1:
+                        raise ValueError("Use no máximo 1 estado de encerramento do projeto.")
+                    if cls._fold(normalized_value) != "sim":
+                        raise ValueError("O estado de encerramento do projeto aceita apenas o valor sim.")
+                    normalized_label = cls.CLOSED_PROJECT_LABEL
+                    normalized_value = "sim"
                 if folded_label in cls.COMPLETION_LABELS:
                     raise ValueError(
                         "A conclusão deve ser informada no próprio marco ou critério existente."
@@ -175,6 +198,8 @@ class ProjectMemory:
         for line in filtered.splitlines():
             label, separator, raw_value = line.partition(":")
             folded_label = cls._fold(label) if separator else ""
+            if folded_label in cls.FINAL_CONCLUSION_LABELS or folded_label in cls.CLOSED_PROJECT_LABELS:
+                continue
             if folded_label in cls.SUCCESS_CRITERION_LABELS or folded_label in {
                 "marco",
                 "milestone",

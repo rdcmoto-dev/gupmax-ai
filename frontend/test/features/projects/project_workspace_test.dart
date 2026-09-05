@@ -1093,4 +1093,149 @@ void main() {
     expect(find.byKey(const Key('project_milestone_0')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('revisão salva edita remove e cancela conclusão', (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: 'Público: Restaurantes')];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('project_final_conclusion')),
+      'Entrega aprovada.',
+    );
+    await tester.tap(find.byKey(const Key('save_project_review')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, contains('Entrega aprovada.'));
+
+    await tester.tap(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_final_conclusion')), 'Não salvar');
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, contains('Entrega aprovada.'));
+
+    await tester.tap(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_final_conclusion')), '');
+    await tester.tap(find.byKey(const Key('save_project_review')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, 'Público: Restaurantes');
+  });
+
+  testWidgets('encerramento nominal e reabertura preservam Chain e memória',
+      (tester) async {
+    final project = projectSample(
+      name: 'Campanha Regional',
+      context: 'Objetivo: Publicar\nMarco: Entregar',
+      promptCount: 1,
+    );
+    final chains = FakePromptChainRepository()
+      ..items = [
+        chain(
+          projectId: project.id,
+          completed: 0,
+          steps: [step(1, PromptChainStepStatus.pending)],
+        ),
+      ];
+    final projects = FakeProjectRepository()..items = [project];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: chains,
+      target: const ProjectWorkspaceTarget.project('project-1'),
+      size: const Size(390, 844),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('project_review_pending_warning')),
+        findsOneWidget);
+    expect(find.text('Chain: 0 de 1 etapas concluídas'), findsOneWidget);
+    await tester.enterText(
+        find.byKey(const Key('project_final_conclusion')), 'Parcial entregue');
+    await tester.tap(find.byKey(const Key('close_project')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('confirm_close_project')), findsOneWidget);
+    expect(
+        tester
+            .widget<FilledButton>(
+                find.byKey(const Key('confirm_close_project')))
+            .onPressed,
+        isNull);
+    await tester.enterText(
+        find.byKey(const Key('confirm_project_name')), 'Campanha Regional');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('confirm_close_project')));
+    await tester.pumpAndSettle();
+
+    expect(projects.items.single.context, contains('Projeto encerrado: sim'));
+    expect(projects.items.single.context, contains('Marco: Entregar'));
+    expect(chains.items.single.completedStepCount, 0);
+    expect(find.text('Projeto encerrado'), findsWidgets);
+    expect(find.text('Continuar projeto'), findsNothing);
+    expect(find.text('Criar prompt'), findsNothing);
+    expect(find.byKey(const Key('open_project_content')), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('reopen_project')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.context, isNot(contains('Projeto encerrado')));
+    expect(projects.items.single.context, contains('Parcial entregue'));
+    expect(projects.items.single.context, contains('Marco: Entregar'));
+    expect(chains.items.single.completedStepCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('erro e duplo clique na revisão preservam estado anterior',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(context: 'Conclusão do projeto: Original')]
+      ..updateCompleter = Completer<void>();
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('review_project')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('project_final_conclusion')), 'Alterada');
+    await tester.tap(find.byKey(const Key('save_project_review')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(projects.updateCalls, 1);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const Key('review_project')))
+          .onPressed,
+      isNull,
+    );
+    projects.updateError = const AppException('falha');
+    projects.updateCompleter!.complete();
+    projects.updateCompleter = null;
+    await tester.pumpAndSettle();
+    expect(projects.updateCalls, 1);
+    expect(projects.items.single.context, 'Conclusão do projeto: Original');
+    expect(find.text('Não foi possível atualizar a revisão do projeto.'),
+        findsOneWidget);
+  });
 }

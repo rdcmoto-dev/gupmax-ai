@@ -80,6 +80,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
       context: values.containsKey('context')
           ? values['context'] as String?
           : current.context,
+      promptCount: current.promptCount,
       status: values['status'] == null
           ? current.status
           : ProjectStatus.values.byName(values['status'] as String),

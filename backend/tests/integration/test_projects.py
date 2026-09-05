@@ -180,6 +180,152 @@ def test_manual_completion_persists_without_affecting_chain_or_prompt_context(
     ] == "Critério de sucesso: Campanha pronta\nMarco: Publicar campanha"
 
 
+def test_project_review_close_and_reopen_preserve_all_existing_state(
+    client: TestClient,
+) -> None:
+    owner = auth(client, "project-review-owner@example.com")
+    other = auth(client, "project-review-other@example.com")
+    original_context = (
+        "Objetivo: Publicar campanha\n"
+        "Critério de sucesso: Aprovada\n"
+        "Marco: Publicar\n"
+        "Público: Restaurantes"
+    )
+    project = create_project(client, owner, context=original_context)
+    chain = client.post(
+        "/api/v1/chains",
+        headers=owner,
+        json={"name": "Fluxo parcial", "project_id": project["id"]},
+    ).json()
+    step = client.post(
+        f"/api/v1/chains/{chain['id']}/steps",
+        headers=owner,
+        json={
+            "title": "Planejar",
+            "base_input": "Planeje a entrega",
+            "mode": "basic",
+            "category": "marketing",
+            "target_ai": "chatgpt",
+        },
+    ).json()
+    prompt = client.post(
+        "/api/v1/prompts/generate",
+        headers=owner,
+        json={
+            "project_id": project["id"],
+            "input": "Crie uma campanha",
+            "category": "marketing",
+            "mode": "basic",
+            "optimize_with_ai": False,
+        },
+    ).json()
+    chain_before = client.get(f"/api/v1/chains/{chain['id']}", headers=owner).json()
+    library_before = client.get(
+        f"/api/v1/projects/{project['id']}/library", headers=owner
+    ).json()
+
+    closed_context = (
+        f"{original_context}\n"
+        "Conclusão do projeto: <script>alert('dado')</script>\n"
+        "Projeto encerrado: sim"
+    )
+    assert client.put(
+        f"/api/v1/projects/{project['id']}",
+        headers=other,
+        json={"context": closed_context},
+    ).status_code == 404
+    closed = client.put(
+        f"/api/v1/projects/{project['id']}",
+        headers=owner,
+        json={"context": closed_context},
+    )
+    assert closed.status_code == 200, closed.text
+    assert closed.json()["status"] == "active"
+    assert closed.json()["context"] == closed_context
+    assert client.get(f"/api/v1/chains/{chain['id']}", headers=owner).json() == chain_before
+    assert client.get(f"/api/v1/prompts/{prompt['id']}", headers=owner).status_code == 200
+    assert client.get(
+        f"/api/v1/projects/{project['id']}/library", headers=owner
+    ).json()["prompt_total"] == library_before["prompt_total"]
+
+    reopened_context = closed_context.replace("\nProjeto encerrado: sim", "")
+    reopened = client.put(
+        f"/api/v1/projects/{project['id']}",
+        headers=owner,
+        json={"context": reopened_context},
+    )
+    assert reopened.status_code == 200, reopened.text
+    assert reopened.json()["context"] == reopened_context
+    assert "Conclusão do projeto" in reopened.json()["context"]
+    chain_after = client.get(f"/api/v1/chains/{chain['id']}", headers=owner).json()
+    assert chain_after == chain_before
+    assert chain_after["steps"][0]["id"] == step["id"]
+
+
+def test_chain_completion_does_not_close_project_and_review_metadata_is_not_prompt_context(
+    client: TestClient,
+) -> None:
+    owner = auth(client, "project-review-chain@example.com")
+    project = create_project(
+        client,
+        owner,
+        context="Público: Restaurantes",
+    )
+    chain = client.post(
+        "/api/v1/chains",
+        headers=owner,
+        json={"name": "Fluxo completo", "project_id": project["id"]},
+    ).json()
+    step = client.post(
+        f"/api/v1/chains/{chain['id']}/steps",
+        headers=owner,
+        json={
+            "title": "Executar",
+            "base_input": "Execute",
+            "mode": "basic",
+            "category": "marketing",
+            "target_ai": "chatgpt",
+        },
+    ).json()
+    client.post(f"/api/v1/chains/{chain['id']}/execution/start", headers=owner)
+    finished = client.put(
+        f"/api/v1/chains/{chain['id']}/steps/{step['id']}/complete",
+        headers=owner,
+        json={"result": "Resultado preservado"},
+    )
+    assert finished.status_code == 200, finished.text
+    assert finished.json()["execution_completed"] is True
+    unchanged = client.get(f"/api/v1/projects/{project['id']}", headers=owner).json()
+    assert unchanged["context"] == "Público: Restaurantes"
+
+    reviewed_context = (
+        "Público: Restaurantes\n"
+        "Conclusão do projeto: Entrega aprovada\n"
+        "Projeto encerrado: sim"
+    )
+    assert client.put(
+        f"/api/v1/projects/{project['id']}",
+        headers=owner,
+        json={"context": reviewed_context},
+    ).status_code == 200
+    prompt = client.post(
+        "/api/v1/prompts/generate",
+        headers=owner,
+        json={
+            "project_id": project["id"],
+            "input": "Crie uma campanha",
+            "category": "marketing",
+            "mode": "basic",
+            "optimize_with_ai": False,
+        },
+    )
+    assert prompt.status_code == 201, prompt.text
+    generated = prompt.json()["generated_prompt"]
+    assert "Restaurantes" in generated
+    assert "Entrega aprovada" not in generated
+    assert "Projeto encerrado" not in generated
+
+
 def test_associations_ownership_and_delete_preserve_content(client: TestClient) -> None:
     owner = auth(client, "project-association@example.com")
     other = auth(client, "project-association-other@example.com")

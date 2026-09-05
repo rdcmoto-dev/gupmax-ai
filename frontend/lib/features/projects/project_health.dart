@@ -2,6 +2,7 @@ import '../prompt_chains/domain/prompt_chain.dart';
 import 'domain/project.dart';
 import 'project_memory.dart';
 import 'project_milestones.dart';
+import 'project_review.dart';
 
 enum ProjectHealthState { good, attention, needsSetup, completed }
 
@@ -62,8 +63,9 @@ ProjectHealth projectHealthFor({
           ? chain.stepCount
           : chain.steps.length;
   final hasContext = project != null &&
-      ProjectMemory.parse(project.context)
-          .any((entry) => !ProjectMilestones.isMilestoneEntry(entry));
+      ProjectMemory.parse(project.context).any((entry) =>
+          !ProjectMilestones.isMilestoneEntry(entry) &&
+          !ProjectReview.isReviewEntry(entry));
   final hasPrompts = project != null && project.promptCount > 0;
 
   void add(String label, ProjectHealthSignalKind kind) {

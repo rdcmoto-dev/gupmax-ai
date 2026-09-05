@@ -4,6 +4,7 @@ import '../prompt_chains/domain/prompt_chain.dart';
 import '../prompt_chains/prompt_chain_providers.dart';
 import 'domain/project.dart';
 import 'project_providers.dart';
+import 'project_review.dart';
 
 class ProjectOverviewQuery {
   const ProjectOverviewQuery({this.limit, this.includeArchived = false});
@@ -82,6 +83,9 @@ class ProjectOverview {
   }
 
   String get statusLabel {
+    if (project != null && ProjectReview.parse(project!.context).isClosed) {
+      return 'Encerrado';
+    }
     final value = chain;
     if (value == null) {
       return project!.status == ProjectStatus.archived ? 'Arquivado' : 'Ativo';
@@ -98,6 +102,7 @@ class ProjectOverview {
       : '${chain!.completedStepCount} de ${chain!.stepCount} etapas';
   String? get categoryLabel => chain?.category?.label;
   bool get canContinue =>
+      !(project != null && ProjectReview.parse(project!.context).isClosed) &&
       chain != null &&
       !chain!.executionCompleted &&
       (chain!.completedStepCount > 0 || chain!.currentStepId != null);

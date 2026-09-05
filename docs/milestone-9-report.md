@@ -771,3 +771,27 @@ Ownership e IDOR 404 continuam protegidos pelo update existente do Project. A va
 SMOKE MANUAL REAL DA ETAPA 9.27: APROVADO
 
 **Status: CONCLUÍDA E APROVADA.**
+
+## ETAPA 9.28 — PROJECT REVIEW / ENCERRAMENTO E REVISÃO DO PROJETO
+
+A Central do Projeto oferece a ação explícita “Revisar projeto” e uma revisão final determinística. O resumo usa somente dados já carregados: objetivo informado, quantidades de critérios e marcos definidos e manualmente confirmados, progresso real da Chain, quantidade agregada de prompts e Project Health. Ausências são apresentadas como ausências; nenhum resultado, cumprimento ou progresso é inferido.
+
+A conclusão opcional é persistida em `Project.context` como `Conclusão do projeto: <texto>`, com no máximo uma entrada e 1.000 caracteres. Ela pode ser criada, editada ou removida, respeita os limites globais de vinte entradas e 4.000 caracteres e é preservada ao reabrir o projeto. Cancelamento e falha da API não substituem o estado anterior. O editor genérico de memória preserva esses metadados e não os duplica em seu card.
+
+O encerramento manual usa `Projeto encerrado: sim` no mesmo contexto. Ele é deliberadamente distinto de `Project.status=archived`: `archived` continua controlando arquivamento e visibilidade nas listas, enquanto o marcador manual registra o ciclo de gestão. Assim, a arquitetura representa Project ativo, Project encerrado manualmente e Project arquivado sem tabela, campo SQL, endpoint ou migration nova. Reabrir remove somente o marcador de encerramento e preserva conclusão, memória, Goals, checks de critérios e marcos, Chain, progresso, prompts, versões e resultados.
+
+Um Project parcial pode ser encerrado após aviso de pendências e confirmação pela digitação exata de seu nome. Encerrar ou reabrir não inicia nem conclui Chain ou Step, não marca critérios ou marcos, não altera `resultado_anterior` e não apaga Memory, Prompts ou Library. Um Project encerrado permanece acessível, deixa de recomendar continuar/iniciar/criar prompt como ação principal e mantém acesso ao conteúdo e à própria ação de reabertura. Chain concluída e Project encerrado continuam conceitos independentes.
+
+`Conclusão do projeto` e `Projeto encerrado` são metadados de gestão/histórico. O backend os remove antes da composição do Prompt Engine; a precedência aprovada e o bloco exclusivo de `resultado_anterior` permanecem inalterados. Conteúdo hostil é tratado como texto, sem `eval`, `exec` ou shell. O fluxo é determinístico e realiza zero chamadas OpenAI, Gemini ou Anthropic, não consome créditos, não cria Usage, Reservation ou Settlement e não altera Ledger ou Wallet.
+
+Ownership, isolamento e IDOR 404 uniforme reutilizam o update existente de Project. Chains independentes não recebem revisão persistente nem criam Project silenciosamente; “Salvar como projeto” permanece a ação explícita necessária. A Library continua disponível depois do encerramento.
+
+Arquivos novos: `frontend/lib/features/projects/project_review.dart` e `frontend/test/features/projects/project_review_test.dart`.
+
+Arquivos modificados: Project Memory e testes no backend; workspace, Health, Insights e Overview no Flutter; testes de integração/widget, fake repository e este relatório. Não foi criada migration.
+
+SMOKE MANUAL REAL DA ETAPA 9.28: APROVADO
+
+O resultado do smoke manual foi fornecido e confirmado pelo usuário nesta auditoria final. O relatório registra somente essa confirmação explícita, sem atribuir ao smoke cenários adicionais não descritos.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

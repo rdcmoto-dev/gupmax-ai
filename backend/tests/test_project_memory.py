@@ -36,6 +36,33 @@ def test_manual_completion_is_inline_and_removed_from_prompt_context() -> None:
     )
 
 
+def test_project_review_metadata_is_canonical_and_removed_from_prompt_context() -> None:
+    context = ProjectMemory.normalize_context(
+        "Público: Restaurantes\nOBSERVAÇÕES FINAIS: Trabalho entregue.\nPROJETO ENCERRADO: SIM"
+    )
+
+    assert context == (
+        "Público: Restaurantes\n"
+        "Conclusão do projeto: Trabalho entregue.\n"
+        "Projeto encerrado: sim"
+    )
+    assert ProjectMemory.prompt_context(context, set()) == "Público: Restaurantes"
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        "Conclusão do projeto: A\nConclusão final: B",
+        "Projeto encerrado: sim\nPROJETO ENCERRADO: SIM",
+        "Projeto encerrado: não",
+        f"Conclusão do projeto: {'a' * 1001}",
+    ],
+)
+def test_project_review_metadata_rejects_invalid_direct_payloads(context: str) -> None:
+    with pytest.raises(ValueError):
+        ProjectMemory.normalize_context(context)
+
+
 @pytest.mark.parametrize(
     "context",
     [
