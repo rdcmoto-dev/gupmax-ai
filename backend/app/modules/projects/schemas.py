@@ -46,6 +46,18 @@ class ProjectUpdate(BaseModel):
         return ProjectMemory.normalize_context(value)
 
 
+class ProjectDuplicate(BaseModel):
+    name: str = Field(min_length=3, max_length=160)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 3:
+            raise ValueError("O nome do projeto deve ter pelo menos 3 caracteres.")
+        return normalized
+
+
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

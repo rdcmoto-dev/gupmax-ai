@@ -211,6 +211,25 @@ class ProjectMemory:
             lines.append(line.strip())
         return "\n".join(lines) or None
 
+    @classmethod
+    def reusable_context(cls, value: str | None) -> str | None:
+        """Return only reusable Project data with every completion marker reset."""
+        if value is None:
+            return None
+        lines: list[str] = []
+        for raw_line in value.splitlines():
+            line = raw_line.strip()
+            label, separator, raw_value = line.partition(":")
+            folded_label = cls._fold(label) if separator else ""
+            if folded_label in cls.FINAL_CONCLUSION_LABELS or folded_label in cls.CLOSED_PROJECT_LABELS:
+                continue
+            if folded_label in cls.SUCCESS_CRITERION_LABELS or folded_label in {"marco", "milestone"}:
+                raw_value = re.sub(r"^\s*\[\s*x\s*\]\s*", "", raw_value, flags=re.IGNORECASE)
+                line = f"{label.strip()}: {raw_value.strip()}"
+            if line:
+                lines.append(line)
+        return cls.normalize_context("\n".join(lines))
+
     @staticmethod
     def _fold(value: str) -> str:
         decomposed = unicodedata.normalize("NFKD", value.casefold())

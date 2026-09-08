@@ -7,6 +7,7 @@ import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gupmax_ai/core/theme/app_theme.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_workspace_page.dart';
+import 'package:gupmax_ai/features/projects/domain/project.dart';
 import 'package:gupmax_ai/features/projects/project_providers.dart';
 import 'package:gupmax_ai/features/projects/project_export.dart';
 import 'package:gupmax_ai/features/projects/project_workspace.dart';
@@ -101,6 +102,12 @@ void main() {
           builder: (_, __) => const Scaffold(body: Text('Projetos')),
         ),
         GoRoute(
+          path: '/projects/:id',
+          builder: (_, state) => Scaffold(
+            body: Text('Projeto aberto ${state.pathParameters['id']}'),
+          ),
+        ),
+        GoRoute(
           path: '/dashboard',
           builder: (_, __) => const Scaffold(body: Text('Dashboard')),
         ),
@@ -143,6 +150,99 @@ void main() {
     expect(find.byKey(const Key('workspace_progress')), findsNothing);
     expect(find.byKey(const Key('create_prompt_in_project')), findsOneWidget);
     expect(find.text('Nenhum prompt associado.'), findsOneWidget);
+  });
+
+  testWidgets(
+      'duplica projeto com nome sugerido editável e navega para a cópia',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(id: 'project-1', name: 'Campanha original')];
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('duplicate_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('duplicate_project')));
+    await tester.pumpAndSettle();
+    expect(find.text('Cópia de Campanha original'), findsOneWidget);
+    await tester.enterText(
+        find.byKey(const Key('duplicate_project_name')), 'Nova campanha');
+    await tester.tap(find.byKey(const Key('confirm_duplicate_project')));
+    await tester.pumpAndSettle();
+
+    expect(projects.duplicateCalls, 1);
+    expect(projects.lastDuplicateName, 'Nova campanha');
+    expect(find.text('Projeto aberto duplicate-project-1'), findsOneWidget);
+  });
+
+  testWidgets('cancelamento não duplica e erro mantém diálogo e original',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(id: 'project-1')]
+      ..duplicateError = AppException('falha');
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('duplicate_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('duplicate_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar').last);
+    await tester.pumpAndSettle();
+    expect(projects.duplicateCalls, 0);
+
+    await tester.tap(find.byKey(const Key('duplicate_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm_duplicate_project')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('duplicate_project_error')), findsOneWidget);
+    expect(find.text('Pizzaria Donatello'), findsOneWidget);
+    expect(projects.items, hasLength(1));
+  });
+
+  testWidgets('loading bloqueia double submit sem overflow em mobile',
+      (tester) async {
+    final pending = Completer<ProjectRecord>();
+    final projects = FakeProjectRepository()
+      ..items = [projectSample(id: 'project-1')]
+      ..duplicateCompleter = pending;
+    await pumpWorkspace(
+      tester,
+      projects: projects,
+      chains: FakePromptChainRepository(),
+      target: const ProjectWorkspaceTarget.project('project-1'),
+      size: const Size(390, 844),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('duplicate_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('duplicate_project')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm_duplicate_project')));
+    await tester.pump();
+    expect(find.text('Duplicando...'), findsNWidgets(2));
+    expect(
+      tester
+          .widget<FilledButton>(
+              find.byKey(const Key('confirm_duplicate_project')))
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.byKey(const Key('confirm_duplicate_project')));
+    expect(projects.duplicateCalls, 1);
+    expect(tester.takeException(), isNull);
+
+    pending.complete(projectSample(id: 'duplicate-project-1', name: 'Cópia'));
+    await tester.pumpAndSettle();
+    expect(find.text('Projeto aberto duplicate-project-1'), findsOneWidget);
   });
 
   testWidgets('Chain sem Project inicia e abre execução guiada',

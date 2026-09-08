@@ -3,18 +3,26 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.projects.model import Project
+from app.modules.projects.memory import ProjectMemory
+from app.modules.projects.model import Project, ProjectStatus
 from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import (
     ProjectActivityItem,
     ProjectCreate,
     ProjectDetail,
+    ProjectDuplicate,
     ProjectLibraryChain,
     ProjectLibraryPage,
     ProjectLibraryPrompt,
     ProjectLibraryStep,
     ProjectRead,
     ProjectUpdate,
+)
+from app.modules.prompt_chains.model import (
+    PromptChain,
+    PromptChainStatus,
+    PromptChainStep,
+    PromptChainStepStatus,
 )
 from app.modules.prompt_engine.repository import PromptRepository
 from app.modules.prompt_templates.repository import PromptTemplateRepository
@@ -23,6 +31,7 @@ from app.modules.users.model import User
 
 class ProjectService:
     def __init__(self, session: AsyncSession) -> None:
+        self.session = session
         self.repository = ProjectRepository(session)
         self.prompts = PromptRepository(session)
         self.templates = PromptTemplateRepository(session)
@@ -35,6 +44,50 @@ class ProjectService:
 
     async def create(self, user: User, data: ProjectCreate) -> Project:
         return await self.repository.create(user_id=user.id, **data.model_dump())
+
+    async def duplicate(self, project_id: UUID, user: User, data: ProjectDuplicate) -> Project:
+        source = await self.accessible(project_id, user)
+        chain_rows = await self.repository.project_chains(source.id, user.id)
+        duplicate = Project(
+            user_id=user.id,
+            name=data.name,
+            description=source.description,
+            context=ProjectMemory.reusable_context(source.context),
+            status=ProjectStatus.ACTIVE,
+        )
+        try:
+            self.session.add(duplicate)
+            await self.session.flush()
+            for source_chain, source_steps in chain_rows:
+                chain = PromptChain(
+                    user_id=user.id,
+                    project_id=duplicate.id,
+                    name=source_chain.name,
+                    description=source_chain.description,
+                    status=PromptChainStatus.ACTIVE,
+                )
+                self.session.add(chain)
+                await self.session.flush()
+                self.session.add_all(
+                    PromptChainStep(
+                        chain_id=chain.id,
+                        template_id=step.template_id,
+                        position=step.position,
+                        title=step.title,
+                        base_input=step.base_input,
+                        mode=step.mode,
+                        category=step.category,
+                        target_ai=step.target_ai,
+                        execution_status=PromptChainStepStatus.PENDING,
+                    )
+                    for step in source_steps
+                )
+            await self.session.commit()
+            await self.session.refresh(duplicate)
+            return duplicate
+        except Exception:
+            await self.session.rollback()
+            raise
 
     async def read(self, project: Project) -> ProjectRead:
         prompts, templates = await self.repository.counts(project.id)

@@ -37,6 +37,106 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
   bool _savingReview = false;
   bool _savingProject = false;
   bool _exporting = false;
+  bool _duplicating = false;
+
+  Future<void> _duplicateProject(ProjectRecord project) async {
+    final suggestion = 'Cópia de ${project.name}';
+    final controller = TextEditingController(
+      text:
+          suggestion.length <= 160 ? suggestion : suggestion.substring(0, 160),
+    );
+    final formKey = GlobalKey<FormState>();
+    String? errorMessage;
+    final created = await showDialog<ProjectRecord>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setContentState) => AlertDialog(
+          title: const Text('Duplicar projeto'),
+          content: SizedBox(
+            width: 480,
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Crie um novo projeto independente usando a estrutura reutilizável deste projeto.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    key: const Key('duplicate_project_name'),
+                    controller: controller,
+                    enabled: !_duplicating,
+                    maxLength: 160,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                        labelText: 'Nome do novo projeto'),
+                    validator: (value) {
+                      final length = value?.trim().length ?? 0;
+                      return length < 3
+                          ? 'Informe pelo menos 3 caracteres.'
+                          : null;
+                    },
+                  ),
+                  if (errorMessage != null)
+                    Text(
+                      errorMessage!,
+                      key: const Key('duplicate_project_error'),
+                      style:
+                          TextStyle(color: Theme.of(context).colorScheme.error),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed:
+                  _duplicating ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              key: const Key('confirm_duplicate_project'),
+              onPressed: _duplicating
+                  ? null
+                  : () async {
+                      if (!(formKey.currentState?.validate() ?? false)) return;
+                      setState(() => _duplicating = true);
+                      setContentState(() => errorMessage = null);
+                      try {
+                        final result = await ref
+                            .read(projectRepositoryProvider)
+                            .duplicate(project.id, controller.text.trim());
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, result);
+                        }
+                      } catch (_) {
+                        if (dialogContext.mounted) {
+                          setContentState(() => errorMessage =
+                              'Não foi possível duplicar o projeto. Tente novamente.');
+                        }
+                      } finally {
+                        if (mounted) setState(() => _duplicating = false);
+                      }
+                    },
+              icon: _duplicating
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.copy_outlined),
+              label: Text(_duplicating ? 'Duplicando...' : 'Duplicar projeto'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    controller.dispose();
+    if (created != null && mounted) context.go('/projects/${created.id}');
+  }
 
   Future<void> _exportProject(ProjectRecord project) async {
     final format = await showDialog<ProjectExportFormat>(
@@ -990,9 +1090,13 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                             : ProjectReview.parse(data.project!.context),
                         saving: _savingReview,
                         exporting: _exporting,
+                        duplicating: _duplicating,
                         onExport: data.project == null
                             ? null
                             : () => _exportProject(data.project!),
+                        onDuplicate: data.project == null
+                            ? null
+                            : () => _duplicateProject(data.project!),
                         onReview: data.project == null
                             ? null
                             : () => _reviewProject(data.project!, data.chain),
@@ -1041,7 +1145,9 @@ class _ProjectReviewCard extends StatelessWidget {
     required this.review,
     required this.saving,
     required this.exporting,
+    required this.duplicating,
     required this.onExport,
+    required this.onDuplicate,
     required this.onReview,
   });
 
@@ -1049,7 +1155,9 @@ class _ProjectReviewCard extends StatelessWidget {
   final ProjectReview? review;
   final bool saving;
   final bool exporting;
+  final bool duplicating;
   final VoidCallback? onExport;
+  final VoidCallback? onDuplicate;
   final VoidCallback? onReview;
 
   @override
@@ -1068,6 +1176,21 @@ class _ProjectReviewCard extends StatelessWidget {
                 children: [
                   Text('Revisão do projeto',
                       style: Theme.of(context).textTheme.titleLarge),
+                  if (project != null)
+                    OutlinedButton.icon(
+                      key: const Key('duplicate_project'),
+                      onPressed: saving || exporting || duplicating
+                          ? null
+                          : onDuplicate,
+                      icon: duplicating
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.copy_outlined),
+                      label: Text(
+                          duplicating ? 'Duplicando...' : 'Duplicar projeto'),
+                    ),
                   if (project != null)
                     OutlinedButton.icon(
                       key: const Key('export_project'),

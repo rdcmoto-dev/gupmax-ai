@@ -23,6 +23,10 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   ProjectExportFormat? lastExportFormat;
   ProjectLibraryData? libraryData;
   Future<void> Function(String chainId, String projectId)? onCreateFromChain;
+  int duplicateCalls = 0;
+  String? lastDuplicateName;
+  Completer<ProjectRecord>? duplicateCompleter;
+  Object? duplicateError;
 
   @override
   Future<ProjectPageData> list(
@@ -56,6 +60,19 @@ class FakeProjectRepository implements ProjectRepositoryContract {
     );
     items = [created, ...items];
     await onCreateFromChain?.call(chainId, created.id);
+    return created;
+  }
+
+  @override
+  Future<ProjectRecord> duplicate(String projectId, String name) async {
+    duplicateCalls++;
+    lastDuplicateName = name;
+    if (duplicateError != null) throw duplicateError!;
+    if (duplicateCompleter != null) return duplicateCompleter!.future;
+    final source = await get(projectId);
+    final created = projectSample(
+        id: 'duplicate-$projectId', name: name, context: source.context);
+    items = [created, ...items];
     return created;
   }
 

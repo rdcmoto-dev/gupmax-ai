@@ -13,6 +13,7 @@ abstract interface class ProjectRepositoryContract {
   Future<ProjectRecord> get(String id);
   Future<ProjectRecord> create(Map<String, dynamic> values);
   Future<ProjectRecord> createFromChain(String chainId);
+  Future<ProjectRecord> duplicate(String projectId, String name);
   Future<ProjectLibraryData> library(String projectId,
       {int offset = 0, int limit = 20});
   Future<ProjectExportFile> export(
@@ -54,6 +55,19 @@ class ProjectRepository implements ProjectRepositoryContract {
     try {
       final response = await client.dio
           .post<Map<String, dynamic>>('/chains/$chainId/project');
+      return ProjectRecord.fromJson(response.data!);
+    } catch (error) {
+      _map(error);
+    }
+  }
+
+  @override
+  Future<ProjectRecord> duplicate(String projectId, String name) async {
+    try {
+      final response = await client.dio.post<Map<String, dynamic>>(
+        '/projects/$projectId/duplicate',
+        data: {'name': name},
+      );
       return ProjectRecord.fromJson(response.data!);
     } catch (error) {
       _map(error);

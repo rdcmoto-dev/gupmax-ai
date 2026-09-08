@@ -827,3 +827,31 @@ O smoke manual real foi executado no Project “Lançamento Pizzaria Donatello�
 Após as exportações, o Project permaneceu ativo, a Chain permaneceu em 1/2 e nenhum check, memória, resultado, Prompt ou estado foi alterado. O smoke confirmou também que a operação não iniciou geração ou refinamento e não apresentou consumo de IA ou créditos.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## ETAPA 9.30 — DUPLICAR / REUTILIZAR PROJETO
+
+A Central do Projeto oferece a ação discreta “Duplicar projeto”. Um diálogo sugere “Cópia de <nome>”, permite editar e valida o nome no cliente e no servidor. Durante a requisição, confirmação e cancelamento ficam bloqueados, o carregamento é visível e envios concorrentes são impedidos. Falhas mantêm o diálogo e o Project original intactos; no sucesso, a aplicação abre diretamente o novo Project. O layout usa `Wrap` e diálogo responsivo para desktop e mobile.
+
+### Arquitetura e dados reutilizados
+
+O endpoint autenticado `POST /api/v1/projects/{project_id}/duplicate` recebe somente o novo nome. O backend deriva o proprietário exclusivamente do usuário autenticado e executa Project, Chains e Steps em uma única transação. A cópia recebe novos IDs e timestamps, estado ativo e ownership próprio. Descrição, objetivo, textos de critérios e marcos, contexto útil e estrutura das Chains são preservados. Steps mantêm posição, título, base prompt, modo, categoria, Target AI e referência de Template válida.
+
+Project Memory continua sendo o mecanismo central. Na cópia, `[x]` de critérios e marcos é removido deterministicamente; `Conclusão do projeto` e `Projeto encerrado` são descartados. Critérios e marcos começam desmarcados. Chains nascem ativas, todos os Steps nascem pendentes, progresso é zero e `result`, `started_at`, `completed_at` e qualquer `resultado_anterior` operacional não são copiados. Prompts gerados, refinamentos, versões históricas e Review também não são duplicados.
+
+### Segurança, consistência e compatibilidade
+
+Ownership é verificado antes de qualquer leitura associada e IDOR retorna 404 uniforme. `user_id` do cliente não faz parte do contrato. Nome e memória respeitam os limites existentes server-side. Markdown, HTML, código e texto hostil permanecem dados literais; não existe `eval`, `exec`, shell ou interpretação dinâmica. Qualquer falha ao copiar Project, Chain ou Step causa rollback completo, sem cópia parcial e sem alteração do original.
+
+A operação é determinística e não chama Prompt Engine, AI Gateway, OpenAI, Gemini ou Anthropic. Não consome créditos, não cria Usage, Reservation ou Settlement e não altera Ledger ou Wallet. Project Export, Health, Insights, Library, Review, checks manuais, execução guiada, Templates e versões mantêm seus contratos. Nenhuma migration ou persistência paralela foi criada.
+
+Os testes backend cobrem Project simples, novo ID e ownership, nome e validação, descrição, objetivo, critérios/marcos resetados, contexto literal hostil, conclusão/encerramento removidos, original imutável, IDOR, Chain/Steps novos, progresso zero, resultados ausentes, Prompts históricos ausentes e rollback transacional. Os testes Flutter cobrem ação, diálogo, sugestão e edição do nome, cancelamento, loading, erro, sucesso, bloqueio de double submit, navegação e mobile sem overflow.
+
+### Smoke manual real
+
+O smoke manual real foi concluído e aprovado pelo usuário. A ação “Duplicar projeto” abriu o modal, apresentou um nome sugerido editável e criou “Campanha Pizzaria Donatello 2”, que foi aberto automaticamente. Descrição, objetivo, textos dos critérios e marcos e contexto útil foram preservados; todos os critérios e marcos da cópia começaram desmarcados e ela apresentou zero Prompts associados.
+
+A Chain recriada iniciou em 0 de 2 etapas concluídas: “Posicionamento” apareceu como Atual e “campanha de lançamento” como Pendente. Ao abrir a primeira etapa, sua estrutura e base prompt estavam preservadas, sem resultado anterior herdado nem execução histórica copiada. Após F5, a cópia continuou em 0 de 2 com os mesmos estados iniciais.
+
+O Project original “Lançamento Pizzaria Donatello” permaneceu intacto, com 1 de 2 etapas concluídas, “Posicionamento” concluída, “campanha de lançamento” atual, quatro Prompts associados e seus critérios, marcos, objetivo e contexto preservados. Após F5, o original continuou em 1 de 2. O smoke confirmou, portanto, independência persistente entre original e cópia e a semântica aprovada: estrutura reutilizável é copiada; histórico operacional não.
+
+**Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**

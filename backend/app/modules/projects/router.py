@@ -15,6 +15,7 @@ from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import (
     ProjectCreate,
     ProjectDetail,
+    ProjectDuplicate,
     ProjectLibraryPage,
     ProjectPage,
     ProjectRead,
@@ -93,6 +94,17 @@ async def export_project(
             "Cache-Control": "private, no-store",
         },
     )
+
+
+@router.post("/{project_id}/duplicate", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
+async def duplicate_project(
+    project_id: UUID,
+    data: ProjectDuplicate,
+    session: DbSession,
+    current_user: CurrentUser,
+) -> ProjectRead:
+    service = ProjectService(session)
+    return await service.read(await service.duplicate(project_id, current_user, data))
 
 
 @router.put("/{project_id}", response_model=ProjectRead)
