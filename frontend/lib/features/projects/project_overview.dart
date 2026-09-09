@@ -83,12 +83,16 @@ class ProjectOverview {
   }
 
   String get statusLabel {
+    if (project?.status == ProjectStatus.archived ||
+        chain?.status == PromptChainStatus.archived) {
+      return 'Arquivado';
+    }
     if (project != null && ProjectReview.parse(project!.context).isClosed) {
       return 'Encerrado';
     }
     final value = chain;
     if (value == null) {
-      return project!.status == ProjectStatus.archived ? 'Arquivado' : 'Ativo';
+      return 'Ativo';
     }
     if (value.executionCompleted) return 'Concluído';
     if (value.completedStepCount > 0 || value.currentStepId != null) {

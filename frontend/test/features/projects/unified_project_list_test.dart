@@ -56,14 +56,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  ProjectRecord project(String id) => ProjectRecord(
+  ProjectRecord project(
+    String id, {
+    String? name,
+    String? context,
+    ProjectStatus status = ProjectStatus.active,
+    int day = 20,
+  }) =>
+      ProjectRecord(
         id: id,
-        name: 'Projeto $id',
-        status: ProjectStatus.active,
+        name: name ?? 'Projeto $id',
+        context: context,
+        status: status,
         promptCount: 0,
         templateCount: 0,
-        createdAt: DateTime.utc(2026, 8, 20),
-        updatedAt: DateTime.utc(2026, 8, 20),
+        createdAt: DateTime.utc(2026, 8, day),
+        updatedAt: DateTime.utc(2026, 8, day),
       );
 
   PromptChainRecord chain({
@@ -113,11 +121,15 @@ void main() {
           current: 'step-4',
         ),
       ];
-    await pumpList(tester, projects: projects, chains: chains);
+    await pumpList(
+      tester,
+      projects: projects,
+      chains: chains,
+    );
     expect(find.text('Projeto delivery'), findsOneWidget);
     expect(find.text('Fluxo delivery-chain'), findsNothing);
     expect(find.text('1 de 3 etapas'), findsOneWidget);
-    expect(find.text('Em andamento'), findsOneWidget);
+    expect(find.text('Em andamento'), findsNWidgets(2));
     expect(find.text('Continuar'), findsOneWidget);
   });
 
@@ -133,7 +145,7 @@ void main() {
       chains: chains,
     );
     expect(find.text('Concluído'), findsOneWidget);
-    expect(find.text('Em andamento'), findsOneWidget);
+    expect(find.text('Em andamento'), findsNWidgets(2));
     expect(find.text('Abrir'), findsOneWidget);
     expect(find.text('Continuar'), findsOneWidget);
   });
@@ -158,6 +170,76 @@ void main() {
       size: const Size(390, 844),
     );
     expect(find.byKey(const Key('projects_empty')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('busca filtro e ordenação combinam e preservam ações dos cards',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [
+        project('pizzaria-old', name: 'Pizzaria Antiga', day: 20),
+        project('pizzaria-new', name: 'Pizzaria Nova', day: 22),
+        project('encerrado',
+            name: 'Pizzaria Encerrada',
+            context: 'Projeto encerrado: sim',
+            day: 23),
+        project('arquivado',
+            name: 'Pizzaria Arquivada',
+            status: ProjectStatus.archived,
+            day: 24),
+      ];
+    final chains = FakePromptChainRepository()
+      ..items = [
+        chain(id: 'old-chain', projectId: 'pizzaria-old', current: 'step-1'),
+        chain(id: 'new-chain', projectId: 'pizzaria-new', current: 'step-1'),
+      ];
+    await pumpList(
+      tester,
+      projects: projects,
+      chains: chains,
+      size: const Size(700, 900),
+    );
+
+    await tester.enterText(
+        find.byKey(const Key('project_search')), '  PIZZARIA   ');
+    await tester.tap(find.byKey(const Key('project_filter_inProgress')));
+    await tester.pumpAndSettle();
+    expect(find.text('Pizzaria Antiga'), findsOneWidget);
+    expect(find.text('Pizzaria Nova'), findsOneWidget);
+    expect(find.text('Pizzaria Encerrada'), findsNothing);
+    expect(find.text('Pizzaria Arquivada'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('project_order')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nome A–Z').last);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.byKey(const Key('project_pizzaria-old'))).dy,
+      lessThan(
+          tester.getTopLeft(find.byKey(const Key('project_pizzaria-new'))).dy),
+    );
+    expect(find.text('Continuar'), findsNWidgets(2));
+    expect(find.text('Editar'), findsNWidgets(2));
+    expect(find.text('Arquivar'), findsNWidgets(2));
+  });
+
+  testWidgets('nenhum resultado e controles não apresentam overflow no mobile',
+      (tester) async {
+    await pumpList(
+      tester,
+      projects: FakeProjectRepository()
+        ..items = [project('mobile', name: 'Projeto Mobile')],
+      chains: FakePromptChainRepository(),
+      size: const Size(390, 844),
+    );
+    expect(find.byKey(const Key('project_search')), findsOneWidget);
+    expect(find.byKey(const Key('project_order')), findsOneWidget);
+    expect(find.text('Arquivados'), findsOneWidget);
+    await tester.enterText(
+        find.byKey(const Key('project_search')), 'não existe');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('projects_no_results')), findsOneWidget);
+    expect(find.text('Nenhum projeto encontrado.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

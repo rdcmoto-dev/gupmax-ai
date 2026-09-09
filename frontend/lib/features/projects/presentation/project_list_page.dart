@@ -6,6 +6,7 @@ import '../../../core/widgets/app_page_app_bar.dart';
 import '../../prompt_chains/prompt_chain_providers.dart';
 import '../domain/project.dart';
 import '../project_overview.dart';
+import '../project_organization.dart';
 import '../project_providers.dart';
 
 const _allProjectsQuery = ProjectOverviewQuery(includeArchived: true);
@@ -18,6 +19,16 @@ class ProjectListPage extends ConsumerStatefulWidget {
 
 class _ProjectListPageState extends ConsumerState<ProjectListPage> {
   String? _removingKey;
+  final _search = TextEditingController();
+  ProjectListFilter _filter = ProjectListFilter.all;
+  ProjectListOrder _order = ProjectListOrder.recent;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   void _refresh() =>
       ref.invalidate(projectOverviewsProvider(_allProjectsQuery));
 
@@ -187,109 +198,205 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                 )
               : LayoutBuilder(
                   builder: (context, constraints) {
+                    final visible = organizeProjects(
+                      items,
+                      search: _search.text,
+                      filter: _filter,
+                      order: _order,
+                    );
                     final width = constraints.maxWidth >= 900
                         ? (constraints.maxWidth - 16) / 2
                         : constraints.maxWidth;
-                    return SingleChildScrollView(
-                      child: Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
-                        children: [
-                          for (final item in items)
-                            SizedBox(
-                              width: width,
-                              child: Card(
-                                key: Key('project_${item.key}'),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(20),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          key: const Key('project_search'),
+                          controller: _search,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            labelText: 'Buscar projetos',
+                            hintText: 'Buscar projetos...',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              for (final filter in ProjectListFilter.values)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    key: Key('project_filter_${filter.name}'),
+                                    label: Text(filter.label),
+                                    selected: _filter == filter,
+                                    onSelected: (_) =>
+                                        setState(() => _filter = filter),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: SizedBox(
+                            width: constraints.maxWidth < 520
+                                ? constraints.maxWidth
+                                : 240,
+                            child: DropdownButtonFormField<ProjectListOrder>(
+                              key: const Key('project_order'),
+                              initialValue: _order,
+                              decoration:
+                                  const InputDecoration(labelText: 'Ordenar'),
+                              items: [
+                                for (final order in ProjectListOrder.values)
+                                  DropdownMenuItem(
+                                    value: order,
+                                    child: Text(order.label),
+                                  ),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() => _order = value);
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: visible.isEmpty
+                              ? const Center(
+                                  key: Key('projects_no_results'),
+                                  child: Text('Nenhum projeto encontrado.'),
+                                )
+                              : SingleChildScrollView(
+                                  child: Wrap(
+                                    spacing: 16,
+                                    runSpacing: 16,
                                     children: [
-                                      Text(item.name,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleLarge),
-                                      if (item.categoryLabel
-                                          case final category?)
-                                        Text(category),
-                                      if (item.progressLabel
-                                          case final progress?)
-                                        Text(progress),
-                                      Text(item.statusLabel),
-                                      Wrap(
-                                        spacing: 6,
-                                        runSpacing: 4,
-                                        children: [
-                                          FilledButton.icon(
-                                            key:
-                                                Key('open_project_${item.key}'),
-                                            onPressed: () =>
-                                                context.go(item.route),
-                                            icon: Icon(item.canContinue
-                                                ? Icons.play_arrow_rounded
-                                                : Icons.folder_open_outlined),
-                                            label: Text(item.canContinue
-                                                ? 'Continuar'
-                                                : 'Abrir'),
-                                          ),
-                                          if (item.project
-                                              case final project?) ...[
-                                            TextButton.icon(
-                                              onPressed: () => _form(project),
-                                              icon: const Icon(
-                                                  Icons.edit_outlined,
-                                                  size: 18),
-                                              label: const Text('Editar'),
-                                            ),
-                                            TextButton.icon(
-                                              onPressed: () =>
-                                                  _toggleArchive(project),
-                                              icon: Icon(
-                                                project.status ==
-                                                        ProjectStatus.active
-                                                    ? Icons.archive_outlined
-                                                    : Icons.unarchive_outlined,
-                                                size: 18,
-                                              ),
-                                              label: Text(project.status ==
-                                                      ProjectStatus.active
-                                                  ? 'Arquivar'
-                                                  : 'Reativar'),
-                                            ),
-                                          ],
-                                          IconButton(
-                                            key: Key(
-                                                'remove_project_${item.key}'),
-                                            tooltip: item.project != null &&
-                                                    item.chain != null
-                                                ? 'Arquivar trabalho'
-                                                : 'Excluir',
-                                            onPressed: _removingKey == null
-                                                ? () => _removeOverview(item)
-                                                : null,
-                                            icon: _removingKey == item.key
-                                                ? const SizedBox.square(
-                                                    dimension: 18,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                                  )
-                                                : const Icon(
-                                                    Icons.delete_outline,
-                                                    size: 20,
+                                      for (final item in visible)
+                                        SizedBox(
+                                          width: width,
+                                          child: Card(
+                                            key: Key('project_${item.key}'),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(20),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(item.name,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .titleLarge),
+                                                  if (item.categoryLabel
+                                                      case final category?)
+                                                    Text(category),
+                                                  if (item.progressLabel
+                                                      case final progress?)
+                                                    Text(progress),
+                                                  Text(item.statusLabel),
+                                                  Wrap(
+                                                    spacing: 6,
+                                                    runSpacing: 4,
+                                                    children: [
+                                                      FilledButton.icon(
+                                                        key: Key(
+                                                            'open_project_${item.key}'),
+                                                        onPressed: () => context
+                                                            .go(item.route),
+                                                        icon: Icon(item.canContinue
+                                                            ? Icons
+                                                                .play_arrow_rounded
+                                                            : Icons
+                                                                .folder_open_outlined),
+                                                        label: Text(
+                                                            item.canContinue
+                                                                ? 'Continuar'
+                                                                : 'Abrir'),
+                                                      ),
+                                                      if (item.project
+                                                          case final project?) ...[
+                                                        TextButton.icon(
+                                                          onPressed: () =>
+                                                              _form(project),
+                                                          icon: const Icon(
+                                                              Icons
+                                                                  .edit_outlined,
+                                                              size: 18),
+                                                          label: const Text(
+                                                              'Editar'),
+                                                        ),
+                                                        TextButton.icon(
+                                                          onPressed: () =>
+                                                              _toggleArchive(
+                                                                  project),
+                                                          icon: Icon(
+                                                            project.status ==
+                                                                    ProjectStatus
+                                                                        .active
+                                                                ? Icons
+                                                                    .archive_outlined
+                                                                : Icons
+                                                                    .unarchive_outlined,
+                                                            size: 18,
+                                                          ),
+                                                          label: Text(project
+                                                                      .status ==
+                                                                  ProjectStatus
+                                                                      .active
+                                                              ? 'Arquivar'
+                                                              : 'Reativar'),
+                                                        ),
+                                                      ],
+                                                      IconButton(
+                                                        key: Key(
+                                                            'remove_project_${item.key}'),
+                                                        tooltip: item.project !=
+                                                                    null &&
+                                                                item.chain !=
+                                                                    null
+                                                            ? 'Arquivar trabalho'
+                                                            : 'Excluir',
+                                                        onPressed: _removingKey ==
+                                                                null
+                                                            ? () =>
+                                                                _removeOverview(
+                                                                    item)
+                                                            : null,
+                                                        icon: _removingKey ==
+                                                                item.key
+                                                            ? const SizedBox
+                                                                .square(
+                                                                dimension: 18,
+                                                                child:
+                                                                    CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                ),
+                                                              )
+                                                            : const Icon(
+                                                                Icons
+                                                                    .delete_outline,
+                                                                size: 20,
+                                                              ),
+                                                      ),
+                                                    ],
                                                   ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
-                                        ],
-                                      ),
+                                        ),
                                     ],
                                   ),
                                 ),
-                              ),
-                            ),
-                        ],
-                      ),
+                        ),
+                      ],
                     );
                   },
                 ),

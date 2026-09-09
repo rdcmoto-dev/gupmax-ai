@@ -855,3 +855,40 @@ A Chain recriada iniciou em 0 de 2 etapas concluídas: “Posicionamento” apar
 O Project original “Lançamento Pizzaria Donatello” permaneceu intacto, com 1 de 2 etapas concluídas, “Posicionamento” concluída, “campanha de lançamento” atual, quatro Prompts associados e seus critérios, marcos, objetivo e contexto preservados. Após F5, o original continuou em 1 de 2. O smoke confirmou, portanto, independência persistente entre original e cópia e a semântica aprovada: estrutura reutilizável é copiada; histórico operacional não.
 
 **Status: CONCLUÍDA E APROVADA. Smoke manual final: APROVADO.**
+
+## ETAPA 9.31 — BUSCA, FILTROS E ORGANIZAÇÃO DE PROJETOS
+
+A tela “Meus projetos” ganhou busca por nome, filtros de estado e ordenação combináveis sem alterar os cards ou suas ações. A busca é local, literal, case-insensitive, remove espaços externos e normaliza sequências de espaços. Nenhuma consulta é disparada enquanto o usuário digita, nenhum estado de busca é persistido e a ausência de correspondências apresenta “Nenhum projeto encontrado.”.
+
+Os filtros são Todos, Em andamento, Concluídos, Encerrados e Arquivados. A classificação é derivada somente dos dados já carregados: Arquivado possui precedência quando `Project.status` ou a Chain associada está arquivada; Encerrado representa exclusivamente o marcador manual `Projeto encerrado: sim`; Concluído exige `executionCompleted` real na Chain; os demais Projects ativos e Chains ainda não concluídas pertencem a Em andamento. Assim, arquivamento, encerramento manual e conclusão de execução permanecem conceitos distintos, sem novo status persistido e sem mutação de Project, Chain ou Step.
+
+A ordenação oferece Mais recentes, Mais antigos, Nome A–Z e Nome Z–A. Datas usam `recentAt`, derivado dos timestamps canônicos já existentes de Project/Chain; nomes são comparados de forma normalizada e o ID funciona como desempate estável. Busca, filtro e ordenação são aplicados por uma função pura sobre a composição já autorizada de Projects e Prompt Chains. O backend, seus contratos, ownership e IDOR não foram alterados: a interface continua recebendo apenas os registros do usuário autenticado por meio dos repositories existentes.
+
+No desktop, busca, chips e seletor ficam acima do grid preservado. No mobile, a busca e a ordenação ocupam a largura disponível e os chips usam rolagem horizontal, sem overflow. Abrir/Continuar, Editar, Arquivar/Reativar e Excluir permanecem intactos; Duplicar, Exportar e Revisar continuam no Workspace.
+
+A etapa é totalmente determinística. Não usa `eval`, `exec`, shell ou interpretação dinâmica, não chama OpenAI, Gemini, Anthropic, Prompt Engine ou AI Gateway, não consome créditos, não cria Usage, Reservation ou Settlement e não altera Ledger ou Wallet. Nenhum endpoint, tabela, migration ou mecanismo de persistência foi criado.
+
+Os testes cobrem busca normal e case-insensitive, espaços extras, nenhum resultado, lista vazia, todos os filtros, precedência entre arquivado e encerrado, quatro ordenações, combinação de busca/filtro/ordenação, preservação da entrada, ações existentes e layout mobile sem overflow. O desempate estável por nome/ID foi conferido na revisão do código; não há teste específico de empate nesta etapa.
+
+### Smoke manual final — aprovação do usuário
+
+O usuário confirmou a aprovação do smoke manual real em desktop e mobile/responsivo. Foram validados: busca por nome; filtros Todos, Em andamento, Concluídos, Encerrados e Arquivados; ordenações Mais recentes, Mais antigos, Nome A–Z e Nome Z–A; comportamento responsivo dos cards, controles e botão Novo projeto. Este registro se limita aos cenários informados pelo usuário; não atribui ao smoke medições de IA, créditos ou banco de dados.
+
+### Auditoria final definitiva
+
+A revisão do diff e dos dois arquivos novos confirmou a implementação local e determinística: busca literal com `contains`, normalização de caixa/espaços, precedência Arquivado > Encerrado > Concluído > Em andamento, datas baseadas em `recentAt` e ordenação de uma nova lista sem modificar a entrada. Os callbacks dos controles alteram somente estado de apresentação; não invalidam o provider nem disparam requests. O controller de busca é descartado no `dispose`. A mudança no rótulo compartilhado de estado alinha os cards à precedência de arquivamento; as ações existentes e os contratos anteriores foram preservados.
+
+Busca, filtros e ordenação continuam restritos aos registros já carregados. O provider preexistente carrega até 100 Projects e 100 Chains e associa a primeira Chain de cada Project; esta etapa não introduz paginação nem busca global no servidor. Essa limitação anterior permanece explícita, sem alegação de validação manual de grandes volumes.
+
+Validações executadas nesta auditoria:
+
+- Backend: `ruff check .` aprovado; `python -m pytest -q` com **422 testes aprovados**. Houve um aviso de depreciação de Starlette/TestClient relativo ao uso de `httpx`, sem falha; dependências não foram alteradas. A suíte inclui regressões de autenticação/segurança, Projects, Chains, exportação, duplicação, billing, créditos e pagamentos. As fixtures de integração usam SQLite em memória, não o banco operacional.
+- Flutter: `flutter analyze` sem problemas; `flutter test` com **299 testes aprovados**, incluindo os 16 testes de organização/listagem e as regressões anteriores.
+- Formatação: `dart format --output=none --set-exit-if-changed` nos cinco arquivos Dart adicionados/alterados: **0 arquivos a formatar**.
+- API local: `GET /health` retornou **200**, com `status: ok`; `GET /api/v1/openapi.json` retornou **200**, com 68 paths e os contratos existentes de Projects. `/openapi.json` retornou 404 por não ser o caminho configurado da aplicação.
+- Banco: `alembic current` e `alembic heads` apontaram para **`0016_guided_chain_execution (head)`**. Nenhuma migration foi criada ou aplicada na auditoria.
+- Segurança e configuração: `backend/.env` permanece ignorado pelo Git e não rastreado; seu hash foi comparado antes/depois, sem alteração e sem exposição de valores. Não há mudança de backend, dependências, autenticação, ownership ou IDOR. O texto da busca não é interpretado como regex, código, SQL ou HTML; a expressão regular de normalização é fixa.
+- IA e finanças: pela revisão dos caminhos de execução, a etapa não adiciona chamadas ao Prompt Engine, AI Gateway, OpenAI, Gemini ou Anthropic, não consome créditos e não escreve em Usage, Reservation, Settlement, Ledger ou Wallet. Esta conclusão decorre da inspeção do código e das regressões automatizadas, sem alegar um comparativo financeiro manual no banco.
+- Integridade: `git diff --check` aprovado; conteúdo anterior do relatório (Etapas 9.1–9.30) preservado em relação ao HEAD. Nenhum arquivo backend foi alterado. O estado final contém somente os seis arquivos desta etapa, sem alterações staged; nenhum `git add`, commit ou push foi executado.
+
+**ETAPA 9.31 CONCLUÍDA E APROVADA — SMOKE MANUAL FINAL APROVADO. Working tree pronto para commit.**
