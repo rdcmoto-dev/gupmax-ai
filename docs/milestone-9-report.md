@@ -892,3 +892,51 @@ Validações executadas nesta auditoria:
 - Integridade: `git diff --check` aprovado; conteúdo anterior do relatório (Etapas 9.1–9.30) preservado em relação ao HEAD. Nenhum arquivo backend foi alterado. O estado final contém somente os seis arquivos desta etapa, sem alterações staged; nenhum `git add`, commit ou push foi executado.
 
 **ETAPA 9.31 CONCLUÍDA E APROVADA — SMOKE MANUAL FINAL APROVADO. Working tree pronto para commit.**
+
+## ETAPA 9.32 — FAVORITOS E PROJETOS FIXADOS
+
+### Implementação e persistência
+
+“Meus projetos” oferece uma estrela discreta por Project: vazia para marcar como favorito e preenchida para remover dos favoritos, com tooltip e estado selecionado acessível. A ação não abre o Project. Durante a operação, a estrela apresenta loading e fica desabilitada; uma guarda por ID também impede chamadas duplicadas antes do próximo rebuild. Erros exibem mensagem e permitem retry. O estado exibido é recarregado do backend pelo provider existente após a gravação, sem armazenamento paralelo ou atualização otimista do favorito no frontend.
+
+O novo contrato autenticado `PUT /api/v1/projects/{project_id}/favorite` recebe exclusivamente `{"is_favorite": true|false}` e devolve `ProjectRead`. O schema exige booleano estrito e rejeita campos extras, inclusive `user_id`, contexto e status. A operação define o valor solicitado, em vez de inverter o estado no servidor, mantendo retries idempotentes. Ownership deriva do usuário autenticado e passa pela verificação existente de acesso; Project alheio e inexistente retornam o mesmo 404. Listagem e detalhe expõem `is_favorite`.
+
+A migration `0017_project_favorites`, sucessora de `0016_guided_chain_execution`, adiciona `projects.is_favorite` booleano, obrigatório e com default `false`, incluindo Projects anteriores. Seu downgrade remove somente a nova coluna. A migration foi aplicada no PostgreSQL local; current e heads apontam para a única head `0017_project_favorites`. A comparação dos três Projects existentes antes/depois da aplicação confirmou a preservação do conteúdo e dos timestamps. A coluna real foi verificada como boolean, NOT NULL, default false e sem valores nulos. O downgrade não foi executado no banco operacional.
+
+O update específico modifica somente `is_favorite`, com `updated_at = projects.updated_at` explícito para não alterar datas de atividade ou a ordem de Mais recentes/Mais antigos. Objetivo, critérios, marcos, contexto, Project Memory, Review, conclusão e encerramento permanecem intactos, assim como Chains, Steps, progresso, resultado_anterior, Prompts, versões, resultados e Templates. A cópia criada pela duplicação começa sem favorito; o original conserva a preferência. O contrato de exportação anterior não foi alterado.
+
+### Organização e interface
+
+O filtro Favoritos integra `ProjectListFilter` e a função pura `organizeProjects`, combinando a preferência com a busca por nome e a ordenação escolhida. Favoritos não é um novo estado operacional: Projects arquivados ou encerrados também podem ser favoritos. Todos, Em andamento, Concluídos, Encerrados e Arquivados conservam suas regras. As quatro ordenações permanecem iguais, sem priorização silenciosa de favoritos em Todos ou nos demais filtros.
+
+A fonte continua sendo a composição já carregada de Projects e Chains. A limitação da Etapa 9.31 permanece: até 100 Projects e 100 Chains pelo provider existente, sem busca global ou paginação adicional. Chains independentes não recebem estrela e não aparecem em Favoritos; nenhum Project é criado silenciosamente para armazenar essa preferência.
+
+O nome do Project ocupa largura flexível ao lado da estrela, com quebra de linha e sem truncamento configurado. Os filtros mantêm a rolagem horizontal existente no mobile. Cards, ações Abrir/Continuar, Editar, Arquivar/Excluir, controles de organização e Novo projeto conservam seus fluxos. Quando o filtro não encontra favoritos, é reutilizado “Nenhum projeto encontrado.”.
+
+### Segurança, IA e créditos
+
+A revisão dos caminhos de execução confirma que favoritos não chama Prompt Engine, AI Gateway, OpenAI, Gemini ou Anthropic, não consome créditos e não cria ou modifica Usage, Reservation, Settlement, Ledger ou Wallet. Os testes específicos bloqueiam os métodos de geração/stream do Gateway durante a operação e comparam snapshots de todas as tabelas do banco de teste: somente `projects.is_favorite` difere. A preparação de Prompts/versões desses testes usa geração determinística com `optimize_with_ai: false`; não houve chamadas reais de IA nem consumo de créditos reais nesta implementação/auditoria.
+
+Nenhum conteúdo fornecido pelo usuário é interpretado como código, HTML, SQL ou expressão regular dinâmica. `.env` não foi alterado nem exposto e permanece ignorado/não rastreado. O histórico das Etapas 9.1–9.31 foi preservado integralmente; não houve mudanças nos módulos financeiros ou de IA.
+
+### Testes e auditoria
+
+Os 10 testes backend específicos passaram e cobrem marcar/desmarcar, repetição idempotente, leitura persistida em novas requisições e após logout/login, autenticação, IDOR uniforme, rejeição de payloads inválidos/ownership do cliente, preservação do banco inteiro em Project com contexto, checks, encerramento, arquivamento, Chain em execução, resultado, Prompt refinado e Template, além da duplicação sem herdar favorito.
+
+Os 22 testes Flutter relevantes passaram, incluindo organização/listagem anteriores, Favoritos com busca/estados e ordenações preservadas, marcar/desmarcar sem navegação no desktop, loading/double submit/erro/retry, nome longo e Novo projeto acessível em 390×844, ausência de estrela em Chain independente, lista vazia após desfavoritar, serialização HTTP, releitura pelo repository e tradução de erro 404. Esses testes automatizados não substituem o smoke manual de F5, logout/login e reabertura do sistema pelo usuário.
+
+Auditoria completa executada após os testes relevantes:
+
+- Backend: **432 testes aprovados** em `python -m pytest -q`; **Ruff aprovado**. Um aviso de depreciação preexistente de Starlette/TestClient sobre `httpx`, sem falha e sem alteração de dependências.
+- Flutter: **305 testes aprovados** em `flutter test`; **Flutter Analyze sem problemas**.
+- Dart format check: `--output=none --set-exit-if-changed` aprovado nos oito arquivos Dart da etapa, com **0 alterações necessárias**.
+- Health/OpenAPI locais: **HTTP 200** em `/health` e `/api/v1/openapi.json`, com nova rota de favorito e campo `is_favorite` confirmados no schema. Requisição real sem autenticação ao endpoint de favorito retornou **401**, sem modificar um Project.
+- Alembic: **current = heads = `0017_project_favorites`**, única head, migration aplicada no banco local.
+- `git diff --check`: aprovado. `git diff --stat` e `git status --short`: revisados; somente os 13 arquivos rastreados modificados e os três arquivos novos desta etapa. Arquivos novos: migration, teste backend de favoritos e teste Flutter do repository de favoritos. Nenhum arquivo staged, `.env` ignorado/não rastreado e hash inalterado.
+- Integridade do relatório: todo o conteúdo anterior (Etapas 9.1–9.31) foi comparado com HEAD e preservado byte a byte. Nenhum `git add`, commit ou push foi executado.
+
+### Smoke manual final — aprovado pelo usuário
+
+O usuário confirmou a execução e aprovação do smoke manual final: estrelas nos cards; favoritar; persistência após F5; filtro Favoritos; busca combinada com Favoritos; remoção imediata do filtro ao desfavoritar; estado vazio; responsividade/mobile sem overflow horizontal; ações dos cards e Novo projeto acessíveis. O registro se limita aos cenários expressamente confirmados, sem atribuir ao smoke testes adicionais de logout/login ou reabertura do sistema.
+
+**ETAPA 9.32 CONCLUÍDA E APROVADA — SMOKE MANUAL FINAL APROVADO.**

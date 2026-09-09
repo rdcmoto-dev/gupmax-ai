@@ -19,6 +19,7 @@ abstract interface class ProjectRepositoryContract {
   Future<ProjectExportFile> export(
       String projectId, String projectName, ProjectExportFormat format);
   Future<ProjectRecord> update(String id, Map<String, dynamic> values);
+  Future<ProjectRecord> setFavorite(String id, bool isFavorite);
   Future<void> delete(String id);
   Future<void> assignPrompt(String projectId, String promptId);
   Future<void> removePrompt(String projectId, String promptId);
@@ -128,6 +129,10 @@ class ProjectRepository implements ProjectRepositoryContract {
       _map(error);
     }
   }
+
+  @override
+  Future<ProjectRecord> setFavorite(String id, bool isFavorite) =>
+      _write('put', '$id/favorite', {'is_favorite': isFavorite});
 
   @override
   Future<void> delete(String id) => _association('delete', '/projects/$id');

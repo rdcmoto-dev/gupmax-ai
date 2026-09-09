@@ -3,11 +3,19 @@ import 'domain/project.dart';
 import 'project_overview.dart';
 import 'project_review.dart';
 
-enum ProjectListFilter { all, inProgress, completed, closed, archived }
+enum ProjectListFilter {
+  all,
+  inProgress,
+  completed,
+  closed,
+  archived,
+  favorites
+}
 
 extension ProjectListFilterLabel on ProjectListFilter {
   String get label => switch (this) {
         ProjectListFilter.all => 'Todos',
+        ProjectListFilter.favorites => 'Favoritos',
         ProjectListFilter.inProgress => 'Em andamento',
         ProjectListFilter.completed => 'Concluídos',
         ProjectListFilter.closed => 'Encerrados',
@@ -49,8 +57,9 @@ List<ProjectOverview> organizeProjects(
   final query = _searchText(search);
   final items = source
       .where((item) => query.isEmpty || _searchText(item.name).contains(query))
-      .where((item) =>
-          filter == ProjectListFilter.all || projectListState(item) == filter)
+      .where((item) => filter == ProjectListFilter.favorites
+          ? item.project?.isFavorite == true
+          : filter == ProjectListFilter.all || projectListState(item) == filter)
       .toList();
   int stableName(ProjectOverview left, ProjectOverview right) {
     final byName = _searchText(left.name).compareTo(_searchText(right.name));

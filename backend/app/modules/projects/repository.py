@@ -37,6 +37,17 @@ class ProjectRepository:
         total = await self.session.scalar(select(func.count()).select_from(Project).where(*filters))
         return items, total or 0
 
+    async def set_favorite(self, project: Project, is_favorite: bool) -> Project:
+        # Organizational preference must not change activity dates or content.
+        await self.session.execute(
+            update(Project)
+            .where(Project.id == project.id, Project.user_id == project.user_id)
+            .values(is_favorite=is_favorite, updated_at=Project.updated_at)
+        )
+        await self.session.commit()
+        await self.session.refresh(project)
+        return project
+
     async def counts(self, project_id: UUID) -> tuple[int, int]:
         prompts = await self.session.scalar(
             select(func.count()).select_from(Prompt).where(Prompt.project_id == project_id)

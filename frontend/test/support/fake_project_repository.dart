@@ -11,6 +11,9 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   Completer<ProjectPageData>? listCompleter;
   int assignPromptCalls = 0;
   int assignTemplateCalls = 0;
+  int favoriteCalls = 0;
+  Completer<void>? favoriteCompleter;
+  Object? favoriteError;
   int updateCalls = 0;
   Completer<void>? updateCompleter;
   Object? updateError;
@@ -118,10 +121,38 @@ class FakeProjectRepository implements ProjectRepositoryContract {
       context: values.containsKey('context')
           ? values['context'] as String?
           : current.context,
+      isFavorite: current.isFavorite,
       promptCount: current.promptCount,
       status: values['status'] == null
           ? current.status
           : ProjectStatus.values.byName(values['status'] as String),
+    );
+    items = [
+      for (final item in items)
+        if (item.id == id) updated else item
+    ];
+    return updated;
+  }
+
+  @override
+  Future<ProjectRecord> setFavorite(String id, bool isFavorite) async {
+    favoriteCalls++;
+    await favoriteCompleter?.future;
+    if (favoriteError != null) throw favoriteError!;
+    final current = await get(id);
+    final updated = ProjectRecord(
+      id: current.id,
+      name: current.name,
+      status: current.status,
+      isFavorite: isFavorite,
+      description: current.description,
+      context: current.context,
+      promptCount: current.promptCount,
+      templateCount: current.templateCount,
+      prompts: current.prompts,
+      templates: current.templates,
+      createdAt: current.createdAt,
+      updatedAt: current.updatedAt,
     );
     items = [
       for (final item in items)
@@ -153,6 +184,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
 }
 
 ProjectRecord projectSample({
+  bool isFavorite = false,
   String id = 'project-1',
   String name = 'Pizzaria Donatello',
   ProjectStatus status = ProjectStatus.active,
@@ -162,6 +194,7 @@ ProjectRecord projectSample({
 }) =>
     ProjectRecord(
       id: id,
+      isFavorite: isFavorite,
       name: name,
       description: 'Marketing e vendas',
       context: context,

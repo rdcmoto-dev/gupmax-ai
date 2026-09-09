@@ -58,6 +58,12 @@ class ProjectDuplicate(BaseModel):
         return normalized
 
 
+class ProjectFavoriteUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    is_favorite: bool = Field(strict=True)
+
+
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -67,6 +73,7 @@ class ProjectRead(BaseModel):
     description: str | None
     context: str | None
     status: ProjectStatus
+    is_favorite: bool = False
     prompt_count: int = 0
     template_count: int = 0
     created_at: datetime

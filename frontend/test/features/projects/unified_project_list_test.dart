@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -240,6 +242,92 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('projects_no_results')), findsOneWidget);
     expect(find.text('Nenhum projeto encontrado.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('favorita e desfavorita no desktop sem abrir o projeto',
+      (tester) async {
+    final projects = FakeProjectRepository()..items = [project('favorite')];
+    await pumpList(tester,
+        projects: projects, chains: FakePromptChainRepository());
+    final star = find.byKey(const Key('favorite_favorite'));
+    expect(find.byIcon(Icons.star_border), findsOneWidget);
+    await tester.tap(star);
+    await tester.pumpAndSettle();
+    expect(projects.items.single.isFavorite, isTrue);
+    expect(find.byIcon(Icons.star), findsOneWidget);
+    expect(find.byKey(const Key('project_search')), findsOneWidget);
+    await tester.tap(star);
+    await tester.pumpAndSettle();
+    expect(projects.items.single.isFavorite, isFalse);
+    expect(find.byIcon(Icons.star_border), findsOneWidget);
+    expect(projects.favoriteCalls, 2);
+    expect(projects.updateCalls, 0);
+  });
+
+  testWidgets('favorito bloqueia double submit e permite retry após erro',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [project('favorite')]
+      ..favoriteCompleter = Completer<void>();
+    await pumpList(tester,
+        projects: projects, chains: FakePromptChainRepository());
+    final star = find.byKey(const Key('favorite_favorite'));
+    final callback = tester.widget<IconButton>(star).onPressed!;
+    callback();
+    callback();
+    await tester.pump();
+    expect(projects.favoriteCalls, 1);
+    expect(tester.widget<IconButton>(star).onPressed, isNull);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    projects.favoriteError = Exception('offline');
+    projects.favoriteCompleter!.complete();
+    await tester.pumpAndSettle();
+    expect(projects.items.single.isFavorite, isFalse);
+    expect(find.text('Não foi possível atualizar o favorito. Tente novamente.'),
+        findsOneWidget);
+    projects.favoriteError = null;
+    projects.favoriteCompleter = null;
+    await tester.tap(star);
+    await tester.pumpAndSettle();
+    expect(projects.items.single.isFavorite, isTrue);
+  });
+
+  testWidgets('Favoritos no mobile combina busca e fica vazio ao desfavoritar',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [
+        projectSample(
+            id: 'fav',
+            name:
+                'Projeto importante com nome longo para validar quebra de linha no mobile',
+            isFavorite: true),
+        projectSample(id: 'normal', name: 'Projeto normal'),
+      ];
+    await pumpList(tester,
+        projects: projects,
+        chains: FakePromptChainRepository()..items = [chain(id: 'independent')],
+        size: const Size(390, 844));
+    expect(find.byKey(const Key('favorite_independent')), findsNothing);
+    expect(find.text(projects.items.first.name), findsOneWidget);
+    expect(
+        find.byKey(const Key('create_project')).hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final filter = find.byKey(const Key('project_filter_favorites'));
+    await tester.ensureVisible(filter);
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+    expect(find.text('Projeto normal'), findsNothing);
+    expect(find.byKey(const Key('favorite_fav')), findsOneWidget);
+    await tester.enterText(
+        find.byKey(const Key('project_search')), '  IMPORTANTE  ');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('favorite_fav')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('favorite_fav')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('projects_no_results')), findsOneWidget);
+    expect(
+        find.byKey(const Key('create_project')).hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

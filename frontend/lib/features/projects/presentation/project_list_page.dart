@@ -19,6 +19,7 @@ class ProjectListPage extends ConsumerStatefulWidget {
 
 class _ProjectListPageState extends ConsumerState<ProjectListPage> {
   String? _removingKey;
+  final _favoriting = <String>{};
   final _search = TextEditingController();
   ProjectListFilter _filter = ProjectListFilter.all;
   ProjectListOrder _order = ProjectListOrder.recent;
@@ -31,6 +32,27 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
 
   void _refresh() =>
       ref.invalidate(projectOverviewsProvider(_allProjectsQuery));
+
+  Future<void> _toggleFavorite(ProjectRecord project) async {
+    if (!_favoriting.add(project.id)) return;
+    setState(() {});
+    try {
+      await ref
+          .read(projectRepositoryProvider)
+          .setFavorite(project.id, !project.isFavorite);
+      if (!mounted) return;
+      _refresh();
+      await ref.read(projectOverviewsProvider(_allProjectsQuery).future);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content:
+            Text('Não foi possível atualizar o favorito. Tente novamente.'),
+      ));
+    } finally {
+      if (mounted) setState(() => _favoriting.remove(project.id));
+    }
+  }
 
   Future<void> _form([ProjectRecord? project]) async {
     final name = TextEditingController(text: project?.name);
@@ -289,10 +311,54 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(item.name,
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .titleLarge),
+                                                  Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Expanded(
+                                                          child: Text(item.name,
+                                                              style: Theme.of(
+                                                                      context)
+                                                                  .textTheme
+                                                                  .titleLarge)),
+                                                      if (item.project
+                                                          case final project?)
+                                                        IconButton(
+                                                          key: Key(
+                                                              'favorite_${project.id}'),
+                                                          tooltip: project
+                                                                  .isFavorite
+                                                              ? 'Remover dos favoritos'
+                                                              : 'Marcar como favorito',
+                                                          isSelected: project
+                                                              .isFavorite,
+                                                          onPressed: _favoriting
+                                                                  .contains(
+                                                                      project
+                                                                          .id)
+                                                              ? null
+                                                              : () =>
+                                                                  _toggleFavorite(
+                                                                      project),
+                                                          icon: _favoriting
+                                                                  .contains(
+                                                                      project
+                                                                          .id)
+                                                              ? const SizedBox
+                                                                  .square(
+                                                                  dimension: 20,
+                                                                  child: CircularProgressIndicator(
+                                                                      strokeWidth:
+                                                                          2))
+                                                              : Icon(project
+                                                                      .isFavorite
+                                                                  ? Icons.star
+                                                                  : Icons
+                                                                      .star_border),
+                                                        ),
+                                                    ],
+                                                  ),
                                                   if (item.categoryLabel
                                                       case final category?)
                                                     Text(category),

@@ -7,6 +7,7 @@ import 'package:gupmax_ai/features/prompt_chains/domain/prompt_chain.dart';
 void main() {
   ProjectRecord project(
     String id, {
+    bool isFavorite = false,
     String? name,
     String? context,
     ProjectStatus status = ProjectStatus.active,
@@ -14,6 +15,7 @@ void main() {
   }) =>
       ProjectRecord(
         id: id,
+        isFavorite: isFavorite,
         name: name ?? id,
         context: context,
         status: status,
@@ -132,6 +134,53 @@ void main() {
           .name,
       'Projeto Encerrado',
     );
+  });
+
+  test('Favoritos combina busca e estados sem mudar as quatro ordenações', () {
+    final favorite =
+        ProjectOverview(project: project('Zeta', isFavorite: true, day: 1));
+    final ordinary = ProjectOverview(project: project('Alfa', day: 2));
+    final archived = ProjectOverview(
+        project: project('Zeta arquivo',
+            isFavorite: true, status: ProjectStatus.archived));
+    final closed = ProjectOverview(
+        project: project('Zeta encerrado',
+            isFavorite: true, context: 'Projeto encerrado: sim'));
+    final source = [
+      ordinary,
+      favorite,
+      archived,
+      closed,
+      ProjectOverview(chain: chain('solo'))
+    ];
+    expect(organizeProjects(source, filter: ProjectListFilter.favorites),
+        hasLength(3));
+    expect(
+        organizeProjects(source,
+                filter: ProjectListFilter.favorites,
+                search: '  ZETA   arquivo ')
+            .single,
+        archived);
+    expect(organizeProjects([ordinary], filter: ProjectListFilter.favorites),
+        isEmpty);
+    expect(organizeProjects(source, filter: ProjectListFilter.archived).single,
+        archived);
+    expect(organizeProjects(source, filter: ProjectListFilter.closed).single,
+        closed);
+    expect(
+        organizeProjects([favorite, ordinary], order: ProjectListOrder.recent),
+        [ordinary, favorite]);
+    expect(
+        organizeProjects([favorite, ordinary], order: ProjectListOrder.oldest),
+        [favorite, ordinary]);
+    expect(
+        organizeProjects([favorite, ordinary],
+            order: ProjectListOrder.nameAscending),
+        [ordinary, favorite]);
+    expect(
+        organizeProjects([favorite, ordinary],
+            order: ProjectListOrder.nameDescending),
+        [favorite, ordinary]);
   });
 
   test('combina busca filtro e ordenação sem mutar a entrada', () {

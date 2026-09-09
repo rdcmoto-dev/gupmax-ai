@@ -16,6 +16,7 @@ from app.modules.projects.schemas import (
     ProjectCreate,
     ProjectDetail,
     ProjectDuplicate,
+    ProjectFavoriteUpdate,
     ProjectLibraryPage,
     ProjectPage,
     ProjectRead,
@@ -113,6 +114,14 @@ async def update_project(
 ) -> ProjectRead:
     service = ProjectService(session)
     return await service.read(await service.update(project_id, current_user, data))
+
+
+@router.put("/{project_id}/favorite", response_model=ProjectRead)
+async def set_project_favorite(
+    project_id: UUID, data: ProjectFavoriteUpdate, session: DbSession, current_user: CurrentUser
+) -> ProjectRead:
+    service = ProjectService(session)
+    return await service.read(await service.set_favorite(project_id, current_user, data.is_favorite))
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
