@@ -1,3 +1,4 @@
+import '../../features/project_blueprints/blueprint_list_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -80,6 +81,9 @@ GoRouter createAppRouter(AuthController auth, {String? initialLocation}) {
               path: '/chains/:id',
               builder: (_, state) =>
                   PromptChainDetailPage(chainId: state.pathParameters['id']!)),
+          GoRoute(
+              path: '/project-blueprints',
+              builder: (_, __) => const BlueprintListPage()),
           GoRoute(
               path: '/projects', builder: (_, __) => const ProjectListPage()),
           GoRoute(

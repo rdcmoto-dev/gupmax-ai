@@ -940,3 +940,74 @@ Auditoria completa executada após os testes relevantes:
 O usuário confirmou a execução e aprovação do smoke manual final: estrelas nos cards; favoritar; persistência após F5; filtro Favoritos; busca combinada com Favoritos; remoção imediata do filtro ao desfavoritar; estado vazio; responsividade/mobile sem overflow horizontal; ações dos cards e Novo projeto acessíveis. O registro se limita aos cenários expressamente confirmados, sem atribuir ao smoke testes adicionais de logout/login ou reabertura do sistema.
 
 **ETAPA 9.32 CONCLUÍDA E APROVADA — SMOKE MANUAL FINAL APROVADO.**
+
+## ETAPA 9.33 — MODELOS DE PROJETO / PROJECT BLUEPRINTS
+
+### Arquitetura e contratos
+
+Modelos de Projeto possuem módulo backend próprio (`project_blueprints`) e persistência independente de Projects e Prompt Templates. Salvar como modelo captura um snapshot reutilizável e versionado, pertencente somente ao usuário autenticado; não mantém referência ao Project de origem. O modelo continua utilizável após editar ou excluir a origem. Cada uso cria um novo Project independente; editar/excluir o modelo não altera Projects criados anteriormente nem Prompt Templates.
+
+Contratos autenticados:
+
+- `POST /api/v1/project-blueprints`: recebe `source_project_id`, nome e descrição opcional; valida ownership da origem e salva o snapshot em transação.
+- `GET /api/v1/project-blueprints`: lista somente modelos próprios, com paginação por offset/limit, total e ordenação determinística por atualização/ID. Os itens retornam nome, descrição, categoria e datas, sem o snapshot completo.
+- `GET /api/v1/project-blueprints/{id}`: abre o modelo próprio com sua estrutura.
+- `PUT /api/v1/project-blueprints/{id}`: edita nome, descrição e categoria do catálogo; a estrutura capturada permanece intacta.
+- `DELETE /api/v1/project-blueprints/{id}`: exclui somente o modelo, após confirmação na interface.
+- `POST /api/v1/project-blueprints/{id}/projects`: recebe o nome do novo Project e cria Project, Chains e Steps em uma única transação.
+
+Payloads usam schemas explícitos e rejeitam campos extras, inclusive `user_id`. O proprietário deriva exclusivamente da autenticação. Todas as operações individuais usam filtro de ownership e retornam 404 uniforme para modelo alheio/inexistente; salvar uma origem alheia também retorna 404. O frontend utiliza o cliente autenticado existente e não cria armazenamento paralelo.
+
+### Estrutura limpa e estado inicial
+
+O snapshot JSON versão 1 contém nome-base, descrição reutilizável original, objetivo, listas de textos de critérios e marcos (sem flags de conclusão), contexto manual útil e Chains com Steps ordenados. Cada Step guarda somente título, `base_input`, modo, categoria e Target AI. Placeholders estruturais, como `{produto}` e `{resultado_anterior}`, permanecem texto literal na base do Step, sem resolver variáveis ou herdar valores de execução.
+
+A limpeza reutiliza `ProjectMemory.reusable_context` e separa objetivo, critérios e marcos em campos estruturados. Conclusão final, Review e encerramento são removidos; rótulos explícitos de resultado anterior operacional também são descartados do contexto. Não há interpretação semântica por IA do texto livre manual.
+
+Não são capturados IDs/timestamps da origem, arquivamento, favorito, estados de execução, resultados, progresso, Prompts gerados, versões ou referências a Prompt Templates. O modelo recebe seus próprios ID e timestamps. A categoria do catálogo deriva da primeira etapa, ou Geral quando não há etapas; sua edição classifica o modelo e não reescreve categorias/Target AI dos Steps. A descrição opcional do catálogo também é independente da descrição original reutilizada no novo Project.
+
+Ao usar o modelo, todos os IDs e timestamps são novos. Project nasce ativo, não favorito e sem encerramento ou conclusão, com critérios/marcos desmarcados. Chains nascem ativas; Steps nascem pending, sem resultados, início ou conclusão registrados, e o progresso começa em zero. A indicação da primeira etapa disponível segue a semântica anterior de execução guiada, sem iniciar a execução automaticamente. Falha parcial provoca rollback de toda a criação.
+
+### Interface e integração
+
+A ação “Salvar como modelo” fica no Workspace, junto às ações de revisão/duplicação/exportação, somente para Projects persistidos. O diálogo sugere o nome do Project, permite editar nome e descrição do modelo e solicita confirmação explícita. “Meus projetos” oferece acesso a “Modelos de projeto” por botão com ícone e tooltip na barra superior, preservando os controles e ações anteriores.
+
+A lista apresenta nome, descrição quando informada, categoria, criação/atualização e ações Usar modelo, Editar e Excluir. Há paginação de 20 itens, loading, estado vazio e retry de erro. Ao usar, a interface recupera o detalhe, permite escolher o nome e revisar descrição, objetivo, critérios, marcos, contexto e estrutura das etapas antes de confirmar. Nesta etapa a revisão é de leitura; somente o nome do novo Project é editável. Após sucesso, o novo Project é aberto automaticamente.
+
+Os diálogos bloqueiam confirmação/cancelamento durante requests e possuem guarda contra double submit. Erros mantêm o formulário para retry. Exclusão pede confirmação e informa que Projects anteriores serão preservados. Layouts usam rolagem vertical, texto com quebra de linha e ações em Wrap; os testes mobile verificam 390×844. Busca, filtros, ordenação, favoritos, ações dos cards e Novo projeto continuam utilizando os fluxos existentes. A limitação de organização sobre os dados carregados da Etapa 9.31 permanece inalterada.
+
+### Limites, migration e segurança
+
+Nomes de modelo/novo Project têm 3–160 caracteres após trim; descrições têm até 1.000 caracteres. O snapshot respeita até 4.000 caracteres de contexto, cinco critérios, cinco marcos, 100 Chains, 20 Steps por Chain e 10.000 caracteres por base de Step. O JSON completo é limitado a 1 MiB em UTF-8. Excessos da estrutura retornam 413 sem snapshot parcial ou truncamento silencioso. A criação de cada modelo/Project é uma operação explícita; POST não possui chave de idempotência nesta etapa, e o frontend bloqueia envios concorrentes da mesma confirmação.
+
+A migration `0018_project_blueprints`, sucessora de `0017_project_favorites`, cria apenas `project_blueprints`, com FK de proprietário, índice de ownership, metadados e snapshot JSON. Ela foi aplicada no PostgreSQL local, mantendo exatamente uma head. A comparação antes/depois confirmou que o conteúdo das 23 tabelas anteriores permaneceu idêntico. O downgrade está definido para remover somente a tabela nova e não foi executado no banco operacional.
+
+Texto do usuário permanece dado literal; não há eval, execução de conteúdo, shell, comandos derivados de campos ou renderização HTML. Salvar/usar/editar/excluir modelos não chama OpenAI, Gemini, Anthropic, AI Gateway ou Prompt Engine para geração, não consome créditos e não modifica Usage, Reservation, Settlement, Ledger ou Wallet. Os testes bloqueiam geração/stream do Gateway durante as operações e comparam todas as tabelas para confirmar as mutações permitidas. A preparação de Prompts históricos nos testes usa `optimize_with_ai: false`, no banco de teste isolado.
+
+### Testes e auditoria
+
+Os 11 testes backend específicos passaram: estrutura limpa, critérios/marcos sem conclusão, remoção de Review/favorito/resultados, criação com estado zerado, preservação de origem/modelo e demais tabelas, uso após exclusão da origem, edição/exclusão independente, ownership de todas as operações, limites de nome/descrição/snapshot, paginação e rollback tanto de snapshot já inserido na transação quanto de Project/Chain parciais.
+
+Os oito testes Flutter novos passaram: salvar/validar/editar formulário, confirmação, loading/double submit/erro/retry, listagem vazia, uso com revisão e navegação, edição, exclusão com cancelamento/confirmação, paginação, mobile e acesso a modelos preservando Meus projetos. Um teste existente do Workspace também verifica a presença da nova ação. O indicador de carregamento do detalhe foi corrigido para encerrar antes de abrir o diálogo, evitando animação permanente ao fundo.
+
+Auditoria completa concluída:
+
+- Backend: `python -m pytest -q` com **443 testes aprovados**; `ruff check .` aprovado. Um aviso preexistente de depreciação Starlette/TestClient sobre `httpx`, sem falha ou alteração de dependências.
+- Flutter: `flutter test` com **313 testes aprovados**; `flutter analyze` sem problemas após correções de estilo no módulo novo. Dart format check (`--output=none --set-exit-if-changed`) aprovado nos nove arquivos Dart da etapa, com zero alterações necessárias.
+- Health/OpenAPI locais: HTTP 200 em `/health` e `/api/v1/openapi.json`; três paths de modelos publicados, cobrindo as seis operações HTTP documentadas acima.
+- Alembic: `current` e `heads` em **`0018_project_blueprints (head)`**; exatamente uma head confirmada pelo grafo de migrations. Nenhuma migration anterior foi reescrita.
+- Segurança/regressões: ownership/IDOR, isolamento de origem/modelo/Projects gerados, reset operacional, rollback e organização anterior cobertos pela revisão e pelas suítes aprovadas. Zero chamadas reais de IA e zero consumo de créditos reais; nenhuma alteração nos módulos financeiros.
+- Configuração e histórico: `.env` ignorado, não rastreado e com hash inalterado; todo o conteúdo anterior do relatório (Etapas 9.1–9.32) preservado byte a byte em relação ao HEAD.
+- Git: `git diff --check` aprovado; `git diff --stat` e `git status --short --untracked-files=all` revisados. Sete arquivos rastreados modificados e 12 arquivos novos, somente desta etapa. Nenhum arquivo staged; nenhum `git add`, commit ou push executado.
+
+### Smoke manual final — aprovado pelo usuário
+
+O usuário confirmou a aprovação do smoke manual final. Foram validados: “Salvar como modelo” no Project Workspace; preenchimento e salvamento do formulário; persistência do modelo; acesso visível “Modelos de projeto” em Meus projetos; listagem do modelo salvo com descrição e categoria corretas; uso do modelo; criação de Project independente com objetivo, critérios, marcos e contexto reutilizável; zero Prompts e progresso inicial de 0 de 2 etapas; ausência de histórico operacional; critérios e milestones inicialmente desmarcados; edição persistida do modelo; navegação Voltar; e interface mobile sem overflow horizontal importante, mantendo Usar modelo, Editar e Excluir acessíveis.
+
+Durante o smoke, os quatro botões da Revisão do projeto foram reorganizados em grade 2×2 no desktop e coluna no mobile, com componente único azul-claro, brilho branco discreto, borda suave, sombra leve e estados hover/pressed. Também foi adicionada a ação textual visível “Modelos de projeto” no topo de Meus projetos, separada dos filtros de status, preservando busca, ordenação, favoritos e Novo projeto. A listagem continua usando a persistência existente de Blueprints; nenhum modelo adicional foi criado durante esse ajuste.
+
+### Auditoria final
+
+Os testes automatizados confirmam ownership/IDOR uniforme, transações e rollback, criação/listagem/edição/exclusão, criação de Project a partir de Blueprint, reset de estados operacionais, isolamento do original e do Blueprint após uso, remoção de conclusão/Review/favorito/resultados, preservação literal de placeholders estruturais, ausência de Prompts/versões e alterações financeiras, e os layouts desktop/mobile da interface. A auditoria não atribui ao smoke medições internas adicionais além dos cenários confirmados acima.
+
+**ETAPA 9.33 CONCLUÍDA E APROVADA — SMOKE MANUAL FINAL APROVADO.**

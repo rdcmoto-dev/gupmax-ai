@@ -164,6 +164,7 @@ void main() {
       target: const ProjectWorkspaceTarget.project('project-1'),
     );
 
+    expect(find.byKey(const Key('save_project_blueprint')), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('duplicate_project')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('duplicate_project')));
@@ -1329,9 +1330,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(projects.updateCalls, 1);
     expect(
-      tester
-          .widget<OutlinedButton>(find.byKey(const Key('review_project')))
-          .onPressed,
+      tester.widget<InkWell>(find.byKey(const Key('review_project'))).onTap,
       isNull,
     );
     projects.updateError = const AppException('falha');
@@ -1390,14 +1389,48 @@ void main() {
     await tester.pump();
     expect(find.text('Exportando...'), findsOneWidget);
     expect(
-        tester
-            .widget<OutlinedButton>(find.byKey(const Key('export_project')))
-            .onPressed,
+        tester.widget<InkWell>(find.byKey(const Key('export_project'))).onTap,
         isNull);
     expect(projects.exportCalls, 1);
     projects.exportCompleter!.completeError(const AppException('falha'));
     await tester.pumpAndSettle();
     expect(find.text('Não foi possível exportar o projeto.'), findsOneWidget);
+  });
+
+  testWidgets(
+      'ações da revisão formam um grupo equilibrado no desktop e mobile',
+      (tester) async {
+    await pumpWorkspace(tester,
+        projects: FakeProjectRepository()..items = [projectSample()],
+        chains: FakePromptChainRepository(),
+        target: const ProjectWorkspaceTarget.project('project-1'));
+    await tester.ensureVisible(find.byKey(const Key('project_review_card')));
+    await tester.pumpAndSettle();
+
+    final save =
+        tester.getTopLeft(find.byKey(const Key('save_project_blueprint')));
+    final duplicate =
+        tester.getTopLeft(find.byKey(const Key('duplicate_project')));
+    final export = tester.getTopLeft(find.byKey(const Key('export_project')));
+    final review = tester.getTopLeft(find.byKey(const Key('review_project')));
+    expect(save.dy, duplicate.dy);
+    expect(export.dy, review.dy);
+    expect(export.dy, greaterThan(save.dy));
+    expect(duplicate.dx, greaterThan(save.dx));
+    expect(review.dx, greaterThan(export.dx));
+
+    await pumpWorkspace(tester,
+        projects: FakeProjectRepository()..items = [projectSample()],
+        chains: FakePromptChainRepository(),
+        size: const Size(390, 844),
+        target: const ProjectWorkspaceTarget.project('project-1'));
+    await tester.ensureVisible(find.byKey(const Key('project_review_card')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('save_project_blueprint')), findsOneWidget);
+    expect(find.byKey(const Key('duplicate_project')), findsOneWidget);
+    expect(find.byKey(const Key('export_project')), findsOneWidget);
+    expect(find.byKey(const Key('review_project')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('mobile sem overflow e Chain sem Project não oferece export',

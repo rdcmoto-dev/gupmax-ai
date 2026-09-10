@@ -1,3 +1,4 @@
+import '../../project_blueprints/blueprint_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1168,61 +1169,80 @@ class _ProjectReviewCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text('Revisão do projeto',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  if (project != null)
-                    OutlinedButton.icon(
-                      key: const Key('duplicate_project'),
-                      onPressed: saving || exporting || duplicating
-                          ? null
-                          : onDuplicate,
-                      icon: duplicating
-                          ? const SizedBox.square(
-                              dimension: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.copy_outlined),
-                      label: Text(
-                          duplicating ? 'Duplicando...' : 'Duplicar projeto'),
-                    ),
-                  if (project != null)
-                    OutlinedButton.icon(
-                      key: const Key('export_project'),
-                      onPressed: saving || exporting ? null : onExport,
-                      icon: exporting
-                          ? const SizedBox.square(
-                              dimension: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.download_outlined),
-                      label: Text(
-                          exporting ? 'Exportando...' : 'Exportar projeto'),
-                    ),
-                  if (project != null)
-                    OutlinedButton.icon(
-                      key: const Key('review_project'),
-                      onPressed: saving ? null : onReview,
-                      icon: saving
-                          ? const SizedBox.square(
-                              dimension: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(review?.isClosed ?? false
-                              ? Icons.lock_open_outlined
-                              : Icons.fact_check_outlined),
-                      label: Text(review?.isClosed ?? false
-                          ? 'Revisão final'
-                          : 'Revisar projeto'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
+              Text('Revisão do projeto',
+                  style: Theme.of(context).textTheme.titleLarge),
+              if (project != null) ...[
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final mobile = constraints.maxWidth < 560;
+                    final actions = [
+                      SaveBlueprintButton(project: project!),
+                      ProjectReviewActionButton(
+                        actionKey: const Key('duplicate_project'),
+                        onPressed: saving || exporting || duplicating
+                            ? null
+                            : onDuplicate,
+                        icon: Icons.copy_outlined,
+                        label:
+                            duplicating ? 'Duplicando...' : 'Duplicar projeto',
+                        loading: duplicating,
+                      ),
+                      ProjectReviewActionButton(
+                        actionKey: const Key('export_project'),
+                        onPressed: saving || exporting ? null : onExport,
+                        icon: Icons.download_outlined,
+                        label: exporting ? 'Exportando...' : 'Exportar projeto',
+                        loading: exporting,
+                      ),
+                      ProjectReviewActionButton(
+                        actionKey: const Key('review_project'),
+                        onPressed: saving ? null : onReview,
+                        icon: review?.isClosed ?? false
+                            ? Icons.lock_open_outlined
+                            : Icons.fact_check_outlined,
+                        label: saving
+                            ? 'Salvando...'
+                            : review?.isClosed ?? false
+                                ? 'Revisão final'
+                                : 'Revisar projeto',
+                        loading: saving,
+                      ),
+                    ];
+                    if (mobile) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final action in actions) ...[
+                            action,
+                            if (action != actions.last)
+                              const SizedBox(height: 12),
+                          ],
+                        ],
+                      );
+                    }
+                    Widget row(Widget left, Widget right) => Row(
+                          children: [
+                            Expanded(child: left),
+                            const SizedBox(width: 12),
+                            Expanded(child: right),
+                          ],
+                        );
+                    return ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: Column(
+                        children: [
+                          row(actions[0], actions[1]),
+                          const SizedBox(height: 12),
+                          row(actions[2], actions[3]),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 18),
+              ] else
+                const SizedBox(height: 12),
               if (project == null)
                 const Text(
                   'Salve este fluxo como projeto para registrar uma revisão final.',
