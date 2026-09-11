@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/widgets/app_page_app_bar.dart';
 import '../../prompt_chains/prompt_chain_providers.dart';
 import '../../project_blueprints/blueprint_dialog.dart';
@@ -21,6 +22,7 @@ class ProjectListPage extends ConsumerStatefulWidget {
 class _ProjectListPageState extends ConsumerState<ProjectListPage> {
   String? _removingKey;
   final _favoriting = <String>{};
+  final _pinning = <String>{};
   final _search = TextEditingController();
   ProjectListFilter _filter = ProjectListFilter.all;
   ProjectListOrder _order = ProjectListOrder.recent;
@@ -52,6 +54,31 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
       ));
     } finally {
       if (mounted) setState(() => _favoriting.remove(project.id));
+    }
+  }
+
+  Future<void> _togglePin(ProjectRecord project) async {
+    if (!_pinning.add(project.id)) return;
+    setState(() {});
+    try {
+      await ref.read(projectRepositoryProvider).setPinned(project.id, !project.isPinned);
+      if (!mounted) return;
+      _refresh();
+      await ref.read(projectOverviewsProvider(_allProjectsQuery).future);
+    } on AppException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error.code == 'project_pin_limit_reached'
+            ? 'Você pode fixar até 3 projetos. Desafixe um projeto para continuar.'
+            : 'Não foi possível atualizar o projeto fixado. Tente novamente.'),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Não foi possível atualizar o projeto fixado. Tente novamente.'),
+      ));
+    } finally {
+      if (mounted) setState(() => _pinning.remove(project.id));
     }
   }
 
@@ -238,6 +265,10 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                       )
                     : LayoutBuilder(
                         builder: (context, constraints) {
+                          final pinned = items
+                              .where((item) => item.project?.isPinned == true)
+                              .take(3)
+                              .toList();
                           final visible = organizeProjects(
                             items,
                             search: _search.text,
@@ -250,6 +281,24 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              if (pinned.isNotEmpty) ...[
+                                Text('Projetos fixados', style: Theme.of(context).textTheme.titleMedium),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final item in pinned)
+                                      _PinnedProjectShortcut(
+                                        item: item,
+                                        pinning: _pinning.contains(item.project!.id),
+                                        onOpen: () => context.go(item.route),
+                                        onUnpin: () => _togglePin(item.project!),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                              ],
                               TextField(
                                 key: const Key('project_search'),
                                 controller: _search,
@@ -351,6 +400,18 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                                                                             context)
                                                                         .textTheme
                                                                         .titleLarge)),
+                                                            if (item.project
+                                                                case final project?)
+                                                              IconButton(
+                                                                key: Key('pin_${project.id}'),
+                                                                tooltip: project.isPinned ? 'Desafixar projeto' : 'Fixar projeto',
+                                                                onPressed: _pinning.contains(project.id)
+                                                                    ? null
+                                                                    : () => _togglePin(project),
+                                                                icon: _pinning.contains(project.id)
+                                                                    ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                                                    : Icon(project.isPinned ? Icons.push_pin : Icons.push_pin_outlined),
+                                                              ),
                                                             if (item.project
                                                                 case final project?)
                                                               IconButton(
@@ -505,4 +566,34 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
       ),
     );
   }
+}
+
+class _PinnedProjectShortcut extends StatelessWidget {
+  const _PinnedProjectShortcut({required this.item, required this.pinning, required this.onOpen, required this.onUnpin});
+  final ProjectOverview item;
+  final bool pinning;
+  final VoidCallback onOpen;
+  final VoidCallback onUnpin;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.lightBlue.shade200),
+            gradient: LinearGradient(colors: [Colors.white, Colors.lightBlue.shade50]),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(children: [
+              const Icon(Icons.push_pin, color: Colors.blue),
+              const SizedBox(width: 8),
+              Expanded(child: Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis)),
+              IconButton(key: Key('open_pinned_${item.project!.id}'), tooltip: item.canContinue ? 'Continuar' : 'Abrir', onPressed: onOpen, icon: Icon(item.canContinue ? Icons.play_arrow_rounded : Icons.folder_open_outlined)),
+              IconButton(key: Key('unpin_pinned_${item.project!.id}'), tooltip: 'Desafixar projeto', onPressed: pinning ? null : onUnpin, icon: pinning ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.push_pin_outlined)),
+            ]),
+          ),
+        ),
+      );
 }

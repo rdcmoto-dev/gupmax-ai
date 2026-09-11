@@ -20,6 +20,7 @@ abstract interface class ProjectRepositoryContract {
       String projectId, String projectName, ProjectExportFormat format);
   Future<ProjectRecord> update(String id, Map<String, dynamic> values);
   Future<ProjectRecord> setFavorite(String id, bool isFavorite);
+  Future<ProjectRecord> setPinned(String id, bool isPinned);
   Future<void> delete(String id);
   Future<void> assignPrompt(String projectId, String promptId);
   Future<void> removePrompt(String projectId, String promptId);
@@ -135,6 +136,10 @@ class ProjectRepository implements ProjectRepositoryContract {
       _write('put', '$id/favorite', {'is_favorite': isFavorite});
 
   @override
+  Future<ProjectRecord> setPinned(String id, bool isPinned) =>
+      _write('put', '$id/pin', {'is_pinned': isPinned});
+
+  @override
   Future<void> delete(String id) => _association('delete', '/projects/$id');
   @override
   Future<void> assignPrompt(String projectId, String promptId) =>
@@ -162,9 +167,18 @@ class ProjectRepository implements ProjectRepositoryContract {
   }
 
   Never _map(Object error) {
-    final code = error is DioException ? error.response?.statusCode : null;
-    throw AppException(code == 404
-        ? 'Projeto não encontrado.'
-        : 'Não foi possível concluir a operação com o projeto.');
+    final statusCode = error is DioException ? error.response?.statusCode : null;
+    final data = error is DioException ? error.response?.data : null;
+    final detail = data is Map<String, dynamic> ? data['detail'] : null;
+    final errorCode = detail is Map<String, dynamic> ? detail['code'] as String? : null;
+    final message = detail is Map<String, dynamic> ? detail['message'] as String? : null;
+    throw AppException(
+      message ??
+          (statusCode == 404
+              ? 'Projeto não encontrado.'
+              : 'Não foi possível concluir a operação com o projeto.'),
+      statusCode: statusCode,
+      code: errorCode,
+    );
   }
 }

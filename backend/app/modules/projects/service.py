@@ -197,6 +197,9 @@ class ProjectService:
     async def set_favorite(self, project_id: UUID, user: User, is_favorite: bool) -> Project:
         return await self.repository.set_favorite(await self.accessible(project_id, user), is_favorite)
 
+    async def set_pinned(self, project_id: UUID, user: User, is_pinned: bool) -> Project:
+        return await self.repository.set_pinned(await self.accessible(project_id, user), is_pinned)
+
     async def delete(self, project_id: UUID, user: User) -> None:
         await self.repository.delete(await self.accessible(project_id, user))
 

@@ -12,6 +12,9 @@ class FakeProjectRepository implements ProjectRepositoryContract {
   int assignPromptCalls = 0;
   int assignTemplateCalls = 0;
   int favoriteCalls = 0;
+  int pinCalls = 0;
+  Completer<void>? pinCompleter;
+  Object? pinError;
   Completer<void>? favoriteCompleter;
   Object? favoriteError;
   int updateCalls = 0;
@@ -122,6 +125,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
           ? values['context'] as String?
           : current.context,
       isFavorite: current.isFavorite,
+      isPinned: current.isPinned,
       promptCount: current.promptCount,
       status: values['status'] == null
           ? current.status
@@ -145,6 +149,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
       name: current.name,
       status: current.status,
       isFavorite: isFavorite,
+      isPinned: current.isPinned,
       description: current.description,
       context: current.context,
       promptCount: current.promptCount,
@@ -158,6 +163,24 @@ class FakeProjectRepository implements ProjectRepositoryContract {
       for (final item in items)
         if (item.id == id) updated else item
     ];
+    return updated;
+  }
+
+  @override
+  Future<ProjectRecord> setPinned(String id, bool isPinned) async {
+    pinCalls++;
+    await pinCompleter?.future;
+    if (pinError != null) throw pinError!;
+    final current = await get(id);
+    final updated = ProjectRecord(
+      id: current.id, name: current.name, status: current.status,
+      isFavorite: current.isFavorite, isPinned: isPinned,
+      description: current.description, context: current.context,
+      promptCount: current.promptCount, templateCount: current.templateCount,
+      prompts: current.prompts, templates: current.templates,
+      createdAt: current.createdAt, updatedAt: current.updatedAt,
+    );
+    items = [for (final item in items) if (item.id == id) updated else item];
     return updated;
   }
 
@@ -185,6 +208,7 @@ class FakeProjectRepository implements ProjectRepositoryContract {
 
 ProjectRecord projectSample({
   bool isFavorite = false,
+  bool isPinned = false,
   String id = 'project-1',
   String name = 'Pizzaria Donatello',
   ProjectStatus status = ProjectStatus.active,
@@ -195,6 +219,7 @@ ProjectRecord projectSample({
     ProjectRecord(
       id: id,
       isFavorite: isFavorite,
+      isPinned: isPinned,
       name: name,
       description: 'Marketing e vendas',
       context: context,

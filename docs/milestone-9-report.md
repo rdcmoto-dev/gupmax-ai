@@ -1011,3 +1011,21 @@ Durante o smoke, os quatro botões da Revisão do projeto foram reorganizados em
 Os testes automatizados confirmam ownership/IDOR uniforme, transações e rollback, criação/listagem/edição/exclusão, criação de Project a partir de Blueprint, reset de estados operacionais, isolamento do original e do Blueprint após uso, remoção de conclusão/Review/favorito/resultados, preservação literal de placeholders estruturais, ausência de Prompts/versões e alterações financeiras, e os layouts desktop/mobile da interface. A auditoria não atribui ao smoke medições internas adicionais além dos cenários confirmados acima.
 
 **ETAPA 9.33 CONCLUÍDA E APROVADA — SMOKE MANUAL FINAL APROVADO.**
+## ETAPA 9.34 — PROJETOS FIXADOS / PINNED PROJECTS
+
+Projects agora possuem `is_pinned` independente de `is_favorite`, persistido pela migration `0019_project_pins`. O endpoint autenticado `PUT /projects/{id}/pin` aceita somente `is_pinned`, aplica ownership uniforme e preserva `updated_at`, conteúdo, progresso e favorito. A operação serializa solicitações por usuário em transação e limita a três pins; a quarta retorna `409` com a mensagem orientando desafixar um projeto. Arquivar remove o pin; encerrar/reabrir não o modifica.
+
+Meus projetos apresenta o pin discreto nos cards e, quando há pins, a seção compacta “Projetos fixados” acima da busca. O atalho mantém Abrir/Continuar e Desafixar, enquanto o Project segue na listagem normal e nos filtros, busca e ordenações existentes. A interface bloqueia duplo envio e recupera o estado consultando o backend após sucesso; erros apresentam mensagem e não aplicam mudança local.
+
+Os testes direcionados cobrem persistência, ownership/IDOR, payload estrito, limite, remoção ao arquivar e atalhos mobile/sem estado vazio. Não há chamadas de IA, consumo de créditos ou mudanças em Usage, Reservation, Settlement, Ledger ou Wallet. **Aguardando smoke manual do usuário.**
+### Smoke manual final — aprovado pelo usuário (Etapa 9.34)
+
+O usuário confirmou: pin distinto de Favorito; fixar/desafixar; área “Projetos fixados” somente quando há itens; permanência na listagem normal; um, dois e três pins; recusa do quarto sem substituir os existentes; mensagem “Você pode fixar até 3 projetos. Desafixe um projeto para continuar.”; UTF-8 corrigido; persistência após F5; atalho Abrir/Continuar; independência entre pin e Favorito; arquivamento removendo pin sem alterar conteúdo/progresso; reativação sem restaurar pin; e mobile sem overflow horizontal importante, mantendo busca, filtros, ordenação, Modelos de projeto e Novo projeto acessíveis.
+
+Durante o smoke foi implementada a sidebar desktop retrátil. Foram confirmados os estados aberto e recolhido, identidade GUPMAX, ícones, rota ativa, avatar/logout, espaço liberado para o conteúdo, navegação mobile própria e as correções dos overflows do modo recolhido e da transição de expansão, inclusive em alternâncias repetidas.
+
+### Auditoria final — Etapa 9.34
+
+O limite retorna HTTP 409 estruturado com `project_pin_limit_reached`; o Flutter usa esse código e mantém rollback visual. `is_pinned` é independente de `is_favorite`, protegido por ownership da autenticação e serializado por usuário. A migration `0019_project_pins` é a única head. Fixar/desafixar não altera atividade, conteúdo, progresso, Chains, Steps, resultados, Prompts, versões ou dados financeiros. Duplicação e uso de Blueprint criam Projects não fixados; Blueprints não armazenam pin. A seção de pins é somente um atalho e não muda busca, filtros ou ordenação. Não há chamadas de IA, consumo de créditos ou mudanças em Usage, Reservation, Settlement, Ledger ou Wallet.
+
+**ETAPA 9.34 CONCLUÍDA E APROVADA — SMOKE MANUAL FINAL APROVADO.**

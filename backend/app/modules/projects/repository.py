@@ -7,6 +7,7 @@ from app.modules.projects.model import Project, ProjectStatus
 from app.modules.prompt_chains.model import PromptChain, PromptChainStep
 from app.modules.prompt_engine.model import Prompt
 from app.modules.prompt_templates.model import PromptTemplate
+from app.modules.users.model import User
 
 
 class ProjectRepository:
@@ -47,6 +48,42 @@ class ProjectRepository:
         await self.session.commit()
         await self.session.refresh(project)
         return project
+
+    async def set_pinned(self, project: Project, is_pinned: bool) -> Project:
+        """Set the operational pin without turning it into project activity.
+
+        The locked user row serializes competing pin requests for one user,
+        including the case where no project is currently pinned.
+        """
+        try:
+            await self.session.execute(select(User.id).where(User.id == project.user_id).with_for_update())
+            if is_pinned and not project.is_pinned:
+                count = await self.session.scalar(
+                    select(func.count()).select_from(Project).where(
+                        Project.user_id == project.user_id, Project.is_pinned.is_(True)
+                    )
+                )
+                if (count or 0) >= 3:
+                    from fastapi import HTTPException, status
+
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={
+                            "code": "project_pin_limit_reached",
+                            "message": "Você pode fixar até 3 projetos. Desafixe um projeto para continuar.",
+                        },
+                    )
+            await self.session.execute(
+                update(Project)
+                .where(Project.id == project.id, Project.user_id == project.user_id)
+                .values(is_pinned=is_pinned, updated_at=Project.updated_at)
+            )
+            await self.session.commit()
+            await self.session.refresh(project)
+            return project
+        except Exception:
+            await self.session.rollback()
+            raise
 
     async def counts(self, project_id: UUID) -> tuple[int, int]:
         prompts = await self.session.scalar(
@@ -195,6 +232,9 @@ class ProjectRepository:
         return [(chain, grouped[chain.id]) for chain in chains]
 
     async def update(self, project: Project, values: dict[str, object]) -> Project:
+        if values.get("status") == ProjectStatus.ARCHIVED:
+            # Archive hides an operational priority, while manual close/reopen do not.
+            values["is_pinned"] = False
         for key, value in values.items():
             setattr(project, key, value)
         await self.session.commit()

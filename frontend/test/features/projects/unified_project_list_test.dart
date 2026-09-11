@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:gupmax_ai/features/projects/domain/project.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_list_page.dart';
 import 'package:gupmax_ai/features/projects/project_providers.dart';
@@ -63,6 +64,7 @@ void main() {
     String? name,
     String? context,
     ProjectStatus status = ProjectStatus.active,
+    bool isPinned = false,
     int day = 20,
   }) =>
       ProjectRecord(
@@ -72,6 +74,7 @@ void main() {
         status: status,
         promptCount: 0,
         templateCount: 0,
+        isPinned: isPinned,
         createdAt: DateTime.utc(2026, 8, day),
         updatedAt: DateTime.utc(2026, 8, day),
       );
@@ -263,6 +266,69 @@ void main() {
     expect(find.byIcon(Icons.star_border), findsOneWidget);
     expect(projects.favoriteCalls, 2);
     expect(projects.updateCalls, 0);
+  });
+
+  testWidgets('fixados criam atalho independente da lista e podem desafixar',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [
+        project('pin-1', isPinned: true),
+        project('pin-2', isPinned: true),
+        project('regular'),
+      ];
+    await pumpList(tester,
+        projects: projects, chains: FakePromptChainRepository(), size: const Size(390, 844));
+    expect(find.text('Projetos fixados'), findsOneWidget);
+    expect(find.byKey(const Key('open_pinned_pin-1')), findsOneWidget);
+    expect(find.byKey(const Key('unpin_pinned_pin-2')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('unpin_pinned_pin-2')));
+    await tester.pumpAndSettle();
+    expect(projects.pinCalls, 1);
+    expect(find.byKey(const Key('project_pin-2')), findsOneWidget);
+    expect(find.byKey(const Key('project_blueprints')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('limite de pins restaura o card e mostra mensagem espec?fica',
+      (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [project('fourth')]
+      ..pinError = const AppException(
+        'Você pode fixar até 3 projetos. Desafixe um projeto para continuar.',
+        code: 'project_pin_limit_reached',
+        statusCode: 409,
+      );
+    await pumpList(tester, projects: projects, chains: FakePromptChainRepository());
+    final pin = find.byKey(const Key('pin_fourth'));
+    await tester.tap(pin);
+    await tester.pumpAndSettle();
+    expect(projects.pinCalls, 1);
+    expect(projects.items.single.isPinned, isFalse);
+    expect(find.text('Você pode fixar até 3 projetos. Desafixe um projeto para continuar.'), findsOneWidget);
+    expect(find.textContaining('?'), findsNothing);
+  });
+
+  testWidgets('erro gen?rico de pin restaura o card e permite retry', (tester) async {
+    final projects = FakeProjectRepository()
+      ..items = [project('offline')]
+      ..pinError = const AppException('offline');
+    await pumpList(tester, projects: projects, chains: FakePromptChainRepository());
+    await tester.tap(find.byKey(const Key('pin_offline')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.isPinned, isFalse);
+    expect(find.text('Não foi possível atualizar o projeto fixado. Tente novamente.'), findsOneWidget);
+    projects.pinError = null;
+    await tester.tap(find.byKey(const Key('pin_offline')));
+    await tester.pumpAndSettle();
+    expect(projects.items.single.isPinned, isTrue);
+  });
+
+  testWidgets('sem fixados nÃ£o exibe a seÃ§Ã£o vazia', (tester) async {
+    await pumpList(tester,
+        projects: FakeProjectRepository()..items = [project('normal')],
+        chains: FakePromptChainRepository());
+    expect(find.text('Projetos fixados'), findsNothing);
+    expect(find.byKey(const Key('pin_normal')), findsOneWidget);
   });
 
   testWidgets('favorito bloqueia double submit e permite retry após erro',

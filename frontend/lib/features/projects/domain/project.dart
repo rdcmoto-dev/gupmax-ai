@@ -13,6 +13,7 @@ class ProjectRecord {
     required this.createdAt,
     required this.updatedAt,
     this.isFavorite = false,
+    this.isPinned = false,
     this.description,
     this.context,
     this.prompts = const [],
@@ -23,6 +24,7 @@ class ProjectRecord {
         id: json['id'] as String,
         name: json['name'] as String,
         isFavorite: json['is_favorite'] as bool? ?? false,
+        isPinned: json['is_pinned'] as bool? ?? false,
         description: json['description'] as String?,
         context: json['context'] as String?,
         status: ProjectStatus.values.byName(json['status'] as String),
@@ -42,6 +44,7 @@ class ProjectRecord {
   final String id;
   final String name;
   final bool isFavorite;
+  final bool isPinned;
   final String? description;
   final String? context;
   final ProjectStatus status;

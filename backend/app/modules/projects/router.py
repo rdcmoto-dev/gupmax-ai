@@ -19,6 +19,7 @@ from app.modules.projects.schemas import (
     ProjectFavoriteUpdate,
     ProjectLibraryPage,
     ProjectPage,
+    ProjectPinUpdate,
     ProjectRead,
     ProjectUpdate,
 )
@@ -122,6 +123,14 @@ async def set_project_favorite(
 ) -> ProjectRead:
     service = ProjectService(session)
     return await service.read(await service.set_favorite(project_id, current_user, data.is_favorite))
+
+
+@router.put("/{project_id}/pin", response_model=ProjectRead)
+async def set_project_pin(
+    project_id: UUID, data: ProjectPinUpdate, session: DbSession, current_user: CurrentUser
+) -> ProjectRead:
+    service = ProjectService(session)
+    return await service.read(await service.set_pinned(project_id, current_user, data.is_pinned))
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
