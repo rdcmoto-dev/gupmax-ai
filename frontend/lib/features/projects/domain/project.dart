@@ -1,6 +1,14 @@
 import '../../prompts/domain/prompt_models.dart';
 import '../../templates/domain/prompt_template.dart';
 
+class ProjectTag {
+  const ProjectTag(this.id, this.name);
+  factory ProjectTag.fromJson(Map<String, dynamic> json) =>
+      ProjectTag(json['id'] as String, json['name'] as String);
+  final String id;
+  final String name;
+}
+
 enum ProjectStatus { active, archived }
 
 class ProjectRecord {
@@ -14,6 +22,7 @@ class ProjectRecord {
     required this.updatedAt,
     this.isFavorite = false,
     this.isPinned = false,
+    this.tags = const [],
     this.description,
     this.context,
     this.prompts = const [],
@@ -21,6 +30,9 @@ class ProjectRecord {
   });
 
   factory ProjectRecord.fromJson(Map<String, dynamic> json) => ProjectRecord(
+        tags: (json['tags'] as List? ?? const [])
+            .map((item) => ProjectTag.fromJson(item as Map<String, dynamic>))
+            .toList(),
         id: json['id'] as String,
         name: json['name'] as String,
         isFavorite: json['is_favorite'] as bool? ?? false,
@@ -45,6 +57,7 @@ class ProjectRecord {
   final String name;
   final bool isFavorite;
   final bool isPinned;
+  final List<ProjectTag> tags;
   final String? description;
   final String? context;
   final ProjectStatus status;

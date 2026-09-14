@@ -1,8 +1,10 @@
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.project_tags.model import project_tag_links
 from app.modules.projects.memory import ProjectMemory
 from app.modules.projects.model import Project, ProjectStatus
 from app.modules.projects.repository import ProjectRepository
@@ -56,8 +58,16 @@ class ProjectService:
             status=ProjectStatus.ACTIVE,
         )
         try:
+            await self.session.execute(select(User.id).where(User.id == user.id).with_for_update())
             self.session.add(duplicate)
             await self.session.flush()
+            tag_ids = list(await self.session.scalars(select(project_tag_links.c.tag_id).where(
+                project_tag_links.c.project_id == source.id
+            )))
+            if tag_ids:
+                await self.session.execute(project_tag_links.insert(), [
+                    {"project_id": duplicate.id, "tag_id": tag_id} for tag_id in tag_ids
+                ])
             for source_chain, source_steps in chain_rows:
                 chain = PromptChain(
                     user_id=user.id,
@@ -92,7 +102,8 @@ class ProjectService:
     async def read(self, project: Project) -> ProjectRead:
         prompts, templates = await self.repository.counts(project.id)
         return ProjectRead.model_validate(project).model_copy(
-            update={"prompt_count": prompts, "template_count": templates}
+            update={"prompt_count": prompts, "template_count": templates,
+                    "tags": (await self.repository.tags_many([project.id]))[project.id]}
         )
 
     async def detail(self, project_id: UUID, user: User) -> ProjectDetail:

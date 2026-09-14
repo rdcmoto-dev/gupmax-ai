@@ -9,6 +9,7 @@ from app.modules.intent_engine.router import router as intent_engine_router
 from app.modules.interviews.router import router as interviews_router
 from app.modules.payments.router import router as payments_router
 from app.modules.project_blueprints.router import router as project_blueprints_router
+from app.modules.project_tags.router import router as project_tags_router
 from app.modules.projects.router import router as projects_router
 from app.modules.prompt_chains.router import router as prompt_chains_router
 from app.modules.prompt_engine.router import router as prompt_router
@@ -33,3 +34,4 @@ api_router.include_router(expert_planner_router, prefix="/expert-planner", tags=
 api_router.include_router(smart_profile_router, prefix="/profile", tags=["profile"])
 
 api_router.include_router(project_blueprints_router, prefix="/project-blueprints", tags=["project-blueprints"])
+api_router.include_router(project_tags_router, prefix="/project-tags", tags=["project-tags"])

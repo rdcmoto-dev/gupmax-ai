@@ -42,9 +42,11 @@ async def list_projects(
     repository = ProjectRepository(session)
     items, total = await repository.list(current_user.id, offset, limit, include_archived)
     counts = await repository.counts_many([item.id for item in items])
+    tags = await repository.tags_many([item.id for item in items])
     reads = [
         ProjectRead.model_validate(item).model_copy(
             update={
+                "tags": tags[item.id],
                 "prompt_count": counts[item.id][0],
                 "template_count": counts[item.id][1],
             }

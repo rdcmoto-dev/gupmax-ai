@@ -8,6 +8,7 @@ import 'package:gupmax_ai/core/errors/app_exception.dart';
 import 'package:gupmax_ai/features/projects/domain/project.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_list_page.dart';
 import 'package:gupmax_ai/features/projects/project_providers.dart';
+import 'package:gupmax_ai/features/projects/project_tags.dart';
 import 'package:gupmax_ai/features/prompt_chains/domain/prompt_chain.dart';
 import 'package:gupmax_ai/features/prompt_chains/prompt_chain_providers.dart';
 
@@ -50,6 +51,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          projectTagsProvider.overrideWith((ref) async => []),
           projectRepositoryProvider.overrideWithValue(projects),
           promptChainRepositoryProvider.overrideWithValue(chains),
         ],

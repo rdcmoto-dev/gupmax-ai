@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.modules.project_tags.schemas import TagRead
 from app.modules.projects.memory import ProjectMemory
 from app.modules.projects.model import ProjectStatus
 from app.modules.prompt_chains.model import PromptChainStepStatus
@@ -81,6 +82,7 @@ class ProjectRead(BaseModel):
     status: ProjectStatus
     is_favorite: bool = False
     is_pinned: bool = False
+    tags: list[TagRead] = Field(default_factory=list)
     prompt_count: int = 0
     template_count: int = 0
     created_at: datetime

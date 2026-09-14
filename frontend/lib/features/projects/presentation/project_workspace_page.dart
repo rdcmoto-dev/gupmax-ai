@@ -1,3 +1,4 @@
+import '../project_tags.dart';
 import '../../project_blueprints/blueprint_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -982,6 +983,8 @@ class _ProjectWorkspacePageState extends ConsumerState<ProjectWorkspacePage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _ProjectHeader(data: data),
+                      if (data.project case final project?)
+                        ProjectTagsPanel(project: project),
                       const SizedBox(height: 18),
                       _ProjectInsightCard(
                         insight: projectInsightFor(

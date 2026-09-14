@@ -9,6 +9,7 @@ import 'package:gupmax_ai/features/project_blueprints/blueprint_list_page.dart';
 import 'package:gupmax_ai/features/project_blueprints/project_blueprints.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_list_page.dart';
 import 'package:gupmax_ai/features/projects/project_providers.dart';
+import 'package:gupmax_ai/features/projects/project_tags.dart';
 import 'package:gupmax_ai/features/prompt_chains/prompt_chain_providers.dart';
 
 import '../../support/fake_blueprint_repository.dart';
@@ -40,6 +41,7 @@ void main() {
     addTearDown(router.dispose);
     await tester.pumpWidget(ProviderScope(overrides: [
       blueprintRepositoryProvider.overrideWithValue(repository),
+      projectTagsProvider.overrideWith((ref) async => []),
       projectRepositoryProvider.overrideWithValue(
           FakeProjectRepository()..items = [projectSample()]),
       promptChainRepositoryProvider

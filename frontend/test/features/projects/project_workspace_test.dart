@@ -701,6 +701,8 @@ void main() {
     );
 
     expect(find.byKey(const Key('empty_project_goals')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_goals')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('project_goal_objective')),
@@ -730,6 +732,8 @@ void main() {
     );
     expect(find.text('Criar uma campanha regional'), findsOneWidget);
 
+    await tester.ensureVisible(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_goals')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -748,6 +752,8 @@ void main() {
     expect(projects.items.single.context,
         isNot(contains('Oferta claramente definida')));
 
+    await tester.ensureVisible(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_goals')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('project_goal_objective')), '');
@@ -774,6 +780,8 @@ void main() {
       target: const ProjectWorkspaceTarget.project('project-1'),
     );
 
+    await tester.ensureVisible(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_goals')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -784,6 +792,8 @@ void main() {
     expect(find.text('Meta original'), findsOneWidget);
 
     projects.updateError = const AppException('falha');
+    await tester.ensureVisible(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_goals')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -805,6 +815,8 @@ void main() {
       chains: FakePromptChainRepository(),
       target: const ProjectWorkspaceTarget.project('project-1'),
     );
+    await tester.ensureVisible(find.byKey(const Key('edit_project_goals')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit_project_goals')));
     await tester.pumpAndSettle();
     for (var index = 0; index < 5; index++) {

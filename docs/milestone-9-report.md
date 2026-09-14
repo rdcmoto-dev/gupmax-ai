@@ -1029,3 +1029,77 @@ Durante o smoke foi implementada a sidebar desktop retrátil. Foram confirmados 
 O limite retorna HTTP 409 estruturado com `project_pin_limit_reached`; o Flutter usa esse código e mantém rollback visual. `is_pinned` é independente de `is_favorite`, protegido por ownership da autenticação e serializado por usuário. A migration `0019_project_pins` é a única head. Fixar/desafixar não altera atividade, conteúdo, progresso, Chains, Steps, resultados, Prompts, versões ou dados financeiros. Duplicação e uso de Blueprint criam Projects não fixados; Blueprints não armazenam pin. A seção de pins é somente um atalho e não muda busca, filtros ou ordenação. Não há chamadas de IA, consumo de créditos ou mudanças em Usage, Reservation, Settlement, Ledger ou Wallet.
 
 **ETAPA 9.34 CONCLUÍDA E APROVADA — SMOKE MANUAL FINAL APROVADO.**
+
+## ETAPA 9.35 — PROJECT TAGS
+
+A implementação foi continuada a partir do working tree preservado após o reinício, mantendo o módulo inicial e a migration `0020_project_tags`. Tags são etiquetas pessoais de organização, independentes de categoria, estado, Favoritos, pins, Project Memory e Prompt Templates.
+
+### Backend e persistência
+
+- `GET /api/v1/project-tags`: catálogo do usuário autenticado, ordenado por nome.
+- `POST /api/v1/project-tags`: cria uma Tag; `PUT /api/v1/project-tags/{tag_id}` renomeia; `DELETE` no mesmo caminho exclui a Tag e seus vínculos, preservando os Projects.
+- `PUT /api/v1/project-tags/projects/{project_id}/{tag_id}` associa; `DELETE` remove somente a associação. Ambas são idempotentes; repetir uma associação existente funciona inclusive no limite de dez.
+- Respostas de criação, leitura, edição, favorito, pin e duplicação de Project incluem `tags`; o detalhe e a listagem também. A listagem carrega as associações em lote, sem consulta adicional por card.
+
+O nome é obrigatório, recebe trim e possui limite de 60 caracteres. Nomes repetidos sem distinção de maiúsculas/minúsculas são recusados com HTTP 409 tanto na criação quanto na edição. São permitidas até 50 Tags por usuário e dez por Project. Payloads de criação/edição rejeitam campos extras. Ownership deriva da autenticação; Tags e Projects alheios/inexistentes retornam 404, e requisições sem autenticação retornam 401.
+
+As mutações de Tags serializam solicitações por usuário com lock de linha no PostgreSQL, incluindo validação de limites e duplicidade. A inserção parcial específica de SQLite foi substituída por SQLAlchemy portátil. A migration cria `project_tags` e `project_tag_links`, com unicidade, chaves estrangeiras e exclusão em cascata; nenhuma migration anterior foi reescrita.
+
+Duplicar Project copia somente as associações às mesmas Tags pessoais, dentro da transação da cópia. Uma falha posterior ao inserir os vínculos reverte também esses vínculos. Remover uma Tag da cópia não remove a associação do original; renomear ou excluir a Tag do catálogo afeta todos os vínculos desse usuário. Blueprints não capturam Tags e os Projects criados por eles começam sem Tags. Arquivar, reativar, encerrar e reabrir preserva associações. Organizar Tags não altera `Project.updated_at`, conteúdo, contexto, checks, progresso, resultados, Prompts, Favoritos ou pins.
+
+### Flutter e organização
+
+Projects persistidos exibem o painel Tags no Workspace, com chips, estado vazio e a ação “Gerenciar Tags”. O diálogo permite criar, selecionar para associar/desassociar, editar o nome e excluir após confirmação explícita sobre o efeito em todos os Projects. Criar uma Tag adiciona ao catálogo; selecionar seu chip a associa ao Project. Chains independentes não exibem o painel.
+
+O diálogo apresenta loading, bloqueia envios simultâneos e fechamento durante a gravação, preserva o formulário em erro e oferece retry de carregamento. As alterações são confirmadas pelo backend antes de atualizar a seleção; catálogo, Workspace e listagem são invalidados após sucesso. Nomes permanecem texto literal e os layouts possuem rolagem e quebra de linha.
+
+Os cards de Meus projetos exibem chips e o seletor “Filtrar por Tag” oferece as Tags presentes nos Projects carregados. A seleção combina com busca literal por nome, filtro de estado, Favoritos e todas as ordenações existentes. Favoritos pode ser combinado com um estado, mantendo sua ação independente. “Todas as Tags” limpa a restrição; uma Tag removida do conjunto carregado deixa de restringir resultados. Os atalhos de pins continuam independentes dos filtros. Permanece o limite anterior de organização local sobre até 100 Projects e 100 Chains carregados; não foi criada busca remota global ou paginação adicional.
+
+### Testes e auditoria automática
+
+Os 11 testes backend novos cobrem CRUD, trim/texto literal, persistência em novas requisições, retorno no detalhe/listagem, ownership em todas as rotas, autenticação, payloads inválidos, nomes duplicados, limites de 50/10, idempotência no limite, exclusão de vínculos, duplicação independente, rollback após inserir associações, Blueprint sem Tags e preservação ao arquivar/reativar Project com encerramento manual.
+
+O teste de isolamento bloqueia geração/stream do AI Gateway e compara snapshots de todas as tabelas do banco de teste: somente Tags e vínculos mudam. Depois de excluir a Tag, o snapshot volta ao anterior. Os caminhos implementados não chamam Prompt Engine ou provedores de IA e não escrevem Usage, Reservation, Settlement, Ledger ou Wallet. Nenhuma chamada real de IA ou consumo de créditos foi realizado na auditoria.
+
+Os testes Flutter novos cobrem contratos HTTP, combinação de filtros/ordenações, chips nos cards, estado sem resultados, criação, validação, associação/desassociação, edição, cancelamento/confirmação de exclusão, loading/double submit, erro/retry e nome longo no mobile 390×844. Os testes anteriores do editor de objetivos foram ajustados para rolar e aguardar o layout antes do clique, considerando o novo painel no Workspace.
+
+A migration foi aplicada no PostgreSQL local: `current = heads = 0020_project_tags`, com exatamente uma head. A comparação de hashes do conteúdo das 24 tabelas anteriores confirmou preservação integral. O downgrade não foi executado no banco operacional.
+
+Auditoria final:
+
+- Backend: **457 testes aprovados** em `python -m pytest -q`; **Ruff aprovado**. Permanece um aviso preexistente de depreciação de Starlette/TestClient sobre `httpx`, sem falha ou mudança de dependências.
+- Flutter: **325 testes aprovados** em `flutter test`, incluindo os sete novos testes de Tags; **Flutter Analyze sem problemas**. Verificação de formatação dos sete arquivos Dart alterados: **zero alterações necessárias**.
+- HTTP em servidor local temporário: `/health` e `/api/v1/openapi.json` responderam **200**; três paths de Tags e `ProjectRead.tags` confirmados no schema; `GET /api/v1/project-tags` sem autenticação respondeu **401**. O servidor temporário foi encerrado após a verificação.
+- Git/configuração: `git diff --check` aprovado; diff e arquivos novos revisados; staging vazio. `.env` permaneceu ignorado/não rastreado e seu hash não mudou durante a auditoria. O conteúdo anterior do relatório foi preservado byte a byte em relação ao HEAD. Nenhum `git add`, `git commit` ou `git push` foi executado.
+
+### Smoke manual pendente
+
+Validar no navegador: criar e associar Tags no Workspace; remover somente o vínculo; editar e excluir com confirmação; chips nos cards; filtro combinado com busca, estado, Favoritos e ordenação; persistência após F5 e novo login; duplicação copiando associações; Blueprint iniciando vazio; arquivamento/encerramento preservando Tags; limites e mensagens; desktop/mobile. Esta auditoria automatizada não representa aprovação do smoke manual.
+
+**ETAPA 9.35 IMPLEMENTADA — AGUARDANDO SMOKE MANUAL.**
+
+### Correção de sincronização de múltiplas Tags — 14/09/2026
+
+O diálogo Gerenciar Tags passou a consultar as associações persistidas ao abrir e após cada mutação. A seleção não deriva mais apenas do snapshot recebido pelo widget nem é marcada localmente por uma resposta 204: uma releitura precisa confirmar o UUID associado/desassociado. Falha de confirmação apresenta erro e permite recarregar as associações. Ao selecionar uma Tag no filtro, Meus projetos recarrega a listagem e mostra loading durante essa atualização, evitando aplicar o filtro sobre uma lista antiga. A comparação permanece por UUID; criar uma Tag no catálogo não remove vínculos, associar adiciona e desassociar remove somente o par Project/Tag indicado.
+
+A regressão exata usa os widgets Workspace e Meus projetos com repositories reais e transporte HTTP de teste: associar Marketing, associar Instagram, verificar dois UUIDs, recriar a árvore de providers, reabrir o modal, filtrar pelas duas Tags, remover Instagram e confirmar que Marketing permanece e Instagram continua no catálogo. A regressão backend confirma o mesmo contrato em requisições/sessões distintas, além do caso de três Tags. Há testes adicionais para snapshot antigo, listagem desatualizada e resposta 204 sem persistência confirmada.
+
+A reprodução automatizada de reload recria o estado da aplicação; não equivale à aprovação de F5 em uma sessão real do navegador. A tentativa anterior de validação com HTTP real não foi concluída, e o teste experimental correspondente foi removido. Esta verificação não realizou alterações manuais no banco. O smoke manual de múltiplas Tags continua pendente.
+
+Verificação final: **14 testes backend de Tags aprovados**, **74 testes Flutter relacionados aprovados**, `flutter analyze --no-pub` sem problemas, Ruff dos testes backend e `git diff --check` aprovados. Nenhum `git add`, commit ou push executado. Reiniciar a execução Flutter antes do reteste garante que o navegador receba a versão corrigida.
+
+### Reteste manual no navegador — aprovado pelo usuário
+
+Após reiniciar o Flutter e recarregar o aplicativo, o usuário confirmou a aprovação do smoke real da correção de múltiplas Tags: Instagram foi removida corretamente; Marketing permaneceu associada ao projeto e continuou visível no card e selecionada no modal Gerenciar Tags; Teste935 permaneceu não selecionada.
+
+Este registro encerra a pendência do reteste manual da correção de múltiplas Tags descrita acima e se limita aos cenários expressamente confirmados pelo usuário. Nenhum `git add`, commit ou push foi executado para registrar a aprovação.
+
+**CORREÇÃO DE MÚLTIPLAS TAGS CONFIRMADA NO NAVEGADOR — RETESTE MANUAL APROVADO.**
+
+### Consolidação da correção — 14/09/2026
+
+O usuário autorizou o commit `fix(projects): preserve multiple tag associations`, sem push. A base de Project Tags ainda não estava no HEAD; a consolidação inclui seus arquivos necessários, a correção de múltiplas associações, os testes relacionados e este relatório. Arquivos `.env`, credenciais e alterações de formatação sem relação com Tags foram excluídos do conjunto.
+
+No estado final, o dropdown consulta o catálogo persistido do usuário em `GET /api/v1/project-tags`, incluindo Tags sem associação; não depende das Tags presentes nos Projects carregados. O filtro compara UUIDs das associações retornadas pela API e recarrega a listagem ao mudar a seleção.
+
+Validação final da consolidação: **460 testes backend aprovados** (`python -m pytest -q`), **334 testes Flutter aprovados** (`flutter test --no-pub --reporter expanded`), Ruff aprovado e `flutter analyze --no-pub` sem problemas. O backend mantém somente o aviso preexistente de depreciação de Starlette/TestClient sobre `httpx`. O smoke manual aprovado pelo usuário permanece registrado acima.

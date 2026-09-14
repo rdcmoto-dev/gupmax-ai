@@ -3,6 +3,8 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.project_tags.model import ProjectTag, project_tag_links
+from app.modules.project_tags.schemas import TagRead
 from app.modules.projects.model import Project, ProjectStatus
 from app.modules.prompt_chains.model import PromptChain, PromptChainStep
 from app.modules.prompt_engine.model import Prompt
@@ -84,6 +86,20 @@ class ProjectRepository:
         except Exception:
             await self.session.rollback()
             raise
+
+    async def tags_many(self, project_ids: list[UUID]) -> dict[UUID, list[TagRead]]:
+        result = {id: [] for id in project_ids}
+        if not project_ids:
+            return result
+        rows = await self.session.execute(
+            select(project_tag_links.c.project_id, ProjectTag)
+            .join(ProjectTag, ProjectTag.id == project_tag_links.c.tag_id)
+            .where(project_tag_links.c.project_id.in_(project_ids))
+            .order_by(ProjectTag.name, ProjectTag.id)
+        )
+        for project_id, tag in rows:
+            result[project_id].append(TagRead.model_validate(tag))
+        return result
 
     async def counts(self, project_id: UUID) -> tuple[int, int]:
         prompts = await self.session.scalar(
@@ -242,6 +258,7 @@ class ProjectRepository:
         return project
 
     async def delete(self, project: Project) -> None:
+        await self.session.execute(project_tag_links.delete().where(project_tag_links.c.project_id == project.id))
         await self.session.execute(update(Prompt).where(Prompt.project_id == project.id).values(project_id=None))
         await self.session.execute(
             update(PromptTemplate).where(PromptTemplate.project_id == project.id).values(project_id=None)

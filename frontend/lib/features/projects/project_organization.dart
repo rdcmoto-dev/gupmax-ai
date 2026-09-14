@@ -51,11 +51,17 @@ ProjectListFilter projectListState(ProjectOverview item) {
 List<ProjectOverview> organizeProjects(
   Iterable<ProjectOverview> source, {
   String search = '',
+  String? tagId,
+  bool favoritesOnly = false,
   ProjectListFilter filter = ProjectListFilter.all,
   ProjectListOrder order = ProjectListOrder.recent,
 }) {
   final query = _searchText(search);
   final items = source
+      .where((item) => !favoritesOnly || item.project?.isFavorite == true)
+      .where((item) =>
+          tagId == null ||
+          (item.project?.tags.any((tag) => tag.id == tagId) ?? false))
       .where((item) => query.isEmpty || _searchText(item.name).contains(query))
       .where((item) => filter == ProjectListFilter.favorites
           ? item.project?.isFavorite == true

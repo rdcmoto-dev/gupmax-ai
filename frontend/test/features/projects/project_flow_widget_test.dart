@@ -7,6 +7,7 @@ import 'package:gupmax_ai/features/projects/domain/project.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_detail_page.dart';
 import 'package:gupmax_ai/features/projects/presentation/project_list_page.dart';
 import 'package:gupmax_ai/features/projects/project_providers.dart';
+import 'package:gupmax_ai/features/projects/project_tags.dart';
 import 'package:gupmax_ai/features/prompt_chains/prompt_chain_providers.dart';
 import 'package:gupmax_ai/features/account/account_providers.dart';
 import 'package:gupmax_ai/features/interviews/interview_providers.dart';
@@ -114,6 +115,7 @@ Future<void> _pumpList(
     WidgetTester tester, FakeProjectRepository repository) async {
   await tester.pumpWidget(ProviderScope(
     overrides: [
+      projectTagsProvider.overrideWith((ref) async => []),
       projectRepositoryProvider.overrideWithValue(repository),
       promptChainRepositoryProvider
           .overrideWithValue(FakePromptChainRepository()),

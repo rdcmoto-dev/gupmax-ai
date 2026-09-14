@@ -10,6 +10,7 @@ import '../domain/project.dart';
 import '../project_overview.dart';
 import '../project_organization.dart';
 import '../project_providers.dart';
+import '../project_tags.dart';
 
 const _allProjectsQuery = ProjectOverviewQuery(includeArchived: true);
 
@@ -20,6 +21,8 @@ class ProjectListPage extends ConsumerStatefulWidget {
 }
 
 class _ProjectListPageState extends ConsumerState<ProjectListPage> {
+  String? _tagId;
+  bool _favoritesOnly = false;
   String? _removingKey;
   final _favoriting = <String>{};
   final _pinning = <String>{};
@@ -226,6 +229,7 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
   @override
   Widget build(BuildContext context) {
     final overviews = ref.watch(projectOverviewsProvider(_allProjectsQuery));
+    final tagCatalog = ref.watch(projectTagsProvider);
     return Scaffold(
       appBar: const AppPageAppBar(title: 'Meus projetos'),
       floatingActionButton: FloatingActionButton.extended(
@@ -254,6 +258,7 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
             const SizedBox(height: 20),
             Expanded(
               child: overviews.when(
+                skipLoadingOnRefresh: false,
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (_, __) => const Center(
                   child: Text('Não foi possível carregar seus projetos.'),
@@ -269,9 +274,19 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                               .where((item) => item.project?.isPinned == true)
                               .take(3)
                               .toList();
+                          final tags = <String, ProjectTag>{
+                            for (final tag in tagCatalog.valueOrNull ??
+                                const <ProjectTag>[])
+                              tag.id: tag,
+                          };
                           final visible = organizeProjects(
                             items,
                             search: _search.text,
+                            tagId:
+                                tagCatalog.hasValue && !tags.containsKey(_tagId)
+                                    ? null
+                                    : _tagId,
+                            favoritesOnly: _favoritesOnly,
                             filter: _filter,
                             order: _order,
                           );
@@ -323,13 +338,64 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                                           key: Key(
                                               'project_filter_${filter.name}'),
                                           label: Text(filter.label),
-                                          selected: _filter == filter,
-                                          onSelected: (_) =>
-                                              setState(() => _filter = filter),
+                                          selected: filter ==
+                                                  ProjectListFilter.favorites
+                                              ? _favoritesOnly
+                                              : _filter == filter,
+                                          onSelected: (_) => setState(() {
+                                            if (filter ==
+                                                ProjectListFilter.favorites) {
+                                              _favoritesOnly = !_favoritesOnly;
+                                            } else {
+                                              _filter = filter;
+                                            }
+                                          }),
                                         ),
                                       ),
                                   ],
                                 ),
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                key: ValueKey(
+                                    'project_tag_filter_${tags.keys.join()}_$_tagId'),
+                                initialValue:
+                                    tags.containsKey(_tagId) ? _tagId : '',
+                                isExpanded: true,
+                                menuMaxHeight: 300,
+                                decoration: InputDecoration(
+                                  labelText: 'Filtrar por Tag',
+                                  helperText: tagCatalog.isLoading
+                                      ? 'Carregando Tags...'
+                                      : tagCatalog.hasError
+                                          ? 'Não foi possível carregar Tags.'
+                                          : null,
+                                  suffixIcon: tagCatalog.hasError
+                                      ? IconButton(
+                                          tooltip: 'Recarregar Tags',
+                                          onPressed: () => ref
+                                              .invalidate(projectTagsProvider),
+                                          icon: const Icon(Icons.refresh),
+                                        )
+                                      : null,
+                                ),
+                                items: [
+                                  const DropdownMenuItem(
+                                      value: '', child: Text('Todas as Tags')),
+                                  for (final tag in tags.values)
+                                    DropdownMenuItem(
+                                        value: tag.id,
+                                        child: Text(tag.name,
+                                            overflow: TextOverflow.ellipsis)),
+                                ],
+                                onChanged:
+                                    tagCatalog.isLoading || tagCatalog.hasError
+                                        ? null
+                                        : (value) {
+                                            setState(() => _tagId =
+                                                value == '' ? null : value);
+                                            _refresh();
+                                          },
                               ),
                               const SizedBox(height: 12),
                               Align(
@@ -455,6 +521,18 @@ class _ProjectListPageState extends ConsumerState<ProjectListPage> {
                                                             case final progress?)
                                                           Text(progress),
                                                         Text(item.statusLabel),
+                                                        Wrap(
+                                                            spacing: 6,
+                                                            runSpacing: 4,
+                                                            children: [
+                                                              for (final tag in item
+                                                                      .project
+                                                                      ?.tags ??
+                                                                  <ProjectTag>[])
+                                                                Chip(
+                                                                    label: Text(
+                                                                        tag.name)),
+                                                            ]),
                                                         Wrap(
                                                           spacing: 6,
                                                           runSpacing: 4,
