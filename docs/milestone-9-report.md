@@ -249,7 +249,45 @@ O toggle comunica consumo possível, apresenta loading da estimativa e é desabi
 
 Gateway e repositories falsos cobrem fluxo determinístico gratuito, sucesso nos três modos, estimativa, saldo insuficiente antes do provider, reserva, settlement, release, usage, ledger, falha do provider, saída inválida, idempotência de Prompt/usage/créditos e preservação da IA em entrevistas. Nenhuma chamada OpenAI real ou operação financeira externa é executada.
 
-O Gateway atual não expõe schema estruturado específico para Prompt; por isso a saída textual é validada contra limites e requisitos explícitos. A estimativa usa contagem aproximada de entrada e máximo configurado de saída; o settlement usa tokens reais. O smoke test manual controlado permanece pendente e deve usar ambiente dev/sandbox, poucos créditos e uma única geração.
+O Gateway atual não expõe schema estruturado específico para Prompt; por isso a saída textual é validada contra limites e requisitos explícitos. A estimativa usa contagem aproximada de entrada e máximo configurado de saída; o settlement usa tokens reais. A pendência do smoke test manual controlado foi encerrada pelo reteste aprovado e auditado abaixo.
+
+### Reteste manual real e auditoria final — 14/09/2026
+
+O usuário autorizou e executou uma única geração real no Flutter, na conta dedicada “GUPMAX Smoke 9.4”, UUID `eaa26b88-0208-49a0-8bfc-6caacf7ed76e`, criada pelo cadastro oficial. A conferência anterior confirmou trial STARTER ativo por cinco dias, entitlement habilitado, grant de 100 créditos, saldo disponível de 100, nenhuma reserva, nenhum Prompt e nenhum Usage. Não houve checkout nem alteração manual de dados.
+
+O roteiro Basic/Marketing, sem Project, Template ou Chain, usou a entrada “RETESTE 9.4 — Criar um anúncio para Instagram sobre pizza artesanal, dirigido a famílias da região, em português do Brasil e tom profissional.”. O Prompt persistido é `64b23770-7ef4-42ce-8fe9-80843c3eab56`, versão 1, status `optimized`, provider `openai`, modelo `gpt-5.6-luna`, com 196 tokens de entrada, 621 de saída e total de 817. O conteúdo final possui 1.998 caracteres, preserva os requisitos e recebeu Score 76/100, também confirmado pelo avaliador determinístico. O usuário confirmou visualmente geração concluída, “IA utilizada”, provider, modelo, tokens, versão e conteúdo. O código HTTP da requisição original não foi capturado nesta auditoria; o status confirmado é o persistido no backend.
+
+A leitura final, realizada depois da confirmação manual de F5 e histórico, encontrou exatamente um Prompt e um Usage (`79e37d16-54fe-4ead-9745-16ea207dc971`) vinculado ao mesmo UUID, com provider, modelo e tokens coincidentes. A reserva `f97b62d3-5b74-4994-ac72-0b0f4974029f` permanece `settled`: 6 créditos reservados, 3 consumidos e 3 liberados. O saldo disponível final é 97 e o reservado é zero, sem reservas ativas.
+
+O ledger permanece com exatamente quatro registros: `trial_grant` de +100, `reservation`, um único `ai_usage` de -3 e `reservation_release`. Reserva e liberação têm `amount=0`, conforme o contrato contábil existente, e registram respectivamente 6 e 3 créditos nos metadados. Os IDs dos lançamentos permaneceram iguais nas leituras posteriores; nenhum novo débito ou Usage apareceu após o teste manual de navegação.
+
+O usuário confirmou que pressionou F5, abriu “Ver histórico”, encontrou exatamente um Prompt e o reabriu pela seta do histórico. Resultado, “IA utilizada”, provider `openai`, modelo `gpt-5.6-luna`, 817 tokens, Score 76/100, versão 1 e texto final permaneceram preservados. Também confirmou que não realizou nova geração nem clicou em Refinar prompt, Criar outro ou Novo prompt. A evidência de navegação é a confirmação manual do usuário; a persistência e a ausência de novo consumo foram auditadas por consultas somente de leitura ao banco.
+
+Esta aprovação cobre o smoke controlado acordado, sem atribuir execução manual adicional a Pro/Expert, falhas ou retries. A conferência posterior não realizou chamadas à OpenAI, não alterou código ou dados e não executou migrations. A conta permanece ativa, aguardando autorização separada para desativação. Somente este relatório foi atualizado; nenhum `git add`, commit ou push foi executado.
+
+**RETESTE MANUAL 9.4 APROVADO E AUDITADO.**
+
+### Desativação pendente e correção de autorização do PATCH de usuários
+
+O smoke 9.4 permanece aprovado e auditado. A tentativa posterior de desativar a conta dedicada retornou HTTP 500, sem persistir a desativação: a conta `eaa26b88-0208-49a0-8bfc-6caacf7ed76e` permaneceu ativa. Não foi encontrado administrador ativo no banco consultado; a desativação pelo endpoint oficial ficará pendente até existir administrador válido. O trial expira em **19/09/2026 às 14:53:06 UTC (11:53:06 de Brasília)**. Nenhuma role, assinatura, crédito ou outro dado da conta foi alterado manualmente.
+
+A causa do 500 foi reproduzida em teste HTTP isolado: `PATCH /api/v1/users/{user_id}` avaliava `current_user.role.value`, mas o ORM carrega a coluna `String` como `str`, provocando `AttributeError: 'str' object has no attribute 'value'` antes de `repository.update()`. A reprodução também falhou para administrador persistido; autenticação bem-sucedida não significava autorização administrativa.
+
+O PATCH autentica com `get_current_user` e verifica `has_permission(current_user.role, Permission.USERS_MANAGE)`, compatível com a role persistida como string. Sem autenticação válida retorna 401. Usuário comum pode editar somente o próprio nome/e-mail; tentativa de editar terceiros (inclusive UUID inexistente) ou enviar campos fora dessa lista retorna 403 genérico antes de consultar o alvo, atualizar ou realizar commit. `is_active` e `role` são recusados mesmo quando enviados como `null` ou combinados com nome/e-mail. Administrador ativo com `users:manage` pode atualizar nome, e-mail, role e is_active de qualquer usuário, inclusive de si próprio. Alvo inexistente para administrador mantém 404; e-mail já utilizado mantém 409.
+
+A correção adicional de 21/09/2026 substitui o bloqueio integral da primeira correção e preserva o salvamento da tela Minha conta, que utiliza esse PATCH. O schema conserva chaves extras para permitir a recusa explícita com 403; a rota usa listas explícitas de campos permitidos e restringe também o model_dump, evitando mass assignment. Campos desconhecidos, inclusive hash de senha e identificadores, não são encaminhados ao repository, mesmo por administrador. A resposta continua limitada a UserRead, sem senha, hash, tokens ou traceback. O endpoint separado de troca de senha foi preservado. Não houve migration.
+
+As regressões usam exclusivamente SQLite em memória. Cobrem autenticação ausente/inválida, edição própria persistida, bloqueio de terceiros e campos administrativos/extras sem update/commit, estado preservado, conflito de e-mail, UUID inexistente, atualização administrativa própria e de terceiros e bloqueio de autenticação de administrador inativo. Administradores são provisionados pelo serviço oficial apenas nas fixtures isoladas. Nenhuma alteração foi realizada na conta operacional de smoke e nenhuma chamada à OpenAI foi executada nesta correção.
+
+Validação final da correção adicional: **50 testes relacionados aprovados** (autorização e autenticação), **507 testes da suíte backend completa aprovados**, Ruff e `git diff --check` aprovados. A ampliação da fixture administrativa inicialmente assumia incorretamente que o login retornava o objeto user; a fixture foi corrigida para consultar `/users/me`, e ambas as rodadas finais passaram. Permanece somente o aviso preexistente de depreciação Starlette/TestClient sobre `httpx`. A validação manual da tela Minha conta foi aprovada no reteste abaixo. Nenhum `git add`, commit ou push executado. **AUTORIZAÇÃO CORRIGIDA SEM BLOQUEAR MINHA CONTA.**
+
+### Reteste manual de Minha conta aprovado — 21/09/2026
+
+O usuário confirmou que a conta comum alterou o próprio nome para “Ricardo do carmo TESTE”, salvou sem erro 403, confirmou a alteração e restaurou o nome para “Ricardo do carmo”, mantendo o e-mail inalterado. A aprovação manual cobre a edição do nome; não atribui execução manual à alteração de e-mail.
+
+A conferência posterior no banco configurado do backend, em transação somente de leitura, confirmou que a conta `35811e14-7ad9-4d2b-851e-f168580c9f9e` permanece ativa, com role `user` e nome final **Ricardo do carmo**. A alteração temporária e a manutenção do e-mail são evidências relatadas pelo usuário; o nome final restaurado foi verificado diretamente no banco. Nenhum dado foi alterado nesta conferência. Somente este relatório foi atualizado; nenhum `git add`, commit ou push foi executado.
+
+**MINHA CONTA APROVADA E NOME ORIGINAL RESTAURADO.**
 
 ### Adendo visual
 

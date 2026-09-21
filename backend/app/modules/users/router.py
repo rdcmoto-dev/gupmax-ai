@@ -7,7 +7,7 @@ from app.modules.auth.service import AuthService
 from app.modules.users.dependencies import DbSession, get_current_user, require_permission
 from app.modules.users.model import User
 from app.modules.users.repository import UserRepository
-from app.modules.users.roles import Permission
+from app.modules.users.roles import Permission, has_permission
 from app.modules.users.schemas import AdminUserCreate, PasswordChange, UserPage, UserRead, UserUpdate
 
 router = APIRouter()
@@ -70,17 +70,15 @@ async def update_user(
     session: DbSession,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
+    can_manage = has_permission(current_user.role, Permission.USERS_MANAGE)
+    allowed_fields = {"full_name", "email", "is_active", "role"} if can_manage else {"full_name", "email"}
+    if (not can_manage and user_id != current_user.id) or data.model_fields_set - allowed_fields:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     repository = UserRepository(session)
     user = await repository.get_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    is_admin = current_user.role.value == "admin"
-    if user.id != current_user.id and not is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-    values = data.model_dump(exclude_unset=True)
-    if not is_admin:
-        values.pop("is_active", None)
-        values.pop("role", None)
+    values = data.model_dump(exclude_unset=True, include=allowed_fields)
     if "email" in values and await repository.get_by_email(str(values["email"])) not in (None, user):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists")
     return await repository.update(user, **values)
