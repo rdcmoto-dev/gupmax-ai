@@ -315,7 +315,21 @@ A rota existente `/prompts/:id` ganhou a ação “Refinar prompt”, campo de i
 
 O refinamento não autoriza mudanças em ownership, billing, wallet ou instruções internas. API keys, tokens, system prompts e secrets não são expostos. Testes com gateways falsos cobrem refino determinístico e IA, Basic/Pro/Expert, linhagem, preservação da versão anterior, alteração explícita de tom, validação, IDOR, idempotência, usage, reserva, settlement, release, metadata do ledger, falha do provider e ausência de duplicação. Nenhuma chamada OpenAI real é feita.
 
-O mapeamento determinístico é deliberadamente conservador: reconhece alterações simples de tom, idioma e concisão; instruções mais livres são preservadas como orientação de refinamento, sem tentar simular compreensão semântica ampla. A comparação é textual e não implementa diff avançado ou editor rico. O smoke test manual da Etapa 9.5 permanece pendente.
+O mapeamento determinístico é deliberadamente conservador: reconhece alterações simples de tom, idioma e concisão; instruções mais livres são preservadas como orientação de refinamento, sem tentar simular compreensão semântica ampla. A comparação é textual e não implementa diff avançado ou editor rico. O smoke manual determinístico Basic/Marketing da Etapa 9.5 foi aprovado e auditado conforme abaixo; IA real e os demais modos não foram validados manualmente neste reteste.
+
+### Reteste manual 9.5 e auditoria final — 21/09/2026
+
+O usuário aprovou o refinamento com IA desligada: exatamente Versão 1 e Versão 2, original preservado, instrução “Deixe mais persuasivo e mantenha curto.” na v2, seleção por “Usar esta”, comparação lado a lado e persistência das duas versões após F5 e consulta ao histórico. Essas verificações visuais são evidências fornecidas pelo usuário; comparação mobile não foi declarada como testada.
+
+A auditoria posterior, em transações somente de leitura no banco do backend, identificou a família efetivamente usada pela conta `35811e14-7ad9-4d2b-851e-f168580c9f9e`: v1 `ebf97fe4-c06a-44a4-829a-ed5c497b909c` e v2 `bebf8b6b-dd39-4109-b1a5-0e39dc8cc0ee`. Existem exatamente dois registros nessa família. A v2 aponta para a v1 tanto em `parent_prompt_id` quanto em `root_prompt_id`, mantém o mesmo proprietário, título, entrada original, modo Basic, categoria Marketing, idioma pt-BR, projeto e target_ai, e registra a instrução informada e tom persuasivo.
+
+O prompt sugerido inicialmente no roteiro (`7c9fd5ae-4920-495e-bef5-54ab3044807a`) não foi encontrado na leitura final; esta aprovação se refere exclusivamente à família efetivamente localizada acima. A v1 tem `updated_at` às 15:23:41 UTC, anterior à criação da v2 às 15:26:51 UTC. A aplicação local da função determinística pura ao conteúdo atual da v1 reproduziu exatamente o texto persistido da v2, corroborando a preservação durante o refinamento. Não havia snapshot integral pré-teste para comparação byte a byte da v1; a conclusão combina esses dados com a confirmação visual do usuário, sem afirmar ausência de edições anteriores ao refino.
+
+Ambas as versões estão em status `generated`, sem provider, modelo ou tokens. Para essa conta não há Usage, reserva ou lançamento de ledger criado em 21/09/2026: os três Usage e nove reservas existentes são de agosto; os três débitos históricos `ai_usage` somam -7 e o último é de 18/08/2026. O último lançamento financeiro é a expiração de créditos de 24/08/2026. Portanto não houve novo consumo persistido no reteste. O texto da v2 corresponde exatamente ao caminho determinístico, que retorna antes de chamar o AI Gateway; não há evidência de chamada à IA nesse refinamento. Não foi consultado log externo do provedor.
+
+Somente este relatório foi alterado na auditoria. Nenhum dado operacional foi modificado, nenhuma migration ou chamada à OpenAI foi executada, e nenhum `git add`, commit ou push foi realizado. `git diff --check` aprovado.
+
+**RETESTE MANUAL 9.5 APROVADO E AUDITADO.**
 
 ## Etapa 9.6 — GUPMAX Score
 
