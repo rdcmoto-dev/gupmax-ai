@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import BeforeValidator, Field, PostgresDsn, SecretStr
+from pydantic import BeforeValidator, Field, PostgresDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 LOCAL_CORS_ORIGIN_REGEX = r"^http://(?:localhost|127\.0\.0\.1):[0-9]+$"
@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     app_name: str = "GUPMAX AI"
     app_version: str = "0.1.0"
     environment: str = "development"
+    pilot_mode: bool = Field(default=False, validation_alias="PILOT_MODE")
     debug: bool = Field(default=False, validation_alias="GUPMAX_DEBUG")
     api_v1_prefix: str = "/api/v1"
     docs_enabled: bool = True
@@ -43,6 +44,19 @@ class Settings(BaseSettings):
     mercado_pago_access_token: SecretStr | None = None
     mercado_pago_webhook_secret: SecretStr | None = None
     cors_origins: Annotated[list[str], NoDecode, BeforeValidator(_parse_origins)] = ["http://localhost:3000"]
+
+    @model_validator(mode="after")
+    def validate_pilot_mode(self) -> Settings:
+        if self.pilot_mode and (
+            self.openai_api_key is not None
+            or self.stripe_secret_key is not None
+            or self.stripe_webhook_secret is not None
+            or self.mercado_pago_access_token is not None
+            or self.mercado_pago_webhook_secret is not None
+            or self.payments_environment.lower() == "production"
+        ):
+            raise ValueError("PILOT_MODE cannot be combined with paid external service credentials")
+        return self
 
     @property
     def cors_origin_regex(self) -> str | None:

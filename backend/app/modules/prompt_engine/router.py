@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, status
 
+from app.core.features import require_ai_features_enabled
 from app.modules.ai_gateway.dependencies import AIGateway
 from app.modules.billing.dependencies import Billing
 from app.modules.credits.dependencies import Credits
@@ -46,6 +47,8 @@ async def generate_prompt(
     credits: Credits,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=8, max_length=200)] = None,
 ) -> PromptGenerateResponse:
+    if data.optimize_with_ai:
+        require_ai_features_enabled()
     return await PromptService(session, gateway, billing, credits).generate(
         current_user, data, idempotency_key=idempotency_key
     )
@@ -120,6 +123,8 @@ async def refine_prompt(
     credits: Credits,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", min_length=8, max_length=200)] = None,
 ) -> PromptGenerateResponse:
+    if data.optimize_with_ai:
+        require_ai_features_enabled()
     return await PromptService(session, gateway, billing, credits).refine(
         prompt_id, current_user, data, idempotency_key=idempotency_key
     )

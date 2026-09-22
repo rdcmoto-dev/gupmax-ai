@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 
+from app.core.features import require_external_features_enabled
 from app.modules.payments.dependencies import ProviderRegistry
 from app.modules.payments.enums import PaymentProviderName, PaymentPurpose, PaymentStatus
 from app.modules.payments.schemas import (
@@ -38,6 +39,7 @@ async def credit_checkout(
     registry: ProviderRegistry,
     current_user: CurrentUser,
 ) -> CheckoutResponse:
+    require_external_features_enabled()
     payment = await PaymentService(session, registry).credit_checkout(current_user, data.package_id, data.provider, key)
     return CheckoutResponse(
         payment_id=payment.id,
@@ -60,6 +62,7 @@ async def subscription_checkout(
     registry: ProviderRegistry,
     current_user: CurrentUser,
 ) -> CheckoutResponse:
+    require_external_features_enabled()
     payment = await PaymentService(session, registry).subscription_checkout(
         current_user, data.plan_id, data.provider, key
     )
@@ -82,6 +85,7 @@ async def reconcile_mercado_pago(
     registry: ProviderRegistry,
     _: PaymentsAdmin,
 ) -> PaymentRead:
+    require_external_features_enabled()
     return await PaymentService(session, registry).reconcile_mercado_pago(payment_id)
 
 
@@ -89,6 +93,7 @@ async def reconcile_mercado_pago(
 async def cancel_subscription(
     session: DbSession, registry: ProviderRegistry, current_user: CurrentUser
 ) -> CancelSubscriptionResponse:
+    require_external_features_enabled()
     await PaymentService(session, registry).cancel_subscription(current_user)
     return CancelSubscriptionResponse(cancel_at_period_end=True)
 
@@ -144,6 +149,7 @@ async def _webhook(
     summary="Recebe eventos server-to-server assinados da Stripe",
 )
 async def stripe_webhook(request: Request, session: DbSession, registry: ProviderRegistry) -> None:
+    require_external_features_enabled()
     await _webhook(PaymentProviderName.STRIPE, request, session, registry)
 
 
@@ -153,4 +159,5 @@ async def stripe_webhook(request: Request, session: DbSession, registry: Provide
     summary="Recebe notificações server-to-server autenticadas do Mercado Pago",
 )
 async def mercado_pago_webhook(request: Request, session: DbSession, registry: ProviderRegistry) -> None:
+    require_external_features_enabled()
     await _webhook(PaymentProviderName.MERCADO_PAGO, request, session, registry)

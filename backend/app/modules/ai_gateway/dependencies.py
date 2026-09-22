@@ -11,6 +11,8 @@ from app.modules.ai_gateway.service import AIGatewayService
 @lru_cache
 def get_ai_gateway_service() -> AIGatewayService:
     settings = get_settings()
+    if settings.pilot_mode:
+        return AIGatewayService({})
     api_key = settings.openai_api_key.get_secret_value() if settings.openai_api_key is not None else None
     provider = OpenAIProvider(
         api_key=api_key,

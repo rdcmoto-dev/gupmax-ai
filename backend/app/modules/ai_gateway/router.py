@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app.core.ai_exceptions import AIGatewayError
+from app.core.features import require_ai_features_enabled
 from app.modules.ai_gateway.dependencies import AIGateway
 from app.modules.ai_gateway.schemas import GenerateTextRequest, GenerateTextResponse, ProviderListResponse
 from app.modules.ai_gateway.service import AIGatewayService
@@ -35,6 +36,7 @@ async def generate_text(
     credits: Credits,
     current_user: CurrentUser,
 ) -> GenerateTextResponse:
+    require_ai_features_enabled()
     reservation = await billing.reserve_ai_generation(current_user.id, data.provider)
     try:
         credit_reservation = await credits.reserve(
@@ -130,6 +132,7 @@ async def stream_text(
     credits: Credits,
     current_user: CurrentUser,
 ) -> StreamingResponse:
+    require_ai_features_enabled()
     reservation = await billing.reserve_ai_generation(current_user.id, data.provider)
     try:
         credit_reservation = await credits.reserve(
