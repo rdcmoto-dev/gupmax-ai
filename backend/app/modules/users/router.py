@@ -58,7 +58,7 @@ async def get_user(
     user = await UserRepository(session).get_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if user.id != current_user.id and not current_user.role.value == "admin":
+    if user.id != current_user.id and not has_permission(current_user.role, Permission.USERS_READ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     return user
 

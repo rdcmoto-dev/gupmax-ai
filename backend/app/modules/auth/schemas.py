@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
+
+from pydantic import BaseModel, EmailStr, Field, SecretStr
 
 from app.modules.users.schemas import UserCreate, UserRead
 
@@ -24,6 +26,19 @@ class TokenPair(BaseModel):
 
 class RegistrationResponse(TokenPair):
     user: UserRead
+
+
+class InvitedUserCreate(UserCreate):
+    invitation_token: SecretStr | None = None
+
+
+class InvitationRequest(BaseModel):
+    email: EmailStr
+
+
+class InvitationResponse(BaseModel):
+    invitation_token: str
+    expires_at: datetime
 
 
 __all__ = ["LoginRequest", "RefreshRequest", "RegistrationResponse", "TokenPair", "UserCreate"]

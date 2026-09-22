@@ -1,16 +1,28 @@
-from fastapi import APIRouter, status
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, Response, status
+
+from app.modules.auth.registration import (
+    InvitationClaims,
+    issue_invitation,
+    register_invited,
+    require_registration_access,
+)
 from app.modules.auth.schemas import (
+    InvitationRequest,
+    InvitationResponse,
+    InvitedUserCreate,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
     RegistrationResponse,
     TokenPair,
-    UserCreate,
 )
 from app.modules.auth.service import AuthService
-from app.modules.users.dependencies import DbSession
-from app.modules.users.schemas import PasswordResetConfirm, PasswordResetRequest
+from app.modules.users.dependencies import DbSession, require_permission
+from app.modules.users.model import User
+from app.modules.users.roles import Permission
+from app.modules.users.schemas import PasswordResetConfirm, PasswordResetRequest, UserCreate
 
 router = APIRouter()
 
@@ -21,11 +33,26 @@ router = APIRouter()
     status_code=status.HTTP_201_CREATED,
     summary="Cria uma conta de usuário",
 )
-async def register(data: UserCreate, session: DbSession) -> RegistrationResponse:
-    service = AuthService(session)
-    user = await service.register(data)
-    tokens = await service.issue_tokens(user)
-    return RegistrationResponse(**tokens.model_dump(), user=user)
+async def register(
+    data: InvitedUserCreate,
+    session: DbSession,
+    invitation: Annotated[InvitationClaims, Depends(require_registration_access)],
+    response: Response,
+) -> RegistrationResponse:
+    response.headers["Cache-Control"] = "no-store"
+    user_data = UserCreate(email=data.email, full_name=data.full_name, password=data.password)
+    return await register_invited(session, user_data, invitation)
+
+
+@router.post("/invitations", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
+async def create_invitation(
+    data: InvitationRequest,
+    session: DbSession,
+    issuer: Annotated[User, Depends(require_permission(Permission.USERS_MANAGE))],
+    response: Response,
+) -> InvitationResponse:
+    response.headers["Cache-Control"] = "no-store"
+    return await issue_invitation(session, issuer, str(data.email))
 
 
 @router.post("/login", response_model=TokenPair, summary="Autentica e emite tokens JWT")

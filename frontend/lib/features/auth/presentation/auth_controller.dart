@@ -51,12 +51,14 @@ class AuthController extends ChangeNotifier {
     required String email,
     required String fullName,
     required String password,
+    required String invitationToken,
   }) =>
       _submit(
         () => _repository.register(
           email: email.trim(),
           fullName: fullName.trim(),
           password: password,
+          invitationToken: invitationToken.trim(),
         ),
       );
 

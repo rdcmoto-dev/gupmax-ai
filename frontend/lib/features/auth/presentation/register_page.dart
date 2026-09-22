@@ -18,6 +18,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _invitationController = TextEditingController();
   bool _showPassword = false;
 
   @override
@@ -25,6 +26,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _invitationController.dispose();
     super.dispose();
   }
 
@@ -35,6 +37,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           email: _emailController.text,
           fullName: _nameController.text,
           password: _passwordController.text,
+          invitationToken: _invitationController.text,
         );
   }
 
@@ -43,7 +46,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final auth = ref.watch(authControllerProvider);
     return AuthScaffold(
       title: 'Crie sua conta',
-      subtitle: 'Comece a usar o GUPMAX AI.',
+      subtitle: 'Acesso ao piloto somente por convite. Use o e-mail convidado.',
       child: Form(
         key: _formKey,
         child: Column(
@@ -88,6 +91,24 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               ),
               validator: (value) =>
                   AuthValidators.password(value, registration: true),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              key: const Key('register_invitation'),
+              controller: _invitationController,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              enableIMEPersonalizedLearning: false,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                labelText: 'Convite',
+                helperText: 'Cole o convite recebido do administrador.',
+                prefixIcon: Icon(Icons.mail_lock_outlined),
+              ),
+              validator: (value) => (value?.trim().isEmpty ?? true)
+                  ? 'Informe o convite recebido do administrador.'
+                  : null,
             ),
             if (auth.errorMessage != null) ...[
               const SizedBox(height: 16),

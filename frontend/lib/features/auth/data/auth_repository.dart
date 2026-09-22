@@ -12,6 +12,7 @@ abstract interface class AuthRepositoryContract {
     required String email,
     required String fullName,
     required String password,
+    required String invitationToken,
   });
   Future<AuthUser> restoreSession();
   Future<AuthUser> getCurrentUser();
@@ -48,17 +49,32 @@ class AuthRepository implements AuthRepositoryContract {
     required String email,
     required String fullName,
     required String password,
+    required String invitationToken,
   }) async {
+    if (invitationToken.trim().isEmpty) {
+      throw const AppException('Informe o convite recebido do administrador.');
+    }
     try {
       final response = await _client.dio.post<Map<String, dynamic>>(
         '/auth/register',
-        data: {'email': email, 'full_name': fullName, 'password': password},
+        data: {
+          'email': email,
+          'full_name': fullName,
+          'password': password,
+          'invitation_token': invitationToken.trim(),
+        },
         options: Options(extra: {AuthInterceptor.skipAuthKey: true}),
       );
       final result = RegistrationResult.fromJson(response.data!);
       await _client.refreshCoordinator.apply(result.tokens);
       return result.user;
     } catch (error) {
+      if (error is DioException && error.response?.statusCode == 403) {
+        throw const AppException(
+          'Convite inválido, vencido ou já utilizado. Confira o e-mail convidado ou solicite um novo convite ao administrador.',
+          statusCode: 403,
+        );
+      }
       _client.mapError(error);
     }
   }

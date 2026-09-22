@@ -18,6 +18,40 @@ def register(client, email):
     return response.json()
 
 
+@pytest.mark.parametrize('identity,expected', [
+    ('anonymous', 401), ('invalid_token', 401), ('self', 200),
+    ('other', 403), ('admin', 200), ('missing', 404),
+])
+def test_get_user_authorization(client, session_factory, identity, expected):
+    caller = register(client, 'get-caller@example.com')
+    target = register(client, 'get-target@example.com')
+    token = caller['access_token']
+    if identity == 'admin':
+        async def create_admin():
+            async with session_factory() as session:
+                await AuthService(session).register(AdminUserCreate(
+                    email='get-admin@example.com', full_name='Get Administrator',
+                    password='SecurePassword123!', role='admin',
+                ))
+        client.portal.call(create_admin)
+        token = client.post('/api/v1/auth/login', json={
+            'email': 'get-admin@example.com', 'password': 'SecurePassword123!',
+        }).json()['access_token']
+    if identity == 'invalid_token':
+        token = 'invalid'
+    headers = {} if identity == 'anonymous' else {'Authorization': f'Bearer {token}'}
+    target_id = caller['user']['id'] if identity == 'self' else target['user']['id']
+    if identity == 'missing':
+        target_id = str(uuid4())
+    response = client.get(f'/api/v1/users/{target_id}', headers=headers)
+    assert response.status_code == expected
+    if expected == 200:
+        assert set(response.json()) == {'id', 'email', 'full_name', 'is_active', 'role', 'created_at'}
+    assert 'hashed_password' not in response.text
+    assert 'Traceback' not in response.text
+    assert token not in response.text
+
+
 @pytest.mark.parametrize('identity', ['anonymous', 'invalid_token', 'self', 'other', 'missing'])
 @pytest.mark.parametrize('payload', [
     {'is_active': False}, {'is_active': None}, {'role': 'admin'}, {'role': None},
@@ -165,6 +199,9 @@ def test_admin_patch_persists_and_inactive_account_cannot_authenticate(client, s
     }).status_code == 403
     assert client.post('/api/v1/auth/refresh', json={'refresh_token': target['refresh_token']}).status_code == 403
     assert client.get('/api/v1/users/me', headers={
+        'Authorization': f"Bearer {target['access_token']}",
+    }).status_code == 401
+    assert client.get(f'/api/v1/users/{admin_id}', headers={
         'Authorization': f"Bearer {target['access_token']}",
     }).status_code == 401
     assert client.patch(f'/api/v1/users/{admin_id}', headers={

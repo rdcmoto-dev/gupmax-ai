@@ -7,6 +7,7 @@ class FakeAuthRepository implements AuthRepositoryContract {
   AppException? error;
   int loginCalls = 0;
   int registerCalls = 0;
+  String? registeredInvitation;
   int restoreCalls = 0;
   int meCalls = 0;
   int logoutCalls = 0;
@@ -47,8 +48,10 @@ class FakeAuthRepository implements AuthRepositoryContract {
   Future<AuthUser> register(
       {required String email,
       required String fullName,
-      required String password}) async {
+      required String password,
+      required String invitationToken}) async {
     registerCalls++;
+    registeredInvitation = invitationToken;
     return _result();
   }
 
